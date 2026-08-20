@@ -52,10 +52,12 @@ async def enqueue_job(
         payload: arbitrary dict passed to the handler.
         run_after_seconds: delay before the job becomes eligible to run.
     """
-    from datetime import timedelta
-    from sqlalchemy import text
+    from datetime import datetime, timedelta, timezone
 
-    run_after_expr = func.now() + text(f"interval '{run_after_seconds} seconds'") if run_after_seconds else func.now()
+    if run_after_seconds:
+        run_after_expr = datetime.now(timezone.utc) + timedelta(seconds=run_after_seconds)
+    else:
+        run_after_expr = func.now()
 
     job = Job(
         job_type=job_type,

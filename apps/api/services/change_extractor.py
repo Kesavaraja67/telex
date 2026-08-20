@@ -40,36 +40,35 @@ async def extract_breaking_changes(
     """
     from services.patch_providers import get_patch_provider
 
-    # Reuse the Gemini client from the provider (it's configured there)
-    try:
-        import google.generativeai as genai
-        from config import settings
+    from google import genai  # type: ignore[import]
+    from config import settings
 
-        genai.configure(api_key=settings.gemini_api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash")
+    client = genai.Client(api_key=settings.gemini_api_key)
 
-        prompt = EXTRACT_PROMPT.format(
-            package_name=package_name,
-            old_version=old_version,
-            new_version=new_version,
-            changelog=changelog[:8000],  # guard against huge changelogs
-        )
+    prompt = EXTRACT_PROMPT.format(
+        package_name=package_name,
+        old_version=old_version,
+        new_version=new_version,
+        changelog=changelog[:8000],  # guard against huge changelogs
+    )
 
-        response = await model.generate_content_async(prompt)
-        raw = response.text.strip()
+    # Transport and parse errors propagate — let the worker retry.
+    response = await client.aio.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt,
+    )
+    raw = response.text
+    if raw is None:
+        raise ValueError("extract_breaking_changes: model returned no text (content may have been blocked)")
+    raw = raw.strip()
 
-        # Strip markdown fences if present
-        fenced = re.search(r"```(?:json)?\s*\n(.*?)```", raw, re.DOTALL)
-        if fenced:
-            raw = fenced.group(1).strip()
+    # Strip markdown fences if present
+    fenced = re.search(r"```(?:json)?\s*\n(.*?)```", raw, re.DOTALL)
+    if fenced:
+        raw = fenced.group(1).strip()
 
-        changes = json.loads(raw)
-        if not isinstance(changes, list):
-            logger.warning("extract_breaking_changes: expected list, got %s", type(changes))
-            return []
+    changes = json.loads(raw)
+    if not isinstance(changes, list):
+        raise ValueError(f"extract_breaking_changes: expected list, got {type(changes)}")
 
-        return changes
-
-    except Exception as exc:
-        logger.error("extract_breaking_changes failed: %s", exc)
-        return []
+    return changes

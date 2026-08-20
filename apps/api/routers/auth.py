@@ -1,10 +1,14 @@
 """
 GitHub OAuth callback — creates/updates users row and manages authentication sessions.
 """
+import secrets
 from typing import Optional
-from fastapi import APIRouter, Request, HTTPException, Response
+from urllib.parse import urlencode
+
+from fastapi import APIRouter, Request, HTTPException, Query
 from fastapi.responses import RedirectResponse
 import httpx
+
 from db.session import AsyncSessionLocal
 from db.models import User
 from config import settings
@@ -15,19 +19,32 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
 GITHUB_USER_URL = "https://api.github.com/user"
 
+# Shared client timeout for all GitHub HTTP requests
+_GITHUB_TIMEOUT = httpx.Timeout(10.0)
+
 
 @router.get("/github")
-async def github_login(next: Optional[str] = None):
+async def github_login(next_url: Optional[str] = Query(None, alias="next")):
     """Redirect the user to GitHub OAuth with optional post-login redirect state."""
-    scope = "read:user,user:email"
-    state = next or ""
-    url = (
-        f"https://github.com/login/oauth/authorize"
-        f"?client_id={settings.github_oauth_client_id}"
-        f"&scope={scope}"
-        f"&state={state}"
+    # Generate a CSRF nonce; store in cookie and embed in state
+    nonce = secrets.token_urlsafe(24)
+    query = urlencode(
+        {
+            "client_id": settings.github_oauth_client_id,
+            "scope": "read:user,user:email",
+            "state": f"{nonce}:{next_url or ''}",
+        }
     )
-    return RedirectResponse(url)
+    response = RedirectResponse(f"https://github.com/login/oauth/authorize?{query}")
+    response.set_cookie(
+        "telex_oauth_state",
+        nonce,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=600,  # 10-minute window for the OAuth flow
+    )
+    return response
 
 
 @router.get("/github/callback")
@@ -36,7 +53,16 @@ async def github_callback(code: str, request: Request, state: Optional[str] = No
     Exchange OAuth code for token, upsert user in database,
     set session cookie, and redirect to destination.
     """
-    async with httpx.AsyncClient() as client:
+    # ── CSRF validation ─────────────────────────────────────────────────────
+    stored_nonce = request.cookies.get("telex_oauth_state", "")
+    nonce_from_state = state.split(":", 1)[0] if state else ""
+    next_url = state.split(":", 1)[1] if state and ":" in state else ""
+
+    if not stored_nonce or not secrets.compare_digest(stored_nonce, nonce_from_state):
+        raise HTTPException(status_code=400, detail="Invalid OAuth state — possible CSRF attack")
+
+    # ── Exchange code for access token ───────────────────────────────────────
+    async with httpx.AsyncClient(timeout=_GITHUB_TIMEOUT) as client:
         token_resp = await client.post(
             GITHUB_TOKEN_URL,
             headers={"Accept": "application/json"},
@@ -46,16 +72,29 @@ async def github_callback(code: str, request: Request, state: Optional[str] = No
                 "code": code,
             },
         )
-        token_data = token_resp.json()
-        access_token = token_data.get("access_token")
+
+    if token_resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="GitHub OAuth token exchange failed")
+
+    token_data = token_resp.json()
+    access_token = token_data.get("access_token")
 
     if not access_token:
         raise HTTPException(status_code=400, detail="GitHub OAuth token exchange failed")
 
-    # Fetch user profile from GitHub
-    async with httpx.AsyncClient(headers={"Authorization": f"Bearer {access_token}"}) as client:
+    # ── Fetch user profile from GitHub ───────────────────────────────────────
+    async with httpx.AsyncClient(
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=_GITHUB_TIMEOUT,
+    ) as client:
         user_resp = await client.get(GITHUB_USER_URL)
-        gh_user = user_resp.json()
+
+    if user_resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="GitHub profile fetch failed")
+
+    gh_user = user_resp.json()
+    if "id" not in gh_user or "login" not in gh_user:
+        raise HTTPException(status_code=502, detail="Unexpected GitHub profile payload")
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(
@@ -80,14 +119,16 @@ async def github_callback(code: str, request: Request, state: Optional[str] = No
 
     # Determine redirect destination
     web_base = settings.next_public_api_url.replace(":8000", ":3000")
-    if state == "install":
+    if next_url == "install":
         redirect_url = "https://github.com/apps/telex-agent-dev/installations/new"
-    elif state and state.startswith("http"):
-        redirect_url = state
+    elif next_url and next_url.startswith("http"):
+        redirect_url = next_url
     else:
         redirect_url = f"{web_base}/dashboard?login={user.github_login}"
 
     response = RedirectResponse(url=redirect_url)
+    # Clear the CSRF nonce — single-use
+    response.delete_cookie("telex_oauth_state")
     # Set readable cookie for client & backend verification
     response.set_cookie(
         key="telex_user",

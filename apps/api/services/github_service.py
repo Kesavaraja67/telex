@@ -5,6 +5,7 @@ Handles:
   - Installation-scoped API clients via GitHub App JWT
   - Branch creation, file commits, and PR opening
 """
+import asyncio
 import logging
 from typing import Optional
 
@@ -50,37 +51,41 @@ async def open_patch_pr(
     Returns:
         (pr_html_url, pr_number)
     """
-    gh = get_installation_client(installation_id)
-    repo = gh.get_repo(repo_full_name)
-    base_branch = repo.get_branch(repo.default_branch)
-
-    # Create the patch branch from the current HEAD of default branch
-    repo.create_git_ref(
-        ref=f"refs/heads/{branch_name}",
-        sha=base_branch.commit.sha,
-    )
-
-    for patch in patches:
-        content_file = repo.get_contents(patch["file_path"], ref=branch_name)
-        repo.update_file(
-            patch["file_path"],
-            f"fix: update for {patch['package_name']}@{patch['new_version']}",
-            patch["new_content"],
-            content_file.sha,  # type: ignore[arg-type]
-            branch=branch_name,
-        )
-
     if not patches:
         raise ValueError("open_patch_pr called with empty patches list")
 
-    pr = repo.create_pull(
-        title=f"chore(deps): auto-patch for {patches[0]['package_name']}@{patches[0]['new_version']}",
-        body=summary,
-        head=branch_name,
-        base=repo.default_branch,
-    )
-    logger.info("Opened PR #%d on %s: %s", pr.number, repo_full_name, pr.html_url)
-    return pr.html_url, pr.number
+    # All PyGithub calls are synchronous blocking I/O; run them in a thread
+    def _do_github_work() -> tuple[str, int]:
+        gh = get_installation_client(installation_id)
+        repo = gh.get_repo(repo_full_name)
+        base_branch = repo.get_branch(repo.default_branch)
+
+        # Create the patch branch from the current HEAD of default branch
+        repo.create_git_ref(
+            ref=f"refs/heads/{branch_name}",
+            sha=base_branch.commit.sha,
+        )
+
+        for patch in patches:
+            content_file = repo.get_contents(patch["file_path"], ref=branch_name)
+            repo.update_file(
+                patch["file_path"],
+                f"fix: update for {patch['package_name']}@{patch['new_version']}",
+                patch["new_content"],
+                content_file.sha,  # type: ignore[arg-type]
+                branch=branch_name,
+            )
+
+        pr = repo.create_pull(
+            title=f"chore(deps): auto-patch for {patches[0]['package_name']}@{patches[0]['new_version']}",
+            body=summary,
+            head=branch_name,
+            base=repo.default_branch,
+        )
+        logger.info("Opened PR #%d on %s: %s", pr.number, repo_full_name, pr.html_url)
+        return pr.html_url, pr.number
+
+    return await asyncio.to_thread(_do_github_work)
 
 
 def verify_webhook_signature(payload: bytes, signature_header: Optional[str]) -> bool:

@@ -52,6 +52,9 @@ async def worker_loop(worker_id: str) -> None:
                 job.status = "done"
                 logger.info("Job %s completed", job.id)
             except Exception as exc:
+                # Rollback any aborted DB state before writing job status
+                await session.rollback()
+                job = await session.merge(job)
                 if job.attempts >= job.max_attempts:
                     job.status = "failed"
                     logger.error("Job %s permanently failed after %d attempts: %s", job.id, job.attempts, exc)
@@ -62,7 +65,11 @@ async def worker_loop(worker_id: str) -> None:
                     job.run_after = func.now() + timedelta(seconds=delay)  # type: ignore[assignment]
                     logger.warning("Job %s failed (attempt %d/%d), retrying in %ds: %s", job.id, job.attempts, job.max_attempts, delay, exc)
             finally:
-                await session.commit()
+                try:
+                    await session.commit()
+                except Exception:
+                    logger.exception("Job %s: could not persist final state", job.id)
+                    await session.rollback()
 
 
 if __name__ == "__main__":

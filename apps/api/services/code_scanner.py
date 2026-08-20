@@ -46,33 +46,53 @@ def find_usages(file_path: str, source: bytes, symbol_name: str) -> list[dict]:
 
     tree = parser.parse(source)
 
+    # Encode the symbol name once for byte-level comparison
+    symbol_bytes = symbol_name.encode("utf-8")
+
     # ── Query 1: plain identifier call — createCompletion(...) ──────────────
-    identifier_query_src = f"""
+    # NOTE: We do NOT interpolate symbol_name into the query string.
+    # py-tree-sitter does not evaluate #eq? predicates at capture time;
+    # we filter by node.text in Python instead.
+    identifier_query_src = """
         (call_expression
-          function: (identifier) @fn (#eq? @fn "{symbol_name}")) @call
+          function: (identifier) @fn) @call
     """
 
     # ── Query 2: member-expression call — obj.createCompletion(...) ─────────
-    member_query_src = f"""
+    member_query_src = """
         (call_expression
           function: (member_expression
-            property: (property_identifier) @prop (#eq? @prop "{symbol_name}"))) @call
+            property: (property_identifier) @prop)) @call
     """
 
     usages: list[dict] = []
 
-    for query_src in (identifier_query_src, member_query_src):
+    for query_src, filter_capture in (
+        (identifier_query_src, "fn"),
+        (member_query_src, "prop"),
+    ):
         try:
             query = language.query(query_src)
             captures = query.captures(tree.root_node)
-            for node, capture_name in captures:
-                if capture_name == "call":
+            # captures() returns list of (node, capture_name) tuples
+            # Build a map so we can look up @call nodes alongside @fn/@prop nodes
+            capture_map: dict[str, list] = {}
+            for node, cap_name in captures:
+                capture_map.setdefault(cap_name, []).append(node)
+
+            filter_nodes = capture_map.get(filter_capture, [])
+            call_nodes = capture_map.get("call", [])
+
+            # Match: for each @call node, check whether the corresponding filter
+            # node text equals symbol_name.  We pair them by position.
+            for fn_node, call_node in zip(filter_nodes, call_nodes):
+                if fn_node.text == symbol_bytes:
                     usages.append(
                         {
                             "file_path": file_path,
-                            "line_start": node.start_point[0] + 1,
-                            "line_end": node.end_point[0] + 1,
-                            "snippet": source[node.start_byte : node.end_byte].decode(
+                            "line_start": call_node.start_point[0] + 1,
+                            "line_end": call_node.end_point[0] + 1,
+                            "snippet": source[call_node.start_byte : call_node.end_byte].decode(
                                 "utf-8", errors="replace"
                             ),
                         }

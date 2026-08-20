@@ -324,6 +324,17 @@ export default function TelexBot3D({
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
       }
+      // Dispose all GPU resources to prevent memory leaks on navigation
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          obj.geometry.dispose();
+          const materials = Array.isArray(obj.material)
+            ? obj.material
+            : [obj.material];
+          materials.forEach((m) => m.dispose());
+        }
+      });
+      screenTexture.dispose();
       renderer.dispose();
     };
   }, []);

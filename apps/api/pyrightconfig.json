@@ -6,6 +6,7 @@
   "typeCheckingMode": "basic",
   "reportMissingModuleSource": "none",
   "reportMissingImports": "warning",
+  "reportMissingTypeStubs": "none",
   "exclude": [
     "venv",
     "**/__pycache__",

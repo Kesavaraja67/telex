@@ -1,7 +1,8 @@
 import re
 import logging
 
-import google.generativeai as genai
+from google import genai  # type: ignore[import]
+from google.genai import types as genai_types  # type: ignore[import]
 
 from .base import PatchProvider
 from .prompts import PATCH_PROMPT_TEMPLATE
@@ -34,11 +35,10 @@ def extract_diff(text: str) -> str:
 
 
 class GeminiProvider(PatchProvider):
-    """Patch provider backed by Google Gemini."""
+    """Patch provider backed by Google Gemini (google-genai SDK)."""
 
     def __init__(self, api_key: str, model: str = "gemini-2.0-flash"):
-        genai.configure(api_key=api_key)
-        self.client = genai.GenerativeModel(model)
+        self.client = genai.Client(api_key=api_key)
         self.model_name = model
 
     async def generate_patch(
@@ -54,9 +54,14 @@ class GeminiProvider(PatchProvider):
             code_snippet=code_snippet,
             context=context,
         )
-        try:
-            response = await self.client.generate_content_async(prompt)
-            return extract_diff(response.text)
-        except Exception as exc:
-            logger.error("GeminiProvider.generate_patch failed: %s", exc)
+        # Transient errors (network, quota, server) propagate so the worker
+        # retries the job.  Only intentional no-patch output becomes UNABLE_TO_PATCH.
+        response = await self.client.aio.models.generate_content(
+            model=self.model_name,
+            contents=prompt,
+        )
+        # response.text is None when content is blocked by safety filters
+        if response.text is None:
+            logger.warning("GeminiProvider: response.text is None (content blocked or empty)")
             return "UNABLE_TO_PATCH"
+        return extract_diff(response.text)

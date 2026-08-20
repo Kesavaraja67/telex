@@ -9,24 +9,22 @@ interface DiffViewerProps {
   animated?: boolean;
 }
 
+// Disable character animation for large diffs to avoid thousands of DOM nodes
+const CHAR_ANIMATION_SIZE_LIMIT = 5000;
+
 export default function DiffViewer({ diff, filename, animated = true }: DiffViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const shouldAnimate = animated && diff.length <= CHAR_ANIMATION_SIZE_LIMIT;
 
   useEffect(() => {
-    if (!animated || !containerRef.current) return;
+    if (!shouldAnimate || !containerRef.current) return;
     const chars = containerRef.current.querySelectorAll(".char");
     animateDiffReveal(chars as NodeListOf<Element>);
-  }, [diff, animated]);
+  }, [diff, shouldAnimate]);
 
   const lines = diff.split("\n");
 
   function renderLine(line: string, idx: number) {
-    const chars = line.split("").map((ch, i) => (
-      <span key={i} className="char" style={{ opacity: animated ? 0 : 1 }}>
-        {ch}
-      </span>
-    ));
-
     let className = "text-[#8B9099]";
     let bg = "transparent";
     if (line.startsWith("+")) {
@@ -37,13 +35,23 @@ export default function DiffViewer({ diff, filename, animated = true }: DiffView
       bg = "rgba(232, 163, 61, 0.08)";
     }
 
+    // Only render per-character spans when animation is needed;
+    // otherwise use plain text to avoid creating thousands of DOM nodes.
+    const content = shouldAnimate
+      ? line.split("").map((ch, i) => (
+          <span key={i} className="char" style={{ opacity: 0 }}>
+            {ch}
+          </span>
+        ))
+      : line;
+
     return (
       <div
         key={idx}
-        className={`${className} px-4 py-0.5 text-xs font-mono leading-5`}
+        className={`${className} px-4 py-0.5 text-xs font-mono leading-5 whitespace-pre overflow-x-visible`}
         style={{ background: bg }}
       >
-        {chars}
+        {content}
       </div>
     );
   }
@@ -56,9 +64,10 @@ export default function DiffViewer({ diff, filename, animated = true }: DiffView
           <span className="text-[#F2F1ED]">{filename}</span>
         </div>
       )}
-      <div ref={containerRef} className="py-2.5">
+      <div ref={containerRef} className="py-2.5 overflow-x-auto">
         {lines.map((line, i) => renderLine(line, i))}
       </div>
     </div>
   );
 }
+

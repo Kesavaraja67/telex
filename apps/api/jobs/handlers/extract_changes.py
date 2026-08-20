@@ -65,6 +65,9 @@ async def run(payload: dict) -> None:
         pv.scanned_at = __import__("datetime").datetime.utcnow()
         await session.commit()
 
+        # Read scalars before session closes to avoid DetachedInstanceError
+        pv_version = pv.version
+
         # Enqueue scan_repo for every repo that tracks this package
         pkg = await session.get(Package, pv.package_id)
         repo_pkgs = await session.execute(
@@ -80,4 +83,4 @@ async def run(payload: dict) -> None:
                 },
             )
 
-    logger.info("extract_changes: stored %d changes for %s@%s", len(changes), package_name, pv.version)
+    logger.info("extract_changes: stored %d changes for %s@%s", len(changes), package_name, pv_version)

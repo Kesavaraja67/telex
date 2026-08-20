@@ -27,11 +27,10 @@ services:
         value: gemini
       - key: NEXTAUTH_SECRET
         sync: false
+      # Set this to the public HTTPS URL of telex-api (e.g. https://telex-api.onrender.com)
+      # IMPORTANT: must be configured in the Render dashboard before deploying the frontend.
       - key: NEXT_PUBLIC_API_URL
-        fromService:
-          type: web
-          name: telex-api
-          property: host
+        sync: false
 
   # 2. Background Job Worker Daemon
   - type: worker

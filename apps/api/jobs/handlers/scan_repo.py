@@ -5,6 +5,7 @@ each detected_change in a package version.
 Payload shape:
     { "repo_id": "<uuid>", "package_version_id": "<uuid>" }
 """
+import asyncio
 import logging
 import uuid
 
@@ -19,7 +20,7 @@ SCAN_EXTENSIONS = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"}
 
 async def run(payload: dict) -> None:
     from db.session import AsyncSessionLocal
-    from db.models import Repo, DetectedChange, CodeUsage, PackageVersion
+    from db.models import Repo, DetectedChange, CodeUsage, PackageVersion, Installation
     from services.code_scanner import find_usages
     from services.github_service import get_installation_client
     from jobs.queue import enqueue_job
@@ -50,20 +51,41 @@ async def run(payload: dict) -> None:
             return
 
         # Get GitHub client for this installation
-        installation = await session.get(
-            __import__("db.models", fromlist=["Installation"]).Installation,
-            repo.installation_id,
+        installation = await session.get(Installation, repo.installation_id)
+        if installation is None:
+            logger.error("scan_repo: installation %s not found", repo.installation_id)
+            return
+
+        # Read scalars before session closes to avoid DetachedInstanceError
+        repo_full_name = repo.full_name
+        repo_default_branch = repo.default_branch
+        installation_github_id = installation.github_installation_id
+        pv_version = pv.version
+
+    # ── PyGithub blocking calls — run in a thread ────────────────────────────
+    gh = await asyncio.to_thread(get_installation_client, installation_github_id)
+    gh_repo = await asyncio.to_thread(gh.get_repo, repo_full_name)
+
+    async with AsyncSessionLocal() as session:
+        # Re-load entities needed for the scan loop
+        repo = await session.get(Repo, repo_id)
+        pv = await session.get(PackageVersion, package_version_id)
+        changes_result = await session.execute(
+            select(DetectedChange).where(
+                DetectedChange.package_version_id == package_version_id
+            )
         )
-        gh = get_installation_client(installation.github_installation_id)
-        gh_repo = gh.get_repo(repo.full_name)
+        changes = list(changes_result.scalars())
 
         # Walk the default branch tree and scan each eligible file
         total_usages = 0
         try:
-            tree = gh_repo.get_git_tree(repo.default_branch, recursive=True)
+            tree = await asyncio.to_thread(gh_repo.get_git_tree, repo_default_branch, recursive=True)
         except Exception as exc:
-            logger.error("scan_repo: failed to fetch git tree for %s: %s", repo.full_name, exc)
+            logger.error("scan_repo: failed to fetch git tree for %s: %s", repo_full_name, exc)
             return
+
+        new_usages: list[CodeUsage] = []
 
         for item in tree.tree:
             if item.type != "blob":
@@ -75,7 +97,9 @@ async def run(payload: dict) -> None:
                 continue
 
             try:
-                content = gh_repo.get_contents(item.path, ref=repo.default_branch)
+                content = await asyncio.to_thread(
+                    gh_repo.get_contents, item.path, ref=repo_default_branch
+                )
                 source = content.decoded_content  # type: ignore[union-attr]
             except Exception as exc:
                 logger.warning("scan_repo: could not fetch %s: %s", item.path, exc)
@@ -107,18 +131,15 @@ async def run(payload: dict) -> None:
                         snippet=usage["snippet"],
                     )
                     session.add(cu)
+                    new_usages.append(cu)
                     total_usages += 1
 
+        # Flush so new_usages get their generated IDs assigned
+        await session.flush()
         await session.commit()
 
-        # Enqueue generate_patch for every usage found
-        usages_result = await session.execute(
-            select(CodeUsage).where(
-                CodeUsage.repo_id == repo_id,
-                CodeUsage.status == "pending",
-            )
-        )
-        for cu in usages_result.scalars():
+        # Enqueue generate_patch only for newly created usages (avoids duplicates on rescan)
+        for cu in new_usages:
             await enqueue_job(
                 session,
                 "generate_patch",
@@ -128,6 +149,6 @@ async def run(payload: dict) -> None:
     logger.info(
         "scan_repo: found %d usages across %s for version %s",
         total_usages,
-        repo.full_name,
-        pv.version,
+        repo_full_name,
+        pv_version,
     )
