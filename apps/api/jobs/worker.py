@@ -6,10 +6,11 @@ import asyncio
 import logging
 import os
 import uuid
-from datetime import timedelta
-from sqlalchemy import func
+from datetime import datetime, timedelta, timezone
+from sqlalchemy import func, update
 
 from db.session import AsyncSessionLocal
+from db.models import Job
 from jobs.queue import dequeue_job
 from jobs.handlers import (
     poll_registry,
@@ -34,10 +35,44 @@ JOB_HANDLERS = {
 }
 
 
+async def reap_stale_jobs(session, lease_seconds: int = 300) -> int:
+    """Re-queue jobs stuck in 'running' state whose lock has expired."""
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=lease_seconds)
+    stmt = (
+        update(Job)
+        .where(
+            Job.status == "running",
+            Job.locked_at < cutoff,
+            Job.attempts < Job.max_attempts,
+        )
+        .values(
+            status="queued",
+            locked_by=None,
+            locked_at=None,
+        )
+    )
+    result = await session.execute(stmt)
+    await session.commit()
+    return result.rowcount
+
+
 async def worker_loop(worker_id: str) -> None:
     logger.info("Worker %s starting", worker_id)
+    last_reap = 0.0
     async with AsyncSessionLocal() as session:
         while True:
+            # Periodically reap stale orphaned jobs (every 30s)
+            now_ts = asyncio.get_running_loop().time()
+            if now_ts - last_reap > 30.0:
+                try:
+                    reaped = await reap_stale_jobs(session)
+                    if reaped > 0:
+                        logger.info("Reaper recovered %d stale job(s)", reaped)
+                    last_reap = now_ts
+                except Exception as reap_exc:
+                    logger.warning("Reaper check failed: %s", reap_exc)
+                    await session.rollback()
+
             job = await dequeue_job(session, worker_id)
             if job is None:
                 await asyncio.sleep(2)

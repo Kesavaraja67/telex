@@ -10,7 +10,7 @@ interface DiffViewerProps {
 }
 
 // Disable character animation for large diffs to avoid thousands of DOM nodes
-const CHAR_ANIMATION_SIZE_LIMIT = 5000;
+const CHAR_ANIMATION_SIZE_LIMIT = 300;
 
 export default function DiffViewer({ diff, filename, animated = true }: DiffViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -19,7 +19,20 @@ export default function DiffViewer({ diff, filename, animated = true }: DiffView
   useEffect(() => {
     if (!shouldAnimate || !containerRef.current) return;
     const chars = containerRef.current.querySelectorAll(".char");
-    animateDiffReveal(chars as NodeListOf<Element>);
+    try {
+      const animResult = animateDiffReveal(chars as NodeListOf<Element>);
+      if (animResult && typeof (animResult as Promise<unknown>).catch === "function") {
+        (animResult as Promise<unknown>).catch(() => {
+          chars.forEach((c) => {
+            (c as HTMLElement).style.opacity = "1";
+          });
+        });
+      }
+    } catch {
+      chars.forEach((c) => {
+        (c as HTMLElement).style.opacity = "1";
+      });
+    }
   }, [diff, shouldAnimate]);
 
   const lines = diff.split("\n");

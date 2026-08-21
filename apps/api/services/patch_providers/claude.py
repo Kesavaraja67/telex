@@ -43,13 +43,15 @@ class ClaudeProvider(PatchProvider):
             code_snippet=code_snippet,
             context=context,
         )
-        try:
-            response = await self.client.messages.create(
-                model=self.model,
-                max_tokens=1000,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return extract_diff(response.content[0].text)
-        except Exception as exc:
-            logger.error("ClaudeProvider.generate_patch failed: %s", exc)
+        # Transient provider/transport errors propagate so worker can retry
+        response = await self.client.messages.create(
+            model=self.model,
+            max_tokens=1000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        if getattr(response, "stop_reason", None) == "refusal" or not response.content:
             return "UNABLE_TO_PATCH"
+        for block in response.content:
+            if hasattr(block, "text") and isinstance(block.text, str):
+                return extract_diff(block.text)
+        return "UNABLE_TO_PATCH"

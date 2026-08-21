@@ -50,19 +50,17 @@ def find_usages(file_path: str, source: bytes, symbol_name: str) -> list[dict]:
     symbol_bytes = symbol_name.encode("utf-8")
 
     # ── Query 1: plain identifier call — createCompletion(...) ──────────────
-    # NOTE: We do NOT interpolate symbol_name into the query string.
-    # py-tree-sitter does not evaluate #eq? predicates at capture time;
-    # we filter by node.text in Python instead.
+    # Filter by node.text in Python, then traverse to enclosing call_expression.
     identifier_query_src = """
         (call_expression
-          function: (identifier) @fn) @call
+          function: (identifier) @fn)
     """
 
     # ── Query 2: member-expression call — obj.createCompletion(...) ─────────
     member_query_src = """
         (call_expression
           function: (member_expression
-            property: (property_identifier) @prop)) @call
+            property: (property_identifier) @prop))
     """
 
     usages: list[dict] = []
@@ -74,24 +72,21 @@ def find_usages(file_path: str, source: bytes, symbol_name: str) -> list[dict]:
         try:
             query = language.query(query_src)
             captures = query.captures(tree.root_node)
-            # captures() returns list of (node, capture_name) tuples
-            # Build a map so we can look up @call nodes alongside @fn/@prop nodes
-            capture_map: dict[str, list] = {}
             for node, cap_name in captures:
-                capture_map.setdefault(cap_name, []).append(node)
+                if cap_name == filter_capture and node.text == symbol_bytes:
+                    # Traverse upward to find enclosing call_expression
+                    curr = node.parent
+                    while curr is not None and curr.type != "call_expression":
+                        curr = curr.parent
+                    call_node = curr if curr is not None else node
 
-            filter_nodes = capture_map.get(filter_capture, [])
-            call_nodes = capture_map.get("call", [])
-
-            # Match: for each @call node, check whether the corresponding filter
-            # node text equals symbol_name.  We pair them by position.
-            for fn_node, call_node in zip(filter_nodes, call_nodes):
-                if fn_node.text == symbol_bytes:
                     usages.append(
                         {
                             "file_path": file_path,
                             "line_start": call_node.start_point[0] + 1,
                             "line_end": call_node.end_point[0] + 1,
+                            "start_byte": call_node.start_byte,
+                            "end_byte": call_node.end_byte,
                             "snippet": source[call_node.start_byte : call_node.end_byte].decode(
                                 "utf-8", errors="replace"
                             ),
@@ -100,11 +95,11 @@ def find_usages(file_path: str, source: bytes, symbol_name: str) -> list[dict]:
         except Exception as exc:
             logger.warning("tree-sitter query failed: %s", exc)
 
-    # Deduplicate by (line_start, line_end) — both queries can match the same node
+    # Deduplicate by unique byte range (start_byte, end_byte)
     seen: set[tuple[int, int]] = set()
     unique: list[dict] = []
     for u in usages:
-        key = (u["line_start"], u["line_end"])
+        key = (u["start_byte"], u["end_byte"])
         if key not in seen:
             seen.add(key)
             unique.append(u)

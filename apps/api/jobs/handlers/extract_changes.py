@@ -62,16 +62,17 @@ async def run(payload: dict) -> None:
             )
             session.add(dc)
 
-        pv.scanned_at = __import__("datetime").datetime.utcnow()
-        await session.commit()
-
-        # Read scalars before session closes to avoid DetachedInstanceError
+        # Capture scalar values before commit to avoid DetachedInstanceError
+        pv_package_id = pv.package_id
         pv_version = pv.version
 
+        from datetime import datetime, timezone
+        pv.scanned_at = datetime.now(timezone.utc)
+        await session.commit()
+
         # Enqueue scan_repo for every repo that tracks this package
-        pkg = await session.get(Package, pv.package_id)
         repo_pkgs = await session.execute(
-            select(RepoPackage).where(RepoPackage.package_id == pv.package_id)
+            select(RepoPackage).where(RepoPackage.package_id == pv_package_id)
         )
         for rp in repo_pkgs.scalars():
             await enqueue_job(

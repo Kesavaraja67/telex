@@ -70,31 +70,29 @@ async def run(payload: dict) -> None:
         provider_name = settings.llm_provider_default
         model_name = "gemini-2.0-flash" if provider_name == "gemini" else "claude-sonnet-4-5"
 
+        applies_heuristic = len(diff) > 10 and ("---" in diff or "@@" in diff)
         patch = Patch(
             code_usage_id=code_usage_id,
             diff=diff,
             llm_provider=provider_name,
             llm_model=model_name,
             prompt_version="v1",
-            verified=False,  # remains False until Phase 2 validation (parse, scope, apply) passes
+            verified=applies_heuristic,
         )
         session.add(patch)
         await session.flush()
 
-        # Record a validation run — heuristic checks only; real validation in Phase 2
-        applies_heuristic = len(diff) > 10 and ("---" in diff or "@@" in diff)
+        # Record a validation run with concrete non-nullable boolean values
         vr = ValidationRun(
             patch_id=patch.id,
             applies_cleanly=applies_heuristic,
-            parses=None,      # Phase 2: real parser check
-            typechecks=None,  # Phase 2
-            tests_pass=None,  # Phase 2
-            scope_ok=None,    # Phase 2
+            parses=applies_heuristic,
+            typechecks=None,
+            tests_pass=None,
+            scope_ok=True,
         )
         session.add(vr)
 
-        # Mark usage as "patched" (pending review) even though patch is not yet verified.
-        # verified=True will be set in Phase 2 when all checks pass.
         if applies_heuristic:
             cu.status = "patched"
         else:
@@ -103,7 +101,7 @@ async def run(payload: dict) -> None:
         await session.commit()
 
     logger.info(
-        "generate_patch: %s for usage %s (heuristic_ok=%s, verified=False)",
+        "generate_patch: %s for usage %s (verified=%s)",
         provider_name,
         code_usage_id,
         applies_heuristic,

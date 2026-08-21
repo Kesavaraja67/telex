@@ -7,20 +7,26 @@ Handles:
 """
 import asyncio
 import logging
-from typing import Optional
+from typing import Optional, Any
 
 from config import settings
 
 logger = logging.getLogger(__name__)
 
 
+try:
+    from github import Github, GithubIntegration, GithubException  # type: ignore[import]
+except ImportError:
+    Github: Any = None
+    GithubIntegration: Any = None
+    GithubException: Any = Exception
+
+
 def get_installation_client(installation_id: int):
     """
     Return an authenticated PyGithub client scoped to a specific installation.
     """
-    try:
-        from github import Github, GithubIntegration
-    except ImportError:
+    if Github is None or GithubIntegration is None:
         raise RuntimeError("PyGithub not installed — run: pip install PyGithub")
 
     private_key = settings.github_app_private_key.replace("\\n", "\n").strip('"\'')
@@ -60,11 +66,21 @@ async def open_patch_pr(
         repo = gh.get_repo(repo_full_name)
         base_branch = repo.get_branch(repo.default_branch)
 
-        # Create the patch branch from the current HEAD of default branch
-        repo.create_git_ref(
-            ref=f"refs/heads/{branch_name}",
-            sha=base_branch.commit.sha,
-        )
+        # Create or update the patch branch from the current HEAD of default branch (retry-safe)
+        try:
+            repo.create_git_ref(
+                ref=f"refs/heads/{branch_name}",
+                sha=base_branch.commit.sha,
+            )
+        except GithubException as exc:
+            if getattr(exc, "status", None) == 422:
+                try:
+                    ref = repo.get_git_ref(f"heads/{branch_name}")
+                    ref.edit(sha=base_branch.commit.sha, force=True)
+                except Exception as ref_exc:
+                    logger.warning("Could not reset existing ref %s: %s", branch_name, ref_exc)
+            else:
+                raise
 
         for patch in patches:
             content_file = repo.get_contents(patch["file_path"], ref=branch_name)
@@ -76,13 +92,25 @@ async def open_patch_pr(
                 branch=branch_name,
             )
 
-        pr = repo.create_pull(
-            title=f"chore(deps): auto-patch for {patches[0]['package_name']}@{patches[0]['new_version']}",
-            body=summary,
-            head=branch_name,
-            base=repo.default_branch,
-        )
-        logger.info("Opened PR #%d on %s: %s", pr.number, repo_full_name, pr.html_url)
+        # Create or find existing PR for this branch (retry-safe)
+        try:
+            pr = repo.create_pull(
+                title=f"chore(deps): auto-patch for {patches[0]['package_name']}@{patches[0]['new_version']}",
+                body=summary,
+                head=branch_name,
+                base=repo.default_branch,
+            )
+        except GithubException as exc:
+            if getattr(exc, "status", None) == 422:
+                pulls = repo.get_pulls(state="open", head=f"{repo.owner.login}:{branch_name}")
+                if pulls.totalCount > 0:
+                    pr = pulls[0]
+                else:
+                    raise
+            else:
+                raise
+
+        logger.info("PR #%d on %s: %s", pr.number, repo_full_name, pr.html_url)
         return pr.html_url, pr.number
 
     return await asyncio.to_thread(_do_github_work)

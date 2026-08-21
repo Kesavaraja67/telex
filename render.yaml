@@ -4,9 +4,12 @@ services:
     name: telex-api
     runtime: python
     rootDir: apps/api
-    buildCommand: pip install -r requirements.txt && alembic upgrade head
+    buildCommand: pip install -r requirements.txt
+    preDeployCommand: alembic upgrade head
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
       - key: DATABASE_URL
         sync: false
       - key: GITHUB_APP_ID
@@ -27,10 +30,6 @@ services:
         value: gemini
       - key: NEXTAUTH_SECRET
         sync: false
-      # Set this to the public HTTPS URL of telex-api (e.g. https://telex-api.onrender.com)
-      # IMPORTANT: must be configured in the Render dashboard before deploying the frontend.
-      - key: NEXT_PUBLIC_API_URL
-        sync: false
 
   # 2. Background Job Worker Daemon
   - type: worker
@@ -40,6 +39,8 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python -m jobs.worker
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
       - key: DATABASE_URL
         sync: false
       - key: GITHUB_APP_ID
@@ -50,3 +51,4 @@ services:
         sync: false
       - key: LLM_PROVIDER_DEFAULT
         value: gemini
+

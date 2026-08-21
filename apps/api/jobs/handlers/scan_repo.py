@@ -136,14 +136,15 @@ async def run(payload: dict) -> None:
 
         # Flush so new_usages get their generated IDs assigned
         await session.flush()
+        new_usage_ids = [str(cu.id) for cu in new_usages]
         await session.commit()
 
         # Enqueue generate_patch only for newly created usages (avoids duplicates on rescan)
-        for cu in new_usages:
+        for usage_id in new_usage_ids:
             await enqueue_job(
                 session,
                 "generate_patch",
-                {"code_usage_id": str(cu.id)},
+                {"code_usage_id": usage_id},
             )
 
     logger.info(

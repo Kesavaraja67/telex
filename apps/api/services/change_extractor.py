@@ -41,9 +41,13 @@ async def extract_breaking_changes(
     from services.patch_providers import get_patch_provider
 
     from google import genai  # type: ignore[import]
+    from google.genai import types as genai_types  # type: ignore[import]
     from config import settings
 
-    client = genai.Client(api_key=settings.gemini_api_key)
+    client = genai.Client(
+        api_key=settings.gemini_api_key,
+        http_options=genai_types.HttpOptions(timeout=30000),
+    )
 
     prompt = EXTRACT_PROMPT.format(
         package_name=package_name,

@@ -38,7 +38,10 @@ class GeminiProvider(PatchProvider):
     """Patch provider backed by Google Gemini (google-genai SDK)."""
 
     def __init__(self, api_key: str, model: str = "gemini-2.0-flash"):
-        self.client = genai.Client(api_key=api_key)
+        self.client = genai.Client(
+            api_key=api_key,
+            http_options=genai_types.HttpOptions(timeout=30000),
+        )
         self.model_name = model
 
     async def generate_patch(
