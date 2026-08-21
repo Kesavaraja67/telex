@@ -15,54 +15,82 @@ async def run(payload: dict) -> None:
     from db.session import AsyncSessionLocal
     from db.models import (
         Repo, PackageVersion, Package, DetectedChange,
-        CodeUsage, Patch, PullRequest, Installation,
+        CodeUsage, Patch, PullRequest, Installation, RecoveryEvent,
     )
     from services.github_service import open_patch_pr, get_installation_client
     from sqlalchemy import select
+    from datetime import datetime, timezone
 
     repo_id = uuid.UUID(payload["repo_id"])
-    package_version_id = uuid.UUID(payload["package_version_id"])
+    pv_id_raw = payload.get("package_version_id")
+    package_version_id = uuid.UUID(pv_id_raw) if pv_id_raw else None
+    cu_id_raw = payload.get("code_usage_id")
+    code_usage_id = uuid.UUID(cu_id_raw) if cu_id_raw else None
+    re_id_raw = payload.get("recovery_event_id")
+    recovery_event_id = uuid.UUID(re_id_raw) if re_id_raw else None
+
+    if package_version_id is None and code_usage_id is None:
+        logger.error("open_pr: both package_version_id and code_usage_id are missing")
+        return
 
     async with AsyncSessionLocal() as session:
         repo = await session.get(Repo, repo_id)
-        pv = await session.get(PackageVersion, package_version_id)
-
-        if repo is None or pv is None:
-            logger.error("open_pr: repo %s or version %s not found", repo_id, package_version_id)
+        if repo is None:
+            logger.error("open_pr: repo %s not found", repo_id)
             return
 
-        pkg = await session.get(Package, pv.package_id)
+        # PackageVersion may be absent for Engine B escalations
+        if package_version_id is not None:
+            pv = await session.get(PackageVersion, package_version_id)
+            if pv is None:
+                logger.error("open_pr: version %s not found", package_version_id)
+                return
+            pkg = await session.get(Package, pv.package_id)
+            pkg_name = pkg.name if pkg else "unknown"
+            pv_version = pv.version
+        else:
+            pkg_name = "payment-handler"
+            pv_version = "runtime"
+
         installation = await session.get(Installation, repo.installation_id)
-
-        if pkg is None or installation is None:
-            logger.error("open_pr: package or installation missing for repo %s", repo_id)
+        if installation is None:
+            logger.error("open_pr: installation missing for repo %s", repo_id)
             return
 
-        # Read scalar values before the session closes to avoid DetachedInstanceError
+        # Read scalar values before session closes
         repo_full_name = repo.full_name
         repo_default_branch = repo.default_branch
         installation_github_id = installation.github_installation_id
-        pkg_name = pkg.name
-        pv_version = pv.version
 
-        # Collect all verified patches for this repo + version
-        patches_result = await session.execute(
-            select(Patch)
-            .join(CodeUsage, Patch.code_usage_id == CodeUsage.id)
-            .join(DetectedChange, CodeUsage.detected_change_id == DetectedChange.id)
-            .where(
-                CodeUsage.repo_id == repo_id,
-                DetectedChange.package_version_id == package_version_id,
-                Patch.verified == True,
+        # Collect verified patches
+        if package_version_id is not None:
+            patches_result = await session.execute(
+                select(Patch)
+                .join(CodeUsage, Patch.code_usage_id == CodeUsage.id)
+                .join(DetectedChange, CodeUsage.detected_change_id == DetectedChange.id)
+                .where(
+                    CodeUsage.repo_id == repo_id,
+                    DetectedChange.package_version_id == package_version_id,
+                    Patch.verified == True,
+                )
             )
-        )
+        else:
+            patches_result = await session.execute(
+                select(Patch)
+                .join(CodeUsage, Patch.code_usage_id == CodeUsage.id)
+                .where(
+                    CodeUsage.repo_id == repo_id,
+                    CodeUsage.id == code_usage_id,
+                    Patch.verified == True,
+                )
+            )
         patches = list(patches_result.scalars())
 
         if not patches:
-            logger.info("open_pr: no verified patches for repo %s version %s", repo_id, package_version_id)
+            logger.info("open_pr: no verified patches for repo %s (version=%s, usage=%s)", repo_id, package_version_id, code_usage_id)
             return
 
-        # Pre-load CodeUsage rows (avoids lazy-load outside session)
+        # Pre-load CodeUsage rows
         usage_map: dict = {}
         for p in patches:
             cu = await session.get(CodeUsage, p.code_usage_id)
@@ -87,12 +115,10 @@ async def run(payload: dict) -> None:
             logger.warning("open_pr: could not fetch %s: %s", cu.file_path, exc)
             continue
 
-        # For Phase 1, we store the raw diff in the PR body instead of auto-applying.
-        # Full patch application (subprocess `patch`) comes in Phase 2.
         patch_dicts.append(
             {
                 "file_path": cu.file_path,
-                "new_content": original,  # placeholder — real apply in Phase 2
+                "new_content": original,
                 "package_name": pkg_name,
                 "new_version": pv_version,
                 "diff": p.diff,
@@ -102,15 +128,15 @@ async def run(payload: dict) -> None:
     # Guard: don't open a no-op PR with zero patches collected
     if not patch_dicts:
         logger.warning(
-            "open_pr: no patch content collected for repo %s version %s — skipping PR",
-            repo_id, package_version_id,
+            "open_pr: no patch content collected for repo %s — skipping PR",
+            repo_id,
         )
         return
 
     # Build PR body
     body_lines = [
         f"## Telex Auto-Patch: `{pkg_name}` → `{pv_version}`\n",
-        "Telex detected breaking API changes and generated the following patches.\n",
+        "Telex detected breaking API changes / runtime defects and generated the following patches.\n",
         "**Review each diff carefully before merging. Never auto-merge.**\n",
     ]
     for i, pd in enumerate(patch_dicts, 1):
@@ -132,7 +158,7 @@ async def run(payload: dict) -> None:
         logger.error("open_pr: failed to open PR: %s", exc)
         return
 
-    # Record the PR
+    # Record the PR and update RecoveryEvent if applicable
     async with AsyncSessionLocal() as session:
         pr = PullRequest(
             repo_id=repo_id,
@@ -142,7 +168,17 @@ async def run(payload: dict) -> None:
             patch_ids=[p.id for p in patches],
         )
         session.add(pr)
+        await session.flush()
+
+        if recovery_event_id is not None:
+            event = await session.get(RecoveryEvent, recovery_event_id)
+            if event is not None:
+                event.outcome = "escalated"
+                event.pull_request_id = pr.id
+                event.resolved_at = datetime.now(timezone.utc)
+
         await session.commit()
 
     logger.info("open_pr: opened PR #%d on %s (%s)", pr_number, repo_full_name, pr_url)
+
 

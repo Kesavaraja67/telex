@@ -18,6 +18,9 @@ from jobs.handlers import (
     scan_repo,
     generate_patch,
     open_pr,
+    detect_payment_failure,
+    diagnose_runtime_failure,
+    recover_runtime,
 )
 
 logging.basicConfig(
@@ -27,11 +30,16 @@ logging.basicConfig(
 logger = logging.getLogger("telex.worker")
 
 JOB_HANDLERS = {
+    # Engine A — npm dependency healing
     "poll_registry": poll_registry.run,
     "extract_changes": extract_changes.run,
     "scan_repo": scan_repo.run,
     "generate_patch": generate_patch.run,
     "open_pr": open_pr.run,
+    # Engine B — payment runtime recovery
+    "detect_payment_failure": detect_payment_failure.run,
+    "diagnose_runtime_failure": diagnose_runtime_failure.run,
+    "recover_runtime": recover_runtime.run,
 }
 
 

@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
-from routers import auth, repos, packages, webhooks, stats
+from routers import auth, repos, packages, webhooks, stats, payments, recovery
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,6 +47,8 @@ app.include_router(repos.router)
 app.include_router(packages.router)
 app.include_router(webhooks.router)
 app.include_router(stats.router)
+app.include_router(payments.router)
+app.include_router(recovery.router)
 
 
 @app.get("/health")

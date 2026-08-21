@@ -32,6 +32,7 @@ export default function DashboardLayout({
           {[
             { href: "/dashboard", label: "Overview", icon: "⌘" },
             { href: "/dashboard/repos", label: "Watched Repos", icon: "⎇" },
+            { href: "/dashboard/recovery", label: "Payment Recovery", icon: "⚡" },
             { href: "/dashboard/settings", label: "Settings", icon: "⚙" },
           ].map((item) => (
             <Link

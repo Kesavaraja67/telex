@@ -30,6 +30,13 @@ services:
         value: gemini
       - key: NEXTAUTH_SECRET
         sync: false
+      # Razorpay Test Mode only — never configure live keys here
+      - key: RAZORPAY_TEST_KEY_ID
+        sync: false
+      - key: RAZORPAY_TEST_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
 
   # 2. Background Job Worker Daemon
   - type: worker
@@ -51,4 +58,11 @@ services:
         sync: false
       - key: LLM_PROVIDER_DEFAULT
         value: gemini
+      # Razorpay Test Mode only — never configure live keys here
+      - key: RAZORPAY_TEST_KEY_ID
+        sync: false
+      - key: RAZORPAY_TEST_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
 

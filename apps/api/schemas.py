@@ -78,3 +78,32 @@ class RescanIn(BaseModel):
     old_version: str
     new_version: str
     changelog: Optional[str] = None
+
+
+# ── Engine B — Recovery ────────────────────────────────────────────────────────
+
+class RecoveryEventOut(BaseModel):
+    id: uuid.UUID
+    payment_attempt_id: uuid.UUID
+    failure_type: str
+    classification: str
+    action_taken: str
+    llm_provider: str
+    llm_model: str
+    outcome: str
+    pull_request_id: Optional[uuid.UUID] = None
+    detected_at: datetime
+    resolved_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class RecoveryStatsOut(BaseModel):
+    total_payment_attempts: int
+    total_recovery_events: int
+    recovered: int
+    escalated: int
+    unresolved: int
+    recovery_rate: float  # fraction 0.0–1.0
+    tier1_classified: int  # classified via deterministic rule (no LLM)
+    tier2_classified: int  # classified via LLM call

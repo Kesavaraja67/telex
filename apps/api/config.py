@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     llm_provider_default: str = "gemini"
 
+    # Razorpay — Test Mode only; never use live keys in this project
+    razorpay_test_key_id: str = ""
+    razorpay_test_key_secret: str = ""
+    razorpay_webhook_secret: str = ""
+
     # App
     nextauth_secret: str = "telex-development-session-secret-key-32-chars-min"
     next_public_api_url: str = "http://localhost:8000"
