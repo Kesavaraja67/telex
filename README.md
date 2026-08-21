@@ -1,7 +1,13 @@
-# Telex — Self-Healing Code & Payment Platform
+<p align="center">
+  <img src="apps/web/public/logo.svg" width="96" height="96" alt="Telex Logo" />
+</p>
 
-> **Autonomous self-healing for breaking API dependencies and live payment failures.**
-> One engine. Two triggers. One human-reviewed output path.
+<h1 align="center">Telex</h1>
+
+<p align="center">
+  <strong>Autonomous self-healing for breaking API dependencies and live payment failures.</strong><br>
+  <em>One engine. Two triggers. One human-reviewed output path.</em>
+</p>
 
 ---
 
