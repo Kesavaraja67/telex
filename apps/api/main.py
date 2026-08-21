@@ -31,11 +31,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — allow local dev and trusted Telex Vercel project domains
+# CORS — allow local dev and explicitly configured origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_origin_regex=r"https://telex(-[a-zA-Z0-9-]+)?\.vercel\.app|http://localhost:\d+",
+    allow_origin_regex=r"^http://localhost(:\d+)?$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Cookie"],

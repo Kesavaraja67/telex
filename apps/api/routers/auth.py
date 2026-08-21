@@ -27,12 +27,22 @@ _GITHUB_TIMEOUT = httpx.Timeout(10.0)
 JWT_ALGORITHM = "HS256"
 
 
+from datetime import datetime, timedelta, timezone
+
 def _get_jwt_secret() -> str:
-    return settings.nextauth_secret or "telex-default-session-secret-key-32-bytes!"
+    if not settings.nextauth_secret:
+        raise RuntimeError("NEXTAUTH_SECRET is not configured")
+    return settings.nextauth_secret
 
 
 def create_session_token(user_id: str) -> str:
-    return jwt.encode({"sub": user_id}, _get_jwt_secret(), algorithm=JWT_ALGORITHM)
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": user_id,
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(days=30)).timestamp()),
+    }
+    return jwt.encode(payload, _get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 
 def decode_session_token(token: str) -> Optional[str]:
@@ -44,7 +54,7 @@ def decode_session_token(token: str) -> Optional[str]:
 
 
 def is_safe_redirect(url_str: str) -> bool:
-    """Validate that redirect target is a safe relative path or trusted domain."""
+    """Validate that redirect target is a safe relative path or explicitly allowed host."""
     if not url_str:
         return False
     if url_str.startswith("/") and not url_str.startswith("//"):
@@ -55,8 +65,6 @@ def is_safe_redirect(url_str: str) -> bool:
             return False
         netloc = parsed.netloc.lower()
         if netloc.startswith("localhost:") or netloc == "localhost" or netloc.startswith("127.0.0.1:"):
-            return True
-        if netloc == "telex.vercel.app" or (netloc.startswith("telex-") and netloc.endswith(".vercel.app")):
             return True
         for allowed in settings.cors_origins:
             allowed_netloc = urlparse(allowed).netloc.lower()
@@ -167,13 +175,12 @@ async def github_callback(code: str, request: Request, state: Optional[str] = No
         user_login = user.github_login
 
     # Determine redirect destination
-    web_base = settings.next_public_api_url.replace(":8000", ":3000")
     if next_url == "install":
-        redirect_url = "https://github.com/apps/telex-agent-dev/installations/new"
+        redirect_url = f"https://github.com/apps/{settings.github_app_slug}/installations/new"
     elif next_url and is_safe_redirect(next_url):
         redirect_url = next_url
     else:
-        redirect_url = f"{web_base}/dashboard?login={user_login}"
+        redirect_url = f"{settings.web_app_url}/dashboard?login={user_login}"
 
     response = RedirectResponse(url=redirect_url)
     # Clear the CSRF nonce — single-use
@@ -235,8 +242,7 @@ async def get_current_user(request: Request):
 @router.get("/logout")
 async def logout():
     """Clear session cookie and redirect to home."""
-    web_base = settings.next_public_api_url.replace(":8000", ":3000")
-    response = RedirectResponse(url=f"{web_base}/")
+    response = RedirectResponse(url=f"{settings.web_app_url}/")
     response.delete_cookie(key="telex_session")
     response.delete_cookie(key="telex_user")
     return response

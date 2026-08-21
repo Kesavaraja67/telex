@@ -19,20 +19,11 @@ export default function DiffViewer({ diff, filename, animated = true }: DiffView
   useEffect(() => {
     if (!shouldAnimate || !containerRef.current) return;
     const chars = containerRef.current.querySelectorAll(".char");
-    try {
-      const animResult = animateDiffReveal(chars as NodeListOf<Element>);
-      if (animResult && typeof (animResult as Promise<unknown>).catch === "function") {
-        (animResult as Promise<unknown>).catch(() => {
-          chars.forEach((c) => {
-            (c as HTMLElement).style.opacity = "1";
-          });
-        });
-      }
-    } catch {
+    animateDiffReveal(chars as NodeListOf<Element>).catch(() => {
       chars.forEach((c) => {
         (c as HTMLElement).style.opacity = "1";
       });
-    }
+    });
   }, [diff, shouldAnimate]);
 
   const lines = diff.split("\n");

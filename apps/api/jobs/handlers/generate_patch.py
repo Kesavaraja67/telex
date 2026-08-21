@@ -11,6 +11,45 @@ import uuid
 logger = logging.getLogger(__name__)
 
 
+def validate_patch(diff: str, snippet: str) -> tuple[bool, bool, bool]:
+    """
+    Validate the generated diff:
+    1. applies_cleanly: checks if diff format has valid hunk headers and non-empty content.
+    2. scope_ok: checks that lines being removed (-) match lines in the original snippet.
+    3. parses: checks that diff contains valid hunk structure and changes.
+    """
+    if not diff or len(diff) < 10 or diff == "UNABLE_TO_PATCH":
+        return False, False, False
+
+    lines = diff.splitlines()
+    has_hunk = any(line.startswith("@@") for line in lines) or (
+        any(line.startswith("---") for line in lines) and any(line.startswith("+++") for line in lines)
+    )
+    if not has_hunk:
+        return False, False, False
+
+    removed_lines = [line[1:].strip() for line in lines if line.startswith("-") and not line.startswith("---")]
+    added_lines = [line[1:].strip() for line in lines if line.startswith("+") and not line.startswith("+++")]
+
+    if not added_lines and not removed_lines:
+        return False, False, False
+
+    # Scope check: removed lines should match the original code snippet
+    scope_ok = True
+    if removed_lines:
+        snippet_lines = [l.strip() for l in snippet.splitlines() if l.strip()]
+        if snippet_lines:
+            scope_ok = any(
+                any(rl in sl or sl in rl for sl in snippet_lines)
+                for rl in removed_lines if rl
+            )
+
+    applies_cleanly = has_hunk
+    parses = applies_cleanly and scope_ok
+
+    return applies_cleanly, parses, scope_ok
+
+
 async def run(payload: dict) -> None:
     from db.session import AsyncSessionLocal
     from db.models import CodeUsage, DetectedChange, PackageVersion, Patch, ValidationRun
@@ -70,30 +109,32 @@ async def run(payload: dict) -> None:
         provider_name = settings.llm_provider_default
         model_name = "gemini-2.0-flash" if provider_name == "gemini" else "claude-sonnet-4-5"
 
-        applies_heuristic = len(diff) > 10 and ("---" in diff or "@@" in diff)
+        applies_cleanly, parses, scope_ok = validate_patch(diff, code_snippet)
+        is_verified = applies_cleanly and parses and scope_ok
+
         patch = Patch(
             code_usage_id=code_usage_id,
             diff=diff,
             llm_provider=provider_name,
             llm_model=model_name,
             prompt_version="v1",
-            verified=applies_heuristic,
+            verified=is_verified,
         )
         session.add(patch)
         await session.flush()
 
-        # Record a validation run with concrete non-nullable boolean values
+        # Record a validation run with verified boolean values
         vr = ValidationRun(
             patch_id=patch.id,
-            applies_cleanly=applies_heuristic,
-            parses=applies_heuristic,
+            applies_cleanly=applies_cleanly,
+            parses=parses,
             typechecks=None,
             tests_pass=None,
-            scope_ok=True,
+            scope_ok=scope_ok,
         )
         session.add(vr)
 
-        if applies_heuristic:
+        if is_verified:
             cu.status = "patched"
         else:
             cu.status = "failed"
@@ -101,9 +142,11 @@ async def run(payload: dict) -> None:
         await session.commit()
 
     logger.info(
-        "generate_patch: %s for usage %s (verified=%s)",
+        "generate_patch: %s for usage %s (verified=%s, applies_cleanly=%s, scope_ok=%s)",
         provider_name,
         code_usage_id,
-        applies_heuristic,
+        is_verified,
+        applies_cleanly,
+        scope_ok,
     )
 

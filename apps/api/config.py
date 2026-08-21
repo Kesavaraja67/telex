@@ -27,8 +27,10 @@ class Settings(BaseSettings):
     llm_provider_default: str = "gemini"
 
     # App
-    nextauth_secret: str = ""
+    nextauth_secret: str = "telex-development-session-secret-key-32-chars-min"
     next_public_api_url: str = "http://localhost:8000"
+    web_app_url: str = "http://localhost:3000"
+    github_app_slug: str = "telex-agent-dev"
     cors_origins: list[str] = ["http://localhost:3000"]
 
 

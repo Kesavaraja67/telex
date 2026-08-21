@@ -36,9 +36,27 @@ JOB_HANDLERS = {
 
 
 async def reap_stale_jobs(session, lease_seconds: int = 300) -> int:
-    """Re-queue jobs stuck in 'running' state whose lock has expired."""
+    """Re-queue expired running jobs with attempts remaining, and fail expired jobs that reached max_attempts."""
     cutoff = datetime.now(timezone.utc) - timedelta(seconds=lease_seconds)
-    stmt = (
+
+    # 1. Mark expired jobs that reached max_attempts as failed
+    fail_stmt = (
+        update(Job)
+        .where(
+            Job.status == "running",
+            Job.locked_at < cutoff,
+            Job.attempts >= Job.max_attempts,
+        )
+        .values(
+            status="failed",
+            locked_by=None,
+            locked_at=None,
+        )
+    )
+    fail_result = await session.execute(fail_stmt)
+
+    # 2. Re-queue expired jobs with attempts remaining
+    requeue_stmt = (
         update(Job)
         .where(
             Job.status == "running",
@@ -51,9 +69,32 @@ async def reap_stale_jobs(session, lease_seconds: int = 300) -> int:
             locked_at=None,
         )
     )
-    result = await session.execute(stmt)
+    requeue_result = await session.execute(requeue_stmt)
     await session.commit()
-    return result.rowcount
+    return fail_result.rowcount + requeue_result.rowcount
+
+
+async def _heartbeat_loop(job_id: uuid.UUID, worker_id: str, interval: float = 15.0) -> None:
+    """Periodically update locked_at so actively executing jobs are not reclaimed by the reaper."""
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            async with AsyncSessionLocal() as hb_session:
+                stmt = (
+                    update(Job)
+                    .where(
+                        Job.id == job_id,
+                        Job.locked_by == worker_id,
+                        Job.status == "running",
+                    )
+                    .values(locked_at=datetime.now(timezone.utc))
+                )
+                await hb_session.execute(stmt)
+                await hb_session.commit()
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.debug("Heartbeat update failed for job %s: %s", job_id, exc)
 
 
 async def worker_loop(worker_id: str) -> None:
@@ -67,7 +108,7 @@ async def worker_loop(worker_id: str) -> None:
                 try:
                     reaped = await reap_stale_jobs(session)
                     if reaped > 0:
-                        logger.info("Reaper recovered %d stale job(s)", reaped)
+                        logger.info("Reaper processed %d stale job(s)", reaped)
                     last_reap = now_ts
                 except Exception as reap_exc:
                     logger.warning("Reaper check failed: %s", reap_exc)
@@ -79,6 +120,9 @@ async def worker_loop(worker_id: str) -> None:
                 continue
 
             logger.info("Worker %s picked up job %s (type=%s)", worker_id, job.id, job.job_type)
+
+            # Start heartbeat while handler executes
+            heartbeat_task = asyncio.create_task(_heartbeat_loop(job.id, worker_id))
             try:
                 handler = JOB_HANDLERS.get(job.job_type)
                 if handler is None:
@@ -100,6 +144,11 @@ async def worker_loop(worker_id: str) -> None:
                     job.run_after = func.now() + timedelta(seconds=delay)  # type: ignore[assignment]
                     logger.warning("Job %s failed (attempt %d/%d), retrying in %ds: %s", job.id, job.attempts, job.max_attempts, delay, exc)
             finally:
+                heartbeat_task.cancel()
+                try:
+                    await heartbeat_task
+                except asyncio.CancelledError:
+                    pass
                 try:
                     await session.commit()
                 except Exception:
