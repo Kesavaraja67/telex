@@ -33,9 +33,14 @@ def find_usages(file_path: str, source: bytes, symbol_name: str) -> list[dict]:
         )
         return []
 
-    # Detect language from extension (TypeScript default, fall back to javascript)
+    # Detect language from extension
     suffix = Path(file_path).suffix.lower()
-    lang_name = "typescript" if suffix in (".ts", ".tsx") else "javascript"
+    if suffix == ".tsx":
+        lang_name = "tsx"
+    elif suffix in (".ts", ".mts", ".cts"):
+        lang_name = "typescript"
+    else:
+        lang_name = "javascript"
 
     try:
         parser = tsl.get_parser(lang_name)

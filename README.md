@@ -140,7 +140,7 @@ Open [http://localhost:3000](http://localhost:3000) to view the dashboard and [h
 
 ## Running Automated Tests
 
-A dedicated test suite validates the core payment service logic, webhook security, and two-tier classification engine:
+A comprehensive test suite of 25 unit tests validates both Engine A (dependency scanning & patch validation) and Engine B (two-tier failure classification & payment service):
 
 ```bash
 cd apps/api
@@ -148,8 +148,16 @@ pytest -v
 ```
 
 ### Test Suite Highlights:
-- `test_verify_webhook_signature_*`: Validates HMAC-SHA256 signature verification, timing attack safety, and rejection of tampered/missing payloads.
-- `test_simulate_payment_*`: Tests separation of locally-injected infrastructure failures vs. real Razorpay Test Mode decline responses.
-- `test_tier1_deterministic_classifications`: Validates zero-token deterministic short-circuiting for standard errors.
+
+#### Engine A (Dependency Healing & AST Analysis)
+- `test_find_usages_*`: Validates Tree-Sitter AST parsing and call-site discovery for direct identifiers, object method calls, multi-line usage, and React JSX/TSX syntax.
+- `test_validate_patch_*`: Validates unified diff parsing, scope validation (verifying removed lines match target code snippets), and refusal sentinel handling.
+- `test_extract_diff_*`: Tests raw diff extraction from markdown code fences and unstructured LLM responses.
+
+#### Engine B (Runtime Payment Recovery)
+- `test_tier1_deterministic_classifications`: Validates zero-token deterministic short-circuiting for standard errors (timeouts, rate limits, db outages, schema mismatches).
 - `test_diagnose_handler_tier2_llm_flow`: Tests LLM fallback and metadata capture for ambiguous runtime failures.
+- `test_verify_webhook_signature_*`: Validates HMAC-SHA256 signature verification, timing attack safety, and rejection of tampered/missing payloads.
+- `test_simulate_payment_*`: Tests isolation between locally-injected infrastructure failures and real Razorpay Test Mode decline responses.
+
 
