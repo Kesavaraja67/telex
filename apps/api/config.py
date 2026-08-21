@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     razorpay_test_key_id: str = ""
     razorpay_test_key_secret: str = ""
     razorpay_webhook_secret: str = ""
+    payment_recovery_repo_name: str = ""
 
     # App
     nextauth_secret: str = "telex-development-session-secret-key-32-chars-min"

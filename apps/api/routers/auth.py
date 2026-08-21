@@ -247,3 +247,30 @@ async def logout():
     response.delete_cookie(key="telex_user")
     return response
 
+
+async def require_current_user(request: Request) -> User:
+    """Dependency to enforce authenticated user on protected routes."""
+    token = request.cookies.get("telex_session")
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ", 1)[1]
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    user_id_str = decode_session_token(token)
+    if not user_id_str:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+
+    try:
+        user_uuid = uuid.UUID(user_id_str)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=401, detail="Invalid session payload")
+
+    async with AsyncSessionLocal() as session:
+        user = await session.get(User, user_uuid)
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        return user
+
+

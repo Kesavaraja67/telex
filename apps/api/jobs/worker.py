@@ -163,13 +163,68 @@ async def worker_loop(worker_id: str) -> None:
                     logger.exception("Job %s: could not persist final state", job.id)
                     await session.rollback()
 
+async def schedule_package_polling() -> None:
+    """Periodically enqueue poll_registry for all packages tracked by active repos."""
+    from db.models import Package, RepoPackage, Repo
+    from jobs.queue import enqueue_job
+    from sqlalchemy import select
+
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(Package)
+                .join(RepoPackage, RepoPackage.package_id == Package.id)
+                .join(Repo, Repo.id == RepoPackage.repo_id)
+                .where(Repo.is_active == True)  # noqa: E712
+                .distinct()
+            )
+            packages = list(result.scalars())
+            for pkg in packages:
+                await enqueue_job(
+                    session,
+                    "poll_registry",
+                    {
+                        "package_id": str(pkg.id),
+                        "package_name": pkg.name,
+                        "ecosystem": pkg.ecosystem or "npm",
+                    },
+                )
+            await session.commit()
+        logger.info("Scheduled registry polling enqueued for %d tracked packages", len(packages))
+    except Exception as exc:
+        logger.warning("Scheduled package polling failed: %s", exc)
+
+
+def start_scheduler():
+    """Start APScheduler for periodic registry polling."""
+    try:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(
+            schedule_package_polling,
+            "interval",
+            minutes=15,
+            id="poll_tracked_packages",
+            replace_existing=True,
+        )
+        scheduler.start()
+        logger.info("APScheduler started: polling tracked packages every 15m")
+        return scheduler
+    except Exception as exc:
+        logger.warning("Could not start APScheduler: %s", exc)
+        return None
+
 
 if __name__ == "__main__":
     n_workers = int(os.getenv("WORKER_COUNT", "2"))
     worker_ids = [f"worker-{uuid.uuid4().hex[:8]}" for _ in range(n_workers)]
+    scheduler = start_scheduler()
     loop = asyncio.get_event_loop()
     tasks = [loop.create_task(worker_loop(wid)) for wid in worker_ids]
     try:
         loop.run_until_complete(asyncio.gather(*tasks))
     except KeyboardInterrupt:
+        if scheduler:
+            scheduler.shutdown()
         logger.info("Worker pool shutting down")
+

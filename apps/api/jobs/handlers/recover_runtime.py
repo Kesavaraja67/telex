@@ -108,18 +108,35 @@ async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
 
     logger.info("recover_runtime: code_defect — escalating to Engine A pipeline")
 
-    # Find the target repo deterministically (oldest active repo)
+    # Find the target repo:
+    # 1. If settings.payment_recovery_repo_name is configured (e.g. "owner/repo"), match that.
+    # 2. Otherwise, look for the primary active connected repo.
+    from config import settings
+
     async with AsyncSessionLocal() as session:
-        repo_result = await session.execute(
-            select(Repo).where(Repo.is_active == True).order_by(Repo.created_at.asc()).limit(1)  # noqa: E712
-        )
-        repo = repo_result.scalar_one_or_none()
+        repo = None
+        if settings.payment_recovery_repo_name:
+            named_result = await session.execute(
+                select(Repo).where(
+                    Repo.full_name == settings.payment_recovery_repo_name,
+                    Repo.is_active == True,  # noqa: E712
+                ).limit(1)
+            )
+            repo = named_result.scalar_one_or_none()
+            if repo:
+                logger.info("recover_runtime: targeting configured repo %s", repo.full_name)
+
+        if repo is None:
+            repo_result = await session.execute(
+                select(Repo).where(Repo.is_active == True).order_by(Repo.created_at.asc()).limit(1)  # noqa: E712
+            )
+            repo = repo_result.scalar_one_or_none()
 
         if repo is None:
             logger.warning(
                 "recover_runtime: no active repo found — cannot escalate code_defect "
                 "to generate_patch without a valid repo_id FK. "
-                "Install the GitHub App on at least one repo first."
+                "Install the GitHub App on at least one repo first or set PAYMENT_RECOVERY_REPO_NAME."
             )
             event = await session.get(RecoveryEvent, recovery_event_id)
             if event:
