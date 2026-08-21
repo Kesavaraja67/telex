@@ -20,3 +20,23 @@ class PatchProvider(Protocol):
             the provider cannot confidently generate a correct patch.
         """
         ...
+
+    async def classify_failure(
+        self,
+        failure_type: str,
+        error_context: str,
+    ) -> dict:
+        """
+        Classify a runtime failure as transient or code_defect.
+
+        Only called when the failure_type is NOT in the deterministic rule table
+        in diagnose_runtime_failure.py (Tier 2 — genuinely ambiguous cases only).
+
+        Returns:
+            {
+                "classification": "transient" | "code_defect" | "unknown",
+                "reasoning": str,
+                "recommended_action": str,
+            }
+        """
+        ...

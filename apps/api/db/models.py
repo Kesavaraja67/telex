@@ -252,3 +252,64 @@ class Job(Base):
     locked_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True))
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+# ─── PaymentAttempts ──────────────────────────────────────────────────────────
+
+class PaymentAttempt(Base):
+    """Tracks each real or simulated Razorpay Test Mode payment attempt."""
+    __tablename__ = "payment_attempts"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('created','success','failed')",
+            name="ck_payment_attempts_status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    razorpay_order_id: Mapped[str] = mapped_column(Text, nullable=False)
+    razorpay_payment_id: Mapped[Optional[str]] = mapped_column(Text)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)  # paise
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="created")
+    # null = organic attempt; non-null = injected failure type e.g. "timeout"
+    injected_failure: Mapped[Optional[str]] = mapped_column(Text)
+    # Optional idempotency key per batch-run request (section 10.5)
+    batch_request_id: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+
+    recovery_events: Mapped[List["RecoveryEvent"]] = relationship(back_populates="payment_attempt")
+
+
+# ─── RecoveryEvents ───────────────────────────────────────────────────────────
+
+class RecoveryEvent(Base):
+    """Records each failure classification and recovery action taken."""
+    __tablename__ = "recovery_events"
+    __table_args__ = (
+        CheckConstraint(
+            "classification IN ('transient','code_defect','unknown')",
+            name="ck_recovery_events_classification",
+        ),
+        CheckConstraint(
+            "outcome IN ('recovered','escalated','unresolved')",
+            name="ck_recovery_events_outcome",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    payment_attempt_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("payment_attempts.id", ondelete="CASCADE"), nullable=False
+    )
+    failure_type: Mapped[str] = mapped_column(Text, nullable=False)
+    classification: Mapped[str] = mapped_column(Text, nullable=False, default="unknown")
+    action_taken: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    llm_provider: Mapped[str] = mapped_column(Text, nullable=False, default="none")
+    llm_model: Mapped[str] = mapped_column(Text, nullable=False, default="none")
+    outcome: Mapped[str] = mapped_column(Text, nullable=False, default="unresolved")
+    # Populated when code_defect escalation produces a real PR
+    pull_request_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("pull_requests.id"))
+    detected_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True))
+
+    payment_attempt: Mapped["PaymentAttempt"] = relationship(back_populates="recovery_events")
+

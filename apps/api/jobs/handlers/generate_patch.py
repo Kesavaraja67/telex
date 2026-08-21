@@ -73,10 +73,19 @@ async def run(payload: dict) -> None:
             logger.error("generate_patch: DetectedChange %s not found", cu.detected_change_id)
             return
 
-        pv = await session.get(PackageVersion, dc.package_version_id)
-        if pv is None:
-            logger.error("generate_patch: PackageVersion %s not found", dc.package_version_id)
-            return
+        # PackageVersion may be None for Engine B (internal_runtime) escalations.
+        # Provide sane fallback strings so open_pr.py doesn't crash on a missing version.
+        if dc.package_version_id is not None:
+            pv = await session.get(PackageVersion, dc.package_version_id)
+            if pv is None:
+                logger.error("generate_patch: PackageVersion %s not found", dc.package_version_id)
+                return
+            pkg_name_hint = None  # resolved later via pv.package if needed
+            pv_version_hint = None
+        else:
+            pv = None
+            pkg_name_hint = "internal"
+            pv_version_hint = "runtime"
 
         # Copy scalars so we don't hold the connection across the LLM call
         old_api = dc.symbol_old

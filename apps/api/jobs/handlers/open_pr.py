@@ -21,29 +21,40 @@ async def run(payload: dict) -> None:
     from sqlalchemy import select
 
     repo_id = uuid.UUID(payload["repo_id"])
-    package_version_id = uuid.UUID(payload["package_version_id"])
+    # package_version_id is None for Engine B internal_runtime escalations
+    pv_id_raw = payload.get("package_version_id")
+    package_version_id = uuid.UUID(pv_id_raw) if pv_id_raw else None
 
     async with AsyncSessionLocal() as session:
         repo = await session.get(Repo, repo_id)
-        pv = await session.get(PackageVersion, package_version_id)
-
-        if repo is None or pv is None:
-            logger.error("open_pr: repo %s or version %s not found", repo_id, package_version_id)
+        if repo is None:
+            logger.error("open_pr: repo %s not found", repo_id)
             return
 
-        pkg = await session.get(Package, pv.package_id)
+        # PackageVersion may be absent for Engine B escalations
+        if package_version_id is not None:
+            pv = await session.get(PackageVersion, package_version_id)
+        else:
+            pv = None
+
+        if pv is None and package_version_id is not None:
+            logger.error("open_pr: version %s not found", package_version_id)
+            return
+
+        pkg = await session.get(Package, pv.package_id) if pv is not None else None
         installation = await session.get(Installation, repo.installation_id)
 
-        if pkg is None or installation is None:
-            logger.error("open_pr: package or installation missing for repo %s", repo_id)
+        if installation is None:
+            logger.error("open_pr: installation missing for repo %s", repo_id)
             return
 
         # Read scalar values before the session closes to avoid DetachedInstanceError
         repo_full_name = repo.full_name
         repo_default_branch = repo.default_branch
         installation_github_id = installation.github_installation_id
-        pkg_name = pkg.name
-        pv_version = pv.version
+        # Fallback strings for Engine B internal_runtime escalations (no real PackageVersion)
+        pkg_name = pkg.name if pkg is not None else "internal"
+        pv_version = pv.version if pv is not None else "runtime"
 
         # Collect all verified patches for this repo + version
         patches_result = await session.execute(
@@ -52,7 +63,8 @@ async def run(payload: dict) -> None:
             .join(DetectedChange, CodeUsage.detected_change_id == DetectedChange.id)
             .where(
                 CodeUsage.repo_id == repo_id,
-                DetectedChange.package_version_id == package_version_id,
+                # For Engine B: package_version_id may be None; filter only if present
+                *([DetectedChange.package_version_id == package_version_id] if package_version_id else []),
                 Patch.verified == True,
             )
         )
@@ -136,7 +148,7 @@ async def run(payload: dict) -> None:
     async with AsyncSessionLocal() as session:
         pr = PullRequest(
             repo_id=repo_id,
-            package_version_id=package_version_id,
+            package_version_id=package_version_id,  # None is now allowed (migration a1b2c3d4e5f6)
             github_pr_number=pr_number,
             github_pr_url=pr_url,
             patch_ids=[p.id for p in patches],

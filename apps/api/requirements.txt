@@ -17,3 +17,5 @@ python-jose[cryptography]>=3.3.0
 httpx>=0.27.0
 # Pinned to scanner-safe versions
 python-multipart>=0.0.30
+# Razorpay Test Mode SDK — do NOT configure live keys
+razorpay>=1.4.0
