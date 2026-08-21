@@ -11,7 +11,7 @@
 
 ---
 
-## 🌟 Overview
+## Overview
 
 Telex is an autonomous healing system designed to eliminate production downtime caused by breaking upstream changes and transient infrastructure failures. It operates as a single unified engine driven by two independent sensors:
 
@@ -48,7 +48,7 @@ Telex is an autonomous healing system designed to eliminate production downtime 
 
 ---
 
-## 🏗️ Architecture & Philosophy
+## Architecture & Philosophy
 
 ### 1. One Engine, Two Sensors, One Output Path
 Runtime code defects in payment handlers do not modify production files directly without human oversight. Instead, when a `code_defect` is diagnosed, Engine B seeds an internal `DetectedChange` and `CodeUsage` representation of the suspect handler and enters the **same `generate_patch` → `open_pr` pipeline** used by Engine A. Every code change requires human review.
@@ -67,25 +67,25 @@ Built on real-world production Razorpay integration patterns:
 
 ---
 
-## 📊 Current Build & Feature Status
+## Current Build & Feature Status
 
 | Component | Feature | Implementation Details | Status |
 |---|---|---|---|
-| **Engine A** | Package Version Polling | Detects new npm releases & extracts API changelog diffs | ✅ Live |
-| **Engine A** | Tree-Sitter AST Scanner | Multi-language AST call site scanning (`.ts`, `.tsx`, `.js`) | ✅ Live |
-| **Engine A** | Patch Generation | Multi-provider unified diff generation (Google Gemini 2.0 / Claude) | ✅ Live |
-| **Engine A** | GitHub App Integration | Automated branch creation, patch validation & PR opening | ✅ Live |
-| **Engine B** | Razorpay Test Mode Client | Order creation, payment simulation, and webhook signature verification | ✅ Live |
-| **Engine B** | Failure Detection | Ingestion of payment failures & atomic recovery event creation | ✅ Live |
-| **Engine B** | Two-Tier Classifier | Tier 1 deterministic table + Tier 2 LLM fallback | ✅ Live |
-| **Engine B** | Auto-Recovery & Escalation | Non-blocking retry in worker threads + escalation to Engine A PR pipeline | ✅ Live |
-| **Job Queue** | Async DB Job Worker | PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` with heartbeats and reaper | ✅ Live |
-| **Dashboard** | Next.js 15 Web App | Real-time overview, watched repos, live batch simulator & recovery tickets | ✅ Live |
-| **Test Suite** | Automated Tests | Comprehensive pytest suite covering payment service & classification | ✅ Live |
+| **Engine A** | Package Version Polling | Detects new npm releases & extracts API changelog diffs | Live |
+| **Engine A** | Tree-Sitter AST Scanner | Multi-language AST call site scanning (`.ts`, `.tsx`, `.js`) | Live |
+| **Engine A** | Patch Generation | Multi-provider unified diff generation (Google Gemini 2.0 / Claude) | Live |
+| **Engine A** | GitHub App Integration | Automated branch creation, patch validation & PR opening | Live |
+| **Engine B** | Razorpay Test Mode Client | Order creation, payment simulation, and webhook signature verification | Live |
+| **Engine B** | Failure Detection | Ingestion of payment failures & atomic recovery event creation | Live |
+| **Engine B** | Two-Tier Classifier | Tier 1 deterministic table + Tier 2 LLM fallback | Live |
+| **Engine B** | Auto-Recovery & Escalation | Non-blocking retry in worker threads + escalation to Engine A PR pipeline | Live |
+| **Job Queue** | Async DB Job Worker | PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` with heartbeats and reaper | Live |
+| **Dashboard** | Next.js 15 Web App | Real-time overview, watched repos, live batch simulator & recovery tickets | Live |
+| **Test Suite** | Automated Tests | Comprehensive pytest suite covering payment service & classification | Live |
 
 ---
 
-## 🛡️ Guardrails & Safety
+## Guardrails & Safety
 
 - **Never Auto-Merge**: All code patches require human review and approval on GitHub.
 - **HMAC Webhook Verification**: Cryptographic validation on all GitHub (`X-Hub-Signature-256`) and Razorpay (`X-Razorpay-Signature`) webhooks.
@@ -94,7 +94,7 @@ Built on real-world production Razorpay integration patterns:
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Python 3.10+
@@ -138,7 +138,7 @@ Open [http://localhost:3000](http://localhost:3000) to view the dashboard and [h
 
 ---
 
-## 🧪 Running Automated Tests
+## Running Automated Tests
 
 A dedicated test suite validates the core payment service logic, webhook security, and two-tier classification engine:
 
@@ -152,3 +152,4 @@ pytest -v
 - `test_simulate_payment_*`: Tests separation of locally-injected infrastructure failures vs. real Razorpay Test Mode decline responses.
 - `test_tier1_deterministic_classifications`: Validates zero-token deterministic short-circuiting for standard errors.
 - `test_diagnose_handler_tier2_llm_flow`: Tests LLM fallback and metadata capture for ambiguous runtime failures.
+
