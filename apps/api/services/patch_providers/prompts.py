@@ -38,13 +38,14 @@ Classify this failure as one of:
   Examples: momentary network blips, rate limits, temporary service unavailability.
 - "code_defect": A bug in our own payment handling code that will recur on retry.
   Examples: incorrect request structure, missing required fields, logic errors in webhook handling.
+- "unknown": The failure cause cannot be confidently determined from the provided context.
 
 Respond in this exact JSON format (no markdown, no extra text):
 {{
-  "classification": "transient" or "code_defect",
+  "classification": "transient", "code_defect", or "unknown",
   "reasoning": "one or two sentences explaining why",
   "recommended_action": "what should happen next (retry / open PR / investigate)"
 }}
 
-If you genuinely cannot determine the classification from the available information, use "transient" and explain why in reasoning."""
+If you genuinely cannot determine the classification from the available information, use "unknown" and explain why in reasoning."""
 

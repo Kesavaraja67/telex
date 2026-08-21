@@ -1,4 +1,4 @@
-﻿"""payment_recovery_engine_b
+"""payment_recovery_engine_b
 
 Revision ID: a1b2c3d4e5f6
 Revises: 9391613f4c07
@@ -33,6 +33,8 @@ def upgrade() -> None:
         sa.CheckConstraint("status IN ('created','success','failed')", name="ck_payment_attempts_status"),
         sa.PrimaryKeyConstraint("id"),
     )
+    op.create_index("idx_payment_attempts_razorpay_order_id", "payment_attempts", ["razorpay_order_id"])
+    op.create_index("idx_payment_attempts_batch_request_id", "payment_attempts", ["batch_request_id"])
 
     # 2. recovery_events table
     op.create_table(
@@ -60,6 +62,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["pull_request_id"], ["pull_requests.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
+    op.create_index("idx_recovery_events_payment_attempt_id", "recovery_events", ["payment_attempt_id"])
 
     # 3. detected_changes: make package_version_id nullable + add source column
     op.alter_column("detected_changes", "package_version_id", existing_type=sa.UUID(), nullable=True)
@@ -95,9 +98,15 @@ def downgrade() -> None:
         "jobs",
         "job_type IN ('poll_registry','extract_changes','scan_repo','generate_patch','open_pr')",
     )
+    # Remove Engine B rows with NULL package_version_id before altering columns to NOT NULL
+    op.execute("DELETE FROM pull_requests WHERE package_version_id IS NULL")
     op.alter_column("pull_requests", "package_version_id", existing_type=sa.UUID(), nullable=False)
     op.drop_constraint("ck_detected_changes_source", "detected_changes", type_="check")
     op.drop_column("detected_changes", "source")
+    op.execute("DELETE FROM detected_changes WHERE package_version_id IS NULL")
     op.alter_column("detected_changes", "package_version_id", existing_type=sa.UUID(), nullable=False)
+    op.drop_index("idx_recovery_events_payment_attempt_id", "recovery_events")
     op.drop_table("recovery_events")
+    op.drop_index("idx_payment_attempts_batch_request_id", "payment_attempts")
+    op.drop_index("idx_payment_attempts_razorpay_order_id", "payment_attempts")
     op.drop_table("payment_attempts")

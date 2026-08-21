@@ -5,7 +5,7 @@ import logging
 from google import genai  # type: ignore[import]
 from google.genai import types as genai_types  # type: ignore[import]
 
-from .base import PatchProvider
+from .base import FailureClassification, PatchProvider
 from .prompts import PATCH_PROMPT_TEMPLATE, CLASSIFY_FAILURE_PROMPT_TEMPLATE
 
 logger = logging.getLogger(__name__)
@@ -35,6 +35,42 @@ def extract_diff(text: str) -> str:
     return "UNABLE_TO_PATCH"
 
 
+def parse_classification_response(raw: str) -> FailureClassification:
+    """
+    Extract and validate failure classification from LLM JSON response.
+    Shared between GeminiProvider and ClaudeProvider.
+    """
+    if not raw or not raw.strip():
+        return {
+            "classification": "unknown",
+            "reasoning": "Provider returned no usable text content.",
+            "recommended_action": "Treat as transient and retry once; escalate if it recurs.",
+        }
+
+    fenced = re.search(r"```(?:json)?\s*\n?(.*?)```", raw, re.DOTALL)
+    cleaned = fenced.group(1).strip() if fenced else raw.strip()
+
+    try:
+        result = json.loads(cleaned)
+        if not isinstance(result, dict):
+            raise ValueError(f"Expected JSON object, got {type(result).__name__}")
+        classification = result.get("classification", "unknown")
+        if classification not in ("transient", "code_defect", "unknown"):
+            classification = "unknown"
+        return {
+            "classification": classification,
+            "reasoning": str(result.get("reasoning", "")),
+            "recommended_action": str(result.get("recommended_action", "")),
+        }
+    except (json.JSONDecodeError, ValueError) as exc:
+        logger.warning("parse_classification_response: invalid JSON response: %s", exc)
+        return {
+            "classification": "unknown",
+            "reasoning": f"Provider response was not valid JSON: {cleaned[:200]}",
+            "recommended_action": "Treat as transient and retry once; escalate if it recurs.",
+        }
+
+
 class GeminiProvider(PatchProvider):
     """Patch provider backed by Google Gemini (google-genai SDK)."""
 
@@ -43,7 +79,11 @@ class GeminiProvider(PatchProvider):
             api_key=api_key,
             http_options=genai_types.HttpOptions(timeout=30000),
         )
-        self.model_name = model
+        self._model_name = model
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
 
     async def generate_patch(
         self,
@@ -61,7 +101,7 @@ class GeminiProvider(PatchProvider):
         # Transient errors (network, quota, server) propagate so the worker
         # retries the job.  Only intentional no-patch output becomes UNABLE_TO_PATCH.
         response = await self.client.aio.models.generate_content(
-            model=self.model_name,
+            model=self._model_name,
             contents=prompt,
         )
         # response.text is None when content is blocked by safety filters
@@ -74,7 +114,7 @@ class GeminiProvider(PatchProvider):
         self,
         failure_type: str,
         error_context: str,
-    ) -> dict:
+    ) -> FailureClassification:
         """
         Classify a runtime failure via Gemini (Tier 2 — ambiguous cases only).
 
@@ -86,7 +126,7 @@ class GeminiProvider(PatchProvider):
             error_context=error_context,
         )
         response = await self.client.aio.models.generate_content(
-            model=self.model_name,
+            model=self._model_name,
             contents=prompt,
         )
         if response.text is None:
@@ -96,27 +136,6 @@ class GeminiProvider(PatchProvider):
                 "reasoning": "Provider returned no usable content (safety filter or empty response).",
                 "recommended_action": "Treat as transient and retry once; escalate if it recurs.",
             }
-        # Strip optional markdown fences
-        raw = response.text.strip()
-        fenced = re.search(r"```(?:json)?\s*\n?(.*?)```", raw, re.DOTALL)
-        if fenced:
-            raw = fenced.group(1).strip()
-        try:
-            result = json.loads(raw)
-            # Normalise classification to known values
-            classification = result.get("classification", "unknown")
-            if classification not in ("transient", "code_defect", "unknown"):
-                classification = "unknown"
-            return {
-                "classification": classification,
-                "reasoning": result.get("reasoning", ""),
-                "recommended_action": result.get("recommended_action", ""),
-            }
-        except (json.JSONDecodeError, ValueError) as exc:
-            logger.warning("GeminiProvider.classify_failure: could not parse JSON response: %s", exc)
-            return {
-                "classification": "unknown",
-                "reasoning": f"Provider response was not valid JSON: {raw[:200]}",
-                "recommended_action": "Treat as transient and retry once; escalate if it recurs.",
-            }
+        return parse_classification_response(response.text)
+
 

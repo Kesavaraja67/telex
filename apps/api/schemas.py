@@ -83,17 +83,19 @@ class RescanIn(BaseModel):
 # ── Engine B — Recovery ────────────────────────────────────────────────────────
 
 class RecoveryEventOut(BaseModel):
-    id: str
-    payment_attempt_id: str
+    id: uuid.UUID
+    payment_attempt_id: uuid.UUID
     failure_type: str
     classification: str
     action_taken: str
     llm_provider: str
     llm_model: str
     outcome: str
-    pull_request_id: Optional[str]
-    detected_at: str
-    resolved_at: Optional[str]
+    pull_request_id: Optional[uuid.UUID] = None
+    detected_at: datetime
+    resolved_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
 
 
 class RecoveryStatsOut(BaseModel):

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import Badge from "@/components/ui/Badge";
@@ -73,9 +73,9 @@ export default function RecoveryTicket({ event }: RecoveryTicketProps) {
       </div>
 
       <div className="px-5 py-2.5 flex items-center gap-4 border-t border-white/[0.06] bg-white/[0.01]">
-        {event.outcome === "escalated" && event.pull_request_id && (
-          <span className="font-mono text-xs text-[#8B9099]">
-            PR enqueued — generate_patch running
+        {event.outcome === "escalated" && (
+          <span className="font-mono text-xs text-[#E8A33D]">
+            {event.pull_request_id ? "PR opened — patch verified" : "PR pipeline queued — generating patch"}
           </span>
         )}
         {event.outcome === "recovered" && (

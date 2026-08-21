@@ -1,4 +1,4 @@
-﻿"""
+"""
 Payment router — Engine B payment simulation endpoints.
 
 unauthenticated — matches current enforcement state of repos.py/stats.py.
@@ -6,12 +6,14 @@ A real session mechanism (get_current_user in routers/auth.py) now exists
 and can be added here as a Depends() gate in the same future phase that
 gates the rest of /api/repos and /api/stats — not sooner, not separately.
 """
+import asyncio
+import json
 import logging
 import random
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 
@@ -50,7 +52,7 @@ async def create_order(body: CreateOrderRequest):
     from services import payment_service
 
     try:
-        order = payment_service.create_order(body.amount)
+        order = await asyncio.to_thread(payment_service.create_order, body.amount)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
@@ -88,7 +90,7 @@ async def pay(payment_attempt_id: str, body: PayRequest):
 
     # Locally-injected failures (timeout, db_unavailable) raise RuntimeError
     try:
-        result = payment_service.simulate_payment(order_id, body.force_failure)
+        result = await asyncio.to_thread(payment_service.simulate_payment, order_id, body.force_failure)
     except RuntimeError:
         # Locally-simulated infrastructure failure — treat as a real failure
         result = {"success": False, "error_type": body.force_failure, "razorpay_payment_id": None}
@@ -121,14 +123,17 @@ async def pay(payment_attempt_id: str, body: PayRequest):
 
 
 @router.post("/webhook")
-async def razorpay_webhook(request_body: bytes, x_razorpay_signature: Optional[str] = None):
+async def razorpay_webhook(
+    request: Request,
+    x_razorpay_signature: Optional[str] = Header(None, alias="X-Razorpay-Signature"),
+):
     """
     Verify Razorpay webhook signature and update PaymentAttempt status.
     Mirrors the structure of the existing GitHub webhook handler in routers/webhooks.py.
     """
     from services import payment_service
-    import json
 
+    request_body = await request.body()
     if not payment_service.verify_webhook_signature(request_body, x_razorpay_signature or ""):
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
@@ -173,8 +178,8 @@ async def batch_run(body: BatchRunRequest):
     """
     from services import payment_service
 
-    if body.count < 1 or body.count > 500:
-        raise HTTPException(status_code=422, detail="count must be between 1 and 500")
+    if body.count < 1 or body.count > 100:
+        raise HTTPException(status_code=422, detail="count must be between 1 and 100")
     if not 0.0 <= body.failure_rate <= 1.0:
         raise HTTPException(status_code=422, detail="failure_rate must be between 0.0 and 1.0")
 
@@ -200,16 +205,13 @@ async def batch_run(body: BatchRunRequest):
     n_failures = round(body.count * body.failure_rate)
     failure_indices = set(random.sample(range(body.count), min(n_failures, body.count)))
 
-    # Use synthetic order IDs when Razorpay keys are not configured (fallback mode)
-    razorpay_configured = bool(payment_service.settings.razorpay_test_key_id if hasattr(payment_service, 'settings') else False)
-
     for i in range(body.count):
         is_failure = i in failure_indices
         force_failure = random.choices(_INJECTED_FAILURE_TYPES, weights=_FAILURE_WEIGHTS)[0] if is_failure else None
 
         # Create Razorpay order (or synthetic ID if keys not configured)
         try:
-            order = payment_service.create_order(50000)  # ₹500 per attempt
+            order = await asyncio.to_thread(payment_service.create_order, 50000)  # ₹500 per attempt
             order_id = order["id"]
         except RuntimeError:
             order_id = f"order_synthetic_{uuid.uuid4().hex[:16]}"
@@ -225,9 +227,9 @@ async def batch_run(body: BatchRunRequest):
             await session.flush()
             attempt_id = attempt.id
 
-            # Simulate the payment inline
+            # Simulate the payment inline in worker thread
             try:
-                result = payment_service.simulate_payment(order_id, force_failure)
+                result = await asyncio.to_thread(payment_service.simulate_payment, order_id, force_failure)
             except RuntimeError:
                 result = {"success": False, "error_type": force_failure, "razorpay_payment_id": None}
 
@@ -250,3 +252,4 @@ async def batch_run(body: BatchRunRequest):
         body.count, n_failures,
     )
     return {"status": "created", "payment_attempt_ids": payment_attempt_ids}
+

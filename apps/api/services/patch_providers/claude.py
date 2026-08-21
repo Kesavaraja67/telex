@@ -1,8 +1,7 @@
-import json
 import logging
 
-from .base import PatchProvider
-from .gemini import extract_diff
+from .base import FailureClassification, PatchProvider
+from .gemini import extract_diff, parse_classification_response
 from .prompts import PATCH_PROMPT_TEMPLATE, CLASSIFY_FAILURE_PROMPT_TEMPLATE
 
 logger = logging.getLogger(__name__)
@@ -29,7 +28,11 @@ class ClaudeProvider(PatchProvider):
             raise RuntimeError("anthropic package not installed — run: pip install anthropic")
 
         self.client = AsyncAnthropic(api_key=api_key)  # type: ignore[assignment]
-        self.model = model
+        self._model_name = model
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
 
     async def generate_patch(
         self,
@@ -46,7 +49,7 @@ class ClaudeProvider(PatchProvider):
         )
         # Transient provider/transport errors propagate so worker can retry
         response = await self.client.messages.create(
-            model=self.model,
+            model=self._model_name,
             max_tokens=1000,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -61,7 +64,7 @@ class ClaudeProvider(PatchProvider):
         self,
         failure_type: str,
         error_context: str,
-    ) -> dict:
+    ) -> FailureClassification:
         """
         Classify a runtime failure via Claude (Tier 2 — ambiguous cases only).
 
@@ -74,7 +77,7 @@ class ClaudeProvider(PatchProvider):
         )
         # Transient transport errors propagate — mirror generate_patch error handling
         response = await self.client.messages.create(
-            model=self.model,
+            model=self._model_name,
             max_tokens=512,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -95,26 +98,6 @@ class ClaudeProvider(PatchProvider):
                 "reasoning": "Provider returned no text content.",
                 "recommended_action": "Treat as transient and retry once; escalate if it recurs.",
             }
-        # Strip optional markdown fences
-        import re
-        fenced = re.search(r"```(?:json)?\s*\n?(.*?)```", raw, re.DOTALL)
-        if fenced:
-            raw = fenced.group(1).strip()
-        try:
-            result = json.loads(raw)
-            classification = result.get("classification", "unknown")
-            if classification not in ("transient", "code_defect", "unknown"):
-                classification = "unknown"
-            return {
-                "classification": classification,
-                "reasoning": result.get("reasoning", ""),
-                "recommended_action": result.get("recommended_action", ""),
-            }
-        except (json.JSONDecodeError, ValueError) as exc:
-            logger.warning("ClaudeProvider.classify_failure: could not parse JSON response: %s", exc)
-            return {
-                "classification": "unknown",
-                "reasoning": f"Provider response was not valid JSON: {raw[:200]}",
-                "recommended_action": "Treat as transient and retry once; escalate if it recurs.",
-            }
+        return parse_classification_response(raw)
+
 

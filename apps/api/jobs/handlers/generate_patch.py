@@ -73,19 +73,12 @@ async def run(payload: dict) -> None:
             logger.error("generate_patch: DetectedChange %s not found", cu.detected_change_id)
             return
 
-        # PackageVersion may be None for Engine B (internal_runtime) escalations.
-        # Provide sane fallback strings so open_pr.py doesn't crash on a missing version.
+        # Skip PackageVersion check if dc.package_version_id is None (Engine B internal runtime changes)
         if dc.package_version_id is not None:
             pv = await session.get(PackageVersion, dc.package_version_id)
             if pv is None:
                 logger.error("generate_patch: PackageVersion %s not found", dc.package_version_id)
                 return
-            pkg_name_hint = None  # resolved later via pv.package if needed
-            pv_version_hint = None
-        else:
-            pv = None
-            pkg_name_hint = "internal"
-            pv_version_hint = "runtime"
 
         # Copy scalars so we don't hold the connection across the LLM call
         old_api = dc.symbol_old
@@ -116,7 +109,7 @@ async def run(payload: dict) -> None:
 
         from config import settings
         provider_name = settings.llm_provider_default
-        model_name = "gemini-2.0-flash" if provider_name == "gemini" else "claude-sonnet-4-5"
+        model_name = provider.model_name
 
         applies_cleanly, parses, scope_ok = validate_patch(diff, code_snippet)
         is_verified = applies_cleanly and parses and scope_ok
@@ -145,6 +138,17 @@ async def run(payload: dict) -> None:
 
         if is_verified:
             cu.status = "patched"
+            if payload.get("recovery_event_id") and payload.get("repo_id"):
+                from jobs.queue import enqueue_job
+                await enqueue_job(
+                    session,
+                    job_type="open_pr",
+                    payload={
+                        "repo_id": payload["repo_id"],
+                        "code_usage_id": str(code_usage_id),
+                        "recovery_event_id": payload["recovery_event_id"],
+                    },
+                )
         else:
             cu.status = "failed"
 
@@ -158,4 +162,5 @@ async def run(payload: dict) -> None:
         applies_cleanly,
         scope_ok,
     )
+
 

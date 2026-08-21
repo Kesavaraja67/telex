@@ -1,29 +1,24 @@
-﻿"""
+"""
 recover_runtime handler — Engine B recovery executor.
 
 Payload shape:
     { "recovery_event_id": "<uuid>", "classification": "transient"|"code_defect" }
 
 Recovery logic:
-  transient   → retry payment via payment_service.simulate_payment (force_failure=None)
-                with exponential backoff matching worker.py pattern (30 * attempt).
+  transient   → execute retry via payment_service.simulate_payment in worker thread.
                 Updates outcome to "recovered" or "unresolved".
 
   code_defect → does NOT touch payment code directly (never auto-applies fixes).
                 Creates a DetectedChange + CodeUsage representing the suspect
-                payment-handling code and enqueues the SAME generate_patch job
-                Engine A uses — sharing one output path. Updates outcome to
-                "escalated" when the PR is eventually opened.
+                payment-handling code and enqueues generate_patch, passing
+                recovery_event_id so open_pr can link the resulting PR.
 """
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
-
-# Backoff arithmetic matches worker.py: 30 * attempts seconds
-_BACKOFF_BASE = 30
-_MAX_RETRY_ATTEMPTS = 3
 
 # Synthetic "repo" context for Engine B code_defect escalations.
 # This is used to seed a CodeUsage row that represents our own payment handler.
@@ -33,12 +28,7 @@ _INTERNAL_SNIPPET = "# Payment webhook handler — flagged by runtime failure cl
 
 async def run(payload: dict) -> None:
     from db.session import AsyncSessionLocal
-    from db.models import (
-        RecoveryEvent, PaymentAttempt, DetectedChange, CodeUsage, Repo,
-    )
-    from jobs.queue import enqueue_job
-    from services import payment_service
-    from sqlalchemy import select
+    from db.models import RecoveryEvent, PaymentAttempt
 
     recovery_event_id = uuid.UUID(payload["recovery_event_id"])
     classification = payload.get("classification", "unknown")
@@ -56,7 +46,6 @@ async def run(payload: dict) -> None:
             return
 
         order_id = attempt.razorpay_order_id
-        attempt_number = attempt.amount  # just for logging context
 
     # ─────────────────────────────────────────────────────────────────────────
     if classification == "transient":
@@ -78,7 +67,7 @@ async def run(payload: dict) -> None:
 
 
 async def _handle_transient(recovery_event_id: uuid.UUID, order_id: str) -> None:
-    """Retry the payment. Outcome = recovered | unresolved."""
+    """Retry the payment in worker thread. Outcome = recovered | unresolved."""
     from db.session import AsyncSessionLocal
     from db.models import RecoveryEvent
     from services import payment_service
@@ -86,10 +75,10 @@ async def _handle_transient(recovery_event_id: uuid.UUID, order_id: str) -> None
     logger.info("recover_runtime: transient — retrying payment for order %s", order_id)
 
     try:
-        result = payment_service.simulate_payment(order_id, force_failure=None)
+        result = await asyncio.to_thread(payment_service.simulate_payment, order_id, force_failure=None)
         success = result.get("success", False)
     except Exception as exc:
-        logger.warning("recover_runtime: retry raised exception: %s", exc)
+        logger.exception("recover_runtime: retry raised exception: %s", exc)
         success = False
 
     async with AsyncSessionLocal() as session:
@@ -111,9 +100,6 @@ async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
     Escalate to Engine A pipeline: seed a DetectedChange + CodeUsage and
     enqueue generate_patch. This is the shared output path — both engines
     converge here, producing the same kind of human-reviewed PR.
-
-    The DetectedChange uses source="internal_runtime" and package_version_id=None
-    (enabled by the migration that made package_version_id nullable).
     """
     from db.session import AsyncSessionLocal
     from db.models import RecoveryEvent, DetectedChange, CodeUsage, Repo
@@ -122,11 +108,10 @@ async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
 
     logger.info("recover_runtime: code_defect — escalating to Engine A pipeline")
 
-    # Find any active repo to pin the CodeUsage to (needed for FK constraint).
-    # In a real deployment this would be the specific repo that owns the payment code.
+    # Find the target repo deterministically (oldest active repo)
     async with AsyncSessionLocal() as session:
         repo_result = await session.execute(
-            select(Repo).where(Repo.is_active == True).limit(1)  # noqa: E712
+            select(Repo).where(Repo.is_active == True).order_by(Repo.created_at.asc()).limit(1)  # noqa: E712
         )
         repo = repo_result.scalar_one_or_none()
 
@@ -136,7 +121,6 @@ async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
                 "to generate_patch without a valid repo_id FK. "
                 "Install the GitHub App on at least one repo first."
             )
-            # Mark unresolved rather than crashing
             event = await session.get(RecoveryEvent, recovery_event_id)
             if event:
                 event.outcome = "unresolved"
@@ -148,7 +132,7 @@ async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
 
         # Seed a DetectedChange with source="internal_runtime" (no PackageVersion FK)
         dc = DetectedChange(
-            package_version_id=None,  # allowed by migration a1b2c3d4e5f6
+            package_version_id=None,
             source="internal_runtime",
             change_type="behavior_change",
             symbol_old="payment_webhook_handler",
@@ -176,25 +160,21 @@ async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
         session.add(cu)
         await session.flush()
         cu_id = cu.id
-        await session.commit()
 
-    # Enqueue generate_patch — same job type Engine A uses (shared output path)
-    async with AsyncSessionLocal() as session:
-        job = await enqueue_job(
+        # Enqueue generate_patch — same job type Engine A uses (shared output path)
+        await enqueue_job(
             session,
             job_type="generate_patch",
-            payload={"code_usage_id": str(cu_id)},
+            payload={
+                "code_usage_id": str(cu_id),
+                "recovery_event_id": str(recovery_event_id),
+                "repo_id": str(repo_id),
+            },
         )
-
-    # Mark the RecoveryEvent as escalated
-    async with AsyncSessionLocal() as session:
-        event = await session.get(RecoveryEvent, recovery_event_id)
-        if event:
-            event.outcome = "escalated"
-            event.resolved_at = datetime.now(timezone.utc)
-            await session.commit()
+        await session.commit()
 
     logger.info(
         "recover_runtime: code_defect escalated — CodeUsage %s, generate_patch job enqueued",
         cu_id,
     )
+

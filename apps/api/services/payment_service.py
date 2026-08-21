@@ -1,4 +1,4 @@
-﻿"""
+"""
 Payment service — Razorpay Test Mode wrapper.
 
 HONESTY NOTE ON FAILURE INJECTION:
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # Razorpay test card that always triggers a card_declined response.
 # Source: https://razorpay.com/docs/payments/payments/test-card-details/
-_TEST_CARD_DECLINED = "4111111111111111"
+_TEST_CARD_DECLINED = "4100280000060003"
 
 # Locally-simulated failure types (no Razorpay call made — see module docstring)
 _LOCALLY_SIMULATED_FAILURES = {"timeout", "db_unavailable"}
@@ -99,9 +99,9 @@ def simulate_payment(order_id: str, force_failure: str | None) -> dict:
         )
 
     # ── Real Razorpay Test Mode calls ─────────────────────────────────────────
-    if not settings.razorpay_test_key_id:
+    if not (settings.razorpay_test_key_id and settings.razorpay_test_key_secret):
         # Keys not configured — fall back to a safe simulated success/failure
-        logger.warning("simulate_payment: Razorpay keys not configured, using synthetic response")
+        logger.warning("simulate_payment: Razorpay credentials not configured, using synthetic response")
         if force_failure:
             return {"success": False, "error_type": force_failure, "razorpay_payment_id": None}
         return {"success": True, "error_type": None, "razorpay_payment_id": f"pay_synthetic_{uuid.uuid4().hex[:16]}"}
@@ -154,15 +154,15 @@ def simulate_payment(order_id: str, force_failure: str | None) -> dict:
         }
         try:
             result = client.payment.create(payment_data)
+            is_success = result.get("status") not in ("failed",)
             return {
-                "success": result.get("status") not in ("failed",),
-                "error_type": None,
+                "success": is_success,
+                "error_type": None if is_success else "payment_failed",
                 "razorpay_payment_id": result.get("id"),
             }
         except Exception as exc:
-            logger.warning("simulate_payment: successful attempt raised exception: %s", exc)
-            # For demo purposes, treat non-locally-injected errors as a successful synthetic payment
-            return {"success": True, "error_type": None, "razorpay_payment_id": f"pay_synthetic_{uuid.uuid4().hex[:16]}"}
+            logger.warning("simulate_payment: payment attempt failed: %s", exc)
+            return {"success": False, "error_type": "payment_failed", "razorpay_payment_id": None}
 
     except Exception as exc:
         logger.error("simulate_payment: unexpected error: %s", exc)
@@ -178,9 +178,9 @@ def verify_webhook_signature(payload: bytes, signature: str) -> bool:
     - Returns False if the signature header is missing or malformed.
     - Uses hmac.compare_digest to prevent timing-oracle attacks.
     """
-    secret = settings.razorpay_test_key_secret
+    secret = settings.razorpay_webhook_secret
     if not secret:
-        logger.error("RAZORPAY_TEST_KEY_SECRET not configured — rejecting webhook")
+        logger.error("RAZORPAY_WEBHOOK_SECRET not configured — rejecting webhook")
         return False
 
     if not signature:

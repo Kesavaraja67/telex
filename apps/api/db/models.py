@@ -128,10 +128,15 @@ class DetectedChange(Base):
             "change_type IN ('signature_change','removed','renamed','deprecated','behavior_change')",
             name="ck_detected_changes_type",
         ),
+        CheckConstraint(
+            "source IN ('npm_registry','internal_runtime')",
+            name="ck_detected_changes_source",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    package_version_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("package_versions.id", ondelete="CASCADE"), nullable=False)
+    package_version_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("package_versions.id", ondelete="CASCADE"), nullable=True)
+    source: Mapped[str] = mapped_column(Text, nullable=False, default="npm_registry")
     change_type: Mapped[str] = mapped_column(Text, nullable=False)
     symbol_old: Mapped[str] = mapped_column(Text, nullable=False)
     symbol_new: Mapped[Optional[str]] = mapped_column(Text)
@@ -213,7 +218,7 @@ class PullRequest(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     repo_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("repos.id", ondelete="CASCADE"), nullable=False)
-    package_version_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("package_versions.id"), nullable=False)
+    package_version_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("package_versions.id"), nullable=True)
     github_pr_number: Mapped[int] = mapped_column(Integer, nullable=False)
     github_pr_url: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="open")
@@ -264,6 +269,8 @@ class PaymentAttempt(Base):
             "status IN ('created','success','failed')",
             name="ck_payment_attempts_status",
         ),
+        Index("idx_payment_attempts_razorpay_order_id", "razorpay_order_id"),
+        Index("idx_payment_attempts_batch_request_id", "batch_request_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -294,6 +301,7 @@ class RecoveryEvent(Base):
             "outcome IN ('recovered','escalated','unresolved')",
             name="ck_recovery_events_outcome",
         ),
+        Index("idx_recovery_events_payment_attempt_id", "payment_attempt_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

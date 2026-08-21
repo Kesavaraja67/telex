@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import StatCounter from "@/components/dashboard/StatCounter";
 import RecoveryTicket from "@/components/dashboard/RecoveryTicket";
 import type { RecoveryEvent, RecoveryStats } from "@/lib/api";
@@ -90,10 +90,34 @@ const DEMO_EVENTS: RecoveryEvent[] = [
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function RecoveryPage() {
+  const [stats, setStats] = useState<RecoveryStats>(DEMO_STATS);
+  const [events, setEvents] = useState<RecoveryEvent[]>(DEMO_EVENTS);
   const [count, setCount] = useState(10);
   const [failureRate, setFailureRate] = useState(0.3);
   const [isRunning, setIsRunning] = useState(false);
   const [runResult, setRunResult] = useState<string | null>(null);
+
+  async function loadData() {
+    try {
+      const { getRecoveryStats, getRecoveryEvents } = await import("@/lib/api");
+      const [fetchedStats, fetchedEvents] = await Promise.all([
+        getRecoveryStats(),
+        getRecoveryEvents(50, 0),
+      ]);
+      if (fetchedStats && fetchedStats.total_recovery_events > 0) {
+        setStats(fetchedStats);
+      }
+      if (fetchedEvents && fetchedEvents.length > 0) {
+        setEvents(fetchedEvents);
+      }
+    } catch {
+      // Backend not reachable or error — keep demo state
+    }
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   async function handleBatchRun() {
     setIsRunning(true);
@@ -110,6 +134,8 @@ export default function RecoveryPage() {
           ? `Returned existing batch (${result.payment_attempt_ids.length} attempts)`
           : `Created ${result.payment_attempt_ids.length} attempts — worker processing...`
       );
+      // Refresh after short delay for worker processing
+      setTimeout(loadData, 1500);
     } catch {
       setRunResult("API not reachable — showing demo data");
     } finally {
@@ -117,8 +143,9 @@ export default function RecoveryPage() {
     }
   }
 
-  const tier1Pct = DEMO_STATS.tier1_classified + DEMO_STATS.tier2_classified > 0
-    ? Math.round((DEMO_STATS.tier1_classified / (DEMO_STATS.tier1_classified + DEMO_STATS.tier2_classified)) * 100)
+  const totalClassified = stats.tier1_classified + stats.tier2_classified;
+  const tier1Pct = totalClassified > 0
+    ? Math.round((stats.tier1_classified / totalClassified) * 100)
     : 0;
 
   return (
@@ -139,24 +166,24 @@ export default function RecoveryPage() {
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCounter
-          value={Math.round(DEMO_STATS.recovery_rate * 100)}
+          value={Math.round(stats.recovery_rate * 100)}
           label="Recovery rate"
           suffix="%"
           color="patch"
         />
         <StatCounter
-          value={DEMO_STATS.recovered}
+          value={stats.recovered}
           label="Auto-recovered"
           color="text"
         />
         <StatCounter
-          value={DEMO_STATS.escalated}
+          value={stats.escalated}
           label="Escalated to PR"
           color="patch"
         />
         <StatCounter
           value={tier1Pct}
-          label={`Tier 1 (no LLM) %`}
+          label="Tier 1 (no LLM) %"
           suffix="%"
           color="text"
         />
@@ -178,9 +205,9 @@ export default function RecoveryPage() {
             />
           </div>
           <span className="font-mono text-xs text-[#8B9099] flex-shrink-0">
-            <span className="text-[#4FD1C5]">{DEMO_STATS.tier1_classified}</span> RULE
+            <span className="text-[#4FD1C5]">{stats.tier1_classified}</span> RULE
             &nbsp;/&nbsp;
-            <span className="text-[#A78BFA]">{DEMO_STATS.tier2_classified}</span> LLM
+            <span className="text-[#A78BFA]">{stats.tier2_classified}</span> LLM
           </span>
         </div>
         <p className="font-sans text-xs text-[#7A7F87] mt-2">
@@ -204,9 +231,9 @@ export default function RecoveryPage() {
               id="batch-run-count"
               type="number"
               min={1}
-              max={500}
+              max={100}
               value={count}
-              onChange={(e) => setCount(Math.max(1, Math.min(500, Number(e.target.value))))}
+              onChange={(e) => setCount(Math.max(1, Math.min(100, Number(e.target.value))))}
               className="font-mono text-sm bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white w-28 focus:outline-none focus:border-white/30"
             />
           </div>
@@ -248,7 +275,7 @@ export default function RecoveryPage() {
           Recent recovery events
         </h2>
         <div className="flex flex-col gap-3">
-          {DEMO_EVENTS.map((e) => (
+          {events.map((e) => (
             <RecoveryTicket key={e.id} event={e} />
           ))}
         </div>

@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # Razorpay — Test Mode only; never use live keys in this project
     razorpay_test_key_id: str = ""
     razorpay_test_key_secret: str = ""
+    razorpay_webhook_secret: str = ""
 
     # App
     nextauth_secret: str = "telex-development-session-secret-key-32-chars-min"

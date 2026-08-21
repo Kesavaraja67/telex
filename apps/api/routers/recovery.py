@@ -1,19 +1,20 @@
-﻿"""
+"""
 Recovery router — Engine B stats and event listing endpoints.
 """
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from sqlalchemy import select, func
 
 from db.session import AsyncSessionLocal
 from db.models import RecoveryEvent, PaymentAttempt
+from schemas import RecoveryEventOut, RecoveryStatsOut
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/recovery", tags=["recovery"])
 
 
-@router.get("/stats")
+@router.get("/stats", response_model=RecoveryStatsOut)
 async def get_recovery_stats():
     """Return aggregate recovery statistics for the dashboard."""
     async with AsyncSessionLocal() as session:
@@ -46,7 +47,8 @@ async def get_recovery_stats():
         tier1_count = (
             await session.execute(
                 select(func.count(RecoveryEvent.id)).where(
-                    RecoveryEvent.llm_provider == "none"
+                    RecoveryEvent.llm_provider == "none",
+                    RecoveryEvent.classification != "unknown",
                 )
             )
         ).scalar_one()
@@ -73,31 +75,20 @@ async def get_recovery_stats():
     }
 
 
-@router.get("/events")
-async def get_recovery_events(limit: int = 50, offset: int = 0):
+@router.get("/events", response_model=list[RecoveryEventOut])
+async def get_recovery_events(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
     """Return recent recovery events with their classification and outcome."""
     async with AsyncSessionLocal() as session:
         result = await session.execute(
             select(RecoveryEvent)
             .order_by(RecoveryEvent.detected_at.desc())
-            .limit(min(limit, 200))
+            .limit(limit)
             .offset(offset)
         )
         events = list(result.scalars())
 
-    return [
-        {
-            "id": str(e.id),
-            "payment_attempt_id": str(e.payment_attempt_id),
-            "failure_type": e.failure_type,
-            "classification": e.classification,
-            "action_taken": e.action_taken,
-            "llm_provider": e.llm_provider,
-            "llm_model": e.llm_model,
-            "outcome": e.outcome,
-            "pull_request_id": str(e.pull_request_id) if e.pull_request_id else None,
-            "detected_at": e.detected_at.isoformat(),
-            "resolved_at": e.resolved_at.isoformat() if e.resolved_at else None,
-        }
-        for e in events
-    ]
+    return events
+

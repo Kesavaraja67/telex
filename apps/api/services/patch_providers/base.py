@@ -1,9 +1,19 @@
-from typing import Protocol, runtime_checkable
+from typing import Literal, Protocol, TypedDict, runtime_checkable
+
+
+class FailureClassification(TypedDict):
+    classification: Literal["transient", "code_defect", "unknown"]
+    reasoning: str
+    recommended_action: str
 
 
 @runtime_checkable
 class PatchProvider(Protocol):
     """Interface every LLM patch provider must satisfy."""
+
+    @property
+    def model_name(self) -> str:
+        ...
 
     async def generate_patch(
         self,
@@ -25,18 +35,12 @@ class PatchProvider(Protocol):
         self,
         failure_type: str,
         error_context: str,
-    ) -> dict:
+    ) -> FailureClassification:
         """
         Classify a runtime failure as transient or code_defect.
 
         Only called when the failure_type is NOT in the deterministic rule table
         in diagnose_runtime_failure.py (Tier 2 — genuinely ambiguous cases only).
-
-        Returns:
-            {
-                "classification": "transient" | "code_defect" | "unknown",
-                "reasoning": str,
-                "recommended_action": str,
-            }
         """
         ...
+
