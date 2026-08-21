@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+**/node_modules/
+.pnp
+.pnp.js
+
+# Next.js Build outputs
+.next/
+**/.next/
+out/
+dist/
+build/
+
+# Python cache & virtual environments
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+**/*.pyc
+.eggs/
+*.egg-info/
+*.egg
+venv/
+**/venv/
+env/
+.venv/
+.env/
+
+# Environment files & Secrets — NEVER commit real credentials
+.env
+.env.*
+*.env
+*.env.*
+**/.env
+**/.env.*
+apps/api/.env
+apps/web/.env.local
+apps/web/.env
+*.pem
+*.key
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Editor & System
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Misc
+.vercel
+.turbo

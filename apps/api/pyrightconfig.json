@@ -1,0 +1,15 @@
+{
+  "pythonVersion": "3.10",
+  "venvPath": ".",
+  "venv": "venv",
+  "pythonPlatform": "Windows",
+  "typeCheckingMode": "basic",
+  "reportMissingModuleSource": "none",
+  "reportMissingImports": "warning",
+  "reportMissingTypeStubs": "none",
+  "exclude": [
+    "venv",
+    "**/__pycache__",
+    "alembic/versions"
+  ]
+}

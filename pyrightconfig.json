@@ -1,0 +1,18 @@
+{
+  "pythonVersion": "3.10",
+  "venvPath": "apps/api",
+  "venv": "venv",
+  "pythonPlatform": "Windows",
+  "typeCheckingMode": "basic",
+  "reportMissingModuleSource": "none",
+  "reportMissingImports": "none",
+  "include": [
+    "apps/api"
+  ],
+  "exclude": [
+    "**/venv",
+    "**/__pycache__",
+    "**/node_modules",
+    "apps/api/alembic/versions"
+  ]
+}

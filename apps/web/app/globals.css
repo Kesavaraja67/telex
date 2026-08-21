@@ -1,0 +1,144 @@
+@import "tailwindcss";
+
+/* ─── 70-20-10 Monochrome Engineering Design Tokens ───────────────────────── */
+:root {
+  /* 70% Base Surface */
+  --void:           #000000;
+  --surface-base:   rgba(255, 255, 255, 0.025);
+  --surface-raised: rgba(255, 255, 255, 0.05);
+
+  /* 20% Structure & Grays */
+  --text-secondary: #9E9E9E;
+  --text-muted:     #71717A;
+  --border:         rgba(255, 255, 255, 0.12);
+  --border-subtle:  rgba(255, 255, 255, 0.06);
+
+  /* 10% Highlight Accents */
+  --text-pure:      #FFFFFF;
+  --accent-glow:    rgba(255, 255, 255, 0.3);
+}
+
+/* ─── Tailwind 4 Theme Registration ────────────────────────────────────── */
+@theme inline {
+  --color-void:      #000000;
+  --color-text-pure: #FFFFFF;
+  --color-secondary: #9E9E9E;
+  --color-muted:     #71717A;
+
+  --font-header:     "Space Grotesk", system-ui, sans-serif;
+  --font-sans:       "Space Grotesk", system-ui, sans-serif;
+  --font-mono:       "Geist Mono", monospace;
+}
+
+/* ─── Base Resets ───────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+  background-color: #000000;
+  color-scheme: dark;
+}
+
+body {
+  background-color: #000000;
+  color: #E4E4E7;
+  font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Space Grotesk", sans-serif;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+/* ─── Typography Helpers & Dual-Tone Gradients ──────────────────────────── */
+.font-header {
+  font-family: "Space Grotesk", sans-serif;
+}
+.font-sans {
+  font-family: "Space Grotesk", sans-serif;
+}
+.font-mono {
+  font-family: "Geist Mono", monospace;
+}
+
+.text-silver-gradient {
+  background: linear-gradient(180deg, #FFFFFF 15%, #8E8E93 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ─── Infinite Marquee Ticker ───────────────────────────────────────────── */
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 38s linear infinite;
+}
+
+/* ─── Scan Line Animation ────────────────────────────────────────────────── */
+@keyframes scan-line {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+.animate-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+  animation: scan-line 3.5s ease-in-out infinite;
+}
+
+/* ─── Diff Syntax (Pure Monochrome) ─────────────────────────────────────── */
+.diff-add {
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.08);
+}
+.diff-del {
+  color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.02);
+}
+.diff-meta {
+  color: #71717A;
+}
+
+/* ─── Custom Scrollbar ──────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #000000;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
