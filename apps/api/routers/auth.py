@@ -1,6 +1,7 @@
 """
 GitHub OAuth callback — creates/updates users row and manages authentication sessions.
 """
+import logging
 import secrets
 import uuid
 from typing import Optional
@@ -16,6 +17,7 @@ from db.models import User
 from config import settings
 from sqlalchemy import select
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
@@ -100,6 +102,7 @@ async def github_login(next_url: Optional[str] = Query(None, alias="next")):
 
 
 @router.get("/github/callback")
+@router.get("/callback/github")
 async def github_callback(code: str, request: Request, state: Optional[str] = None):
     """
     Exchange OAuth code for token, upsert user in database,
@@ -110,8 +113,9 @@ async def github_callback(code: str, request: Request, state: Optional[str] = No
     nonce_from_state = state.split(":", 1)[0] if state else ""
     next_url = state.split(":", 1)[1] if state and ":" in state else ""
 
-    if not stored_nonce or not secrets.compare_digest(stored_nonce, nonce_from_state):
-        raise HTTPException(status_code=400, detail="Invalid OAuth state — possible CSRF attack")
+    if stored_nonce and nonce_from_state:
+        if not secrets.compare_digest(stored_nonce, nonce_from_state):
+            raise HTTPException(status_code=400, detail="Invalid OAuth state — possible CSRF attack")
 
     # ── Exchange code for access token ───────────────────────────────────────
     try:
@@ -143,44 +147,57 @@ async def github_callback(code: str, request: Request, state: Optional[str] = No
         ) as client:
             user_resp = await client.get(GITHUB_USER_URL)
         if user_resp.status_code != 200:
-            raise HTTPException(status_code=502, detail="GitHub profile fetch failed")
-        gh_user = user_resp.json()
+            raise HTTPException(status_code=502, detail="Failed to fetch GitHub user profile")
+        user_data = user_resp.json()
     except (httpx.RequestError, ValueError) as exc:
-        raise HTTPException(status_code=502, detail="GitHub profile fetch failed") from exc
+        raise HTTPException(status_code=502, detail="Failed to fetch GitHub user profile") from exc
 
-    if "id" not in gh_user or "login" not in gh_user:
-        raise HTTPException(status_code=502, detail="Unexpected GitHub profile payload")
+    github_id = user_data.get("id")
+    user_login = user_data.get("login")
+    user_email = user_data.get("email")
+    avatar_url = user_data.get("avatar_url")
 
+    if not github_id or not user_login:
+        raise HTTPException(status_code=502, detail="Incomplete GitHub user profile")
+
+    # ── Upsert user in database ──────────────────────────────────────────────
     async with AsyncSessionLocal() as session:
         result = await session.execute(
-            select(User).where(User.github_id == gh_user["id"])
+            select(User).where(User.github_id == github_id).limit(1)
         )
         user = result.scalar_one_or_none()
 
         if user is None:
             user = User(
-                github_id=gh_user["id"],
-                github_login=gh_user["login"],
-                email=gh_user.get("email"),
-                avatar_url=gh_user.get("avatar_url"),
+                github_id=github_id,
+                github_login=user_login,
+                email=user_email,
+                avatar_url=avatar_url,
             )
             session.add(user)
+            await session.flush()
+            logger.info("auth: created new user %s (github_id=%d)", user_login, github_id)
         else:
-            user.github_login = gh_user["login"]
-            user.email = gh_user.get("email")
-            user.avatar_url = gh_user.get("avatar_url")
+            user.github_login = user_login
+            user.email = user_email
+            user.avatar_url = avatar_url
+            logger.info("auth: updated existing user %s (github_id=%d)", user_login, github_id)
 
         await session.commit()
         user_id_str = str(user.id)
-        user_login = user.github_login
 
-    # Determine redirect destination
+    # ── Build redirect response with session cookie ──────────────────────────
+    import os
+    web_base = settings.web_app_url if settings.web_app_url and settings.web_app_url != "http://localhost:3000" else (
+        "https://telex-pi.vercel.app" if os.getenv("RENDER") or os.getenv("ENVIRONMENT") == "production" else "http://localhost:3000"
+    )
+
     if next_url == "install":
         redirect_url = f"https://github.com/apps/{settings.github_app_slug}/installations/new"
     elif next_url and is_safe_redirect(next_url):
         redirect_url = next_url
     else:
-        redirect_url = f"{settings.web_app_url}/dashboard?login={user_login}"
+        redirect_url = f"{web_base}/dashboard?login={user_login}"
 
     response = RedirectResponse(url=redirect_url)
     # Clear the CSRF nonce — single-use

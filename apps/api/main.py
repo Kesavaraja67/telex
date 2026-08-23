@@ -68,6 +68,7 @@ app.add_middleware(
 
 # Mount all routers
 app.include_router(auth.router)
+app.include_router(auth.router, prefix="/api")
 app.include_router(repos.router)
 app.include_router(packages.router)
 app.include_router(webhooks.router)
