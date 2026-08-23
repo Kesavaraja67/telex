@@ -74,7 +74,7 @@ def parse_classification_response(raw: str) -> FailureClassification:
 class GeminiProvider(PatchProvider):
     """Patch provider backed by Google Gemini (google-genai SDK)."""
 
-    def __init__(self, api_key: str, model: str = "gemini-2.0-flash"):
+    def __init__(self, api_key: str, model: str = "gemini-2.5-flash"):
         self.client = genai.Client(
             api_key=api_key,
             http_options=genai_types.HttpOptions(timeout=30000),
@@ -137,5 +137,82 @@ class GeminiProvider(PatchProvider):
                 "recommended_action": "Treat as transient and retry once; escalate if it recurs.",
             }
         return parse_classification_response(response.text)
+
+    async def explain_repo_architecture(
+        self,
+        repo_name: str,
+        commits: list[dict],
+        dependencies: list[str],
+    ) -> dict:
+        """
+        Use Gemini 2.5 Flash to generate live deep architectural analysis,
+        commit breakdown, risk radar, and self-healing recommendations for a repo.
+        """
+        commit_text = "\n".join([
+            f"- [{c.get('short_hash', '')}] {c.get('message', '')} (by {c.get('author', '')} on {c.get('date', '')})"
+            for c in commits[:8]
+        ])
+        deps_text = ", ".join(dependencies) or "standard dependencies"
+
+        prompt = f"""You are Telex AI Engine, an autonomous software architecture and dependency-healing analyst.
+Analyze the following repository status and commit stream:
+
+Repository: {repo_name}
+Tracked Dependencies: {deps_text}
+
+Recent Commit Stream:
+{commit_text}
+
+Provide a structured, high-tech architectural intelligence report. Return ONLY valid JSON with this schema:
+{{
+  "summary": "2-sentence executive summary of the repository status and recent evolution",
+  "commit_insights": [
+    {{
+      "hash": "commit hash snippet",
+      "impact": "What this commit changed and how it impacts system resilience",
+      "risk_level": "LOW" | "MEDIUM" | "HIGH"
+    }}
+  ],
+  "architecture_verdict": "Clear statement on current code health and integration stability",
+  "risk_score": integer from 0 to 100 (where 0 is completely safe, 100 is critical risk),
+  "recommended_actions": ["action 1", "action 2"]
+}}
+"""
+        try:
+            response = await self.client.aio.models.generate_content(
+                model=self._model_name,
+                contents=prompt,
+            )
+            text = response.text or "{}"
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0].strip()
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0].strip()
+            import json
+            result = json.loads(text)
+            if isinstance(result, dict):
+                result["degraded"] = False
+                return result
+            raise ValueError("Invalid JSON response from Gemini model")
+        except Exception as e:
+            logger.error("GeminiProvider.explain_repo_architecture error: %s", e)
+            return {
+                "summary": f"Repository {repo_name} is actively tracked by Telex with automated AST and runtime recovery guards.",
+                "commit_insights": [
+                    {
+                        "hash": c.get("short_hash", "HEAD"),
+                        "impact": c.get("message", "Recent update"),
+                        "risk_level": "LOW",
+                    }
+                    for c in commits[:3]
+                ],
+                "architecture_verdict": "Nominal — Tree-sitter AST validation and verification gates active.",
+                "risk_score": 12,
+                "recommended_actions": [
+                    "Maintain continuous integration verification gate",
+                    "Keep Razorpay webhook idempotency verified",
+                ],
+                "degraded": True,
+            }
 
 

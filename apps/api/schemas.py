@@ -22,14 +22,51 @@ class UserOut(BaseModel):
 
 # ── Repos ─────────────────────────────────────────────────────────────────────
 
+class CommitInfo(BaseModel):
+    hash: str
+    short_hash: str
+    message: str
+    author: str
+    email: Optional[str] = None
+    date: str
+    relative_time: str
+
+
 class RepoOut(BaseModel):
-    id: uuid.UUID
+    id: str
     full_name: str
-    default_branch: str
-    is_active: bool
+    name: Optional[str] = None
+    owner: Optional[str] = None
+    description: Optional[str] = None
+    default_branch: str = "main"
+    is_active: bool = True
     created_at: datetime
+    github_url: str
+    languages: list[str] = []
+    patch_count: int = 0
+    status: str = "healthy"
+    last_commit: Optional[CommitInfo] = None
+    dependencies: list[str] = []
 
     model_config = {"from_attributes": True}
+
+
+class RepoDetailOut(RepoOut):
+    commits: list[CommitInfo] = []
+
+
+class CommitInsight(BaseModel):
+    hash: str
+    impact: str
+    risk_level: str
+
+
+class AIExplainOut(BaseModel):
+    summary: str
+    commit_insights: list[CommitInsight] = []
+    architecture_verdict: str
+    risk_score: int
+    recommended_actions: list[str] = []
 
 
 class RepoToggleIn(BaseModel):
@@ -80,7 +117,13 @@ class RescanIn(BaseModel):
     changelog: Optional[str] = None
 
 
-# ── Engine B — Recovery ────────────────────────────────────────────────────────
+# ── Engine B — Payments & Recovery ─────────────────────────────────────────────
+
+class VerifySignatureIn(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+
 
 class RecoveryEventOut(BaseModel):
     id: uuid.UUID
@@ -92,6 +135,7 @@ class RecoveryEventOut(BaseModel):
     llm_model: str
     outcome: str
     pull_request_id: Optional[uuid.UUID] = None
+    amount: Optional[int] = 0  # paise
     detected_at: datetime
     resolved_at: Optional[datetime] = None
 
@@ -107,3 +151,6 @@ class RecoveryStatsOut(BaseModel):
     recovery_rate: float  # fraction 0.0–1.0
     tier1_classified: int  # classified via deterministic rule (no LLM)
     tier2_classified: int  # classified via LLM call
+    revenue_at_risk: int = 0  # paise
+    revenue_recovered: int = 0  # paise
+

@@ -26,8 +26,8 @@ export default function RadialButton({
   label,
   colors = {
     fill: "#000000",
-    textColor: "#F2F1ED",
-    hoverFill: "#4FD1C5",
+    textColor: "#FFFFFF",
+    hoverFill: "#FFFFFF",
     hoverTextColor: "#000000",
   },
   border = {
@@ -64,7 +64,7 @@ export default function RadialButton({
 
   const fill = colors.fill ?? "#000000";
   const textColor = colors.textColor ?? "#F2F1ED";
-  const hoverFill = colors.hoverFill ?? "#4FD1C5";
+  const hoverFill = colors.hoverFill ?? "#FFFFFF";
   const hoverTextColor = colors.hoverTextColor ?? "#000000";
   const borderWidth = border.borderWidth ?? 1;
   const borderColor = border.borderColor ?? "rgba(255, 255, 255, 0.16)";

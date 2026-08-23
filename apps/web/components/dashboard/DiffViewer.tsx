@@ -9,7 +9,6 @@ interface DiffViewerProps {
   animated?: boolean;
 }
 
-// Disable character animation for large diffs to avoid thousands of DOM nodes
 const CHAR_ANIMATION_SIZE_LIMIT = 300;
 
 export default function DiffViewer({ diff, filename, animated = true }: DiffViewerProps) {
@@ -29,18 +28,16 @@ export default function DiffViewer({ diff, filename, animated = true }: DiffView
   const lines = diff.split("\n");
 
   function renderLine(line: string, idx: number) {
-    let className = "text-[#8B9099]";
+    let className = "text-[#A1A1AA]";
     let bg = "transparent";
     if (line.startsWith("+")) {
-      className = "text-[#4FD1C5]";
-      bg = "rgba(79, 209, 197, 0.08)";
+      className = "text-white font-medium";
+      bg = "rgba(255, 255, 255, 0.1)";
     } else if (line.startsWith("-")) {
-      className = "text-[#E8A33D]";
-      bg = "rgba(232, 163, 61, 0.08)";
+      className = "text-[#71717A] line-through";
+      bg = "rgba(255, 255, 255, 0.02)";
     }
 
-    // Only render per-character spans when animation is needed;
-    // otherwise use plain text to avoid creating thousands of DOM nodes.
     const content = shouldAnimate
       ? line.split("").map((ch, i) => (
           <span key={i} className="char" style={{ opacity: 0 }}>
@@ -61,17 +58,16 @@ export default function DiffViewer({ diff, filename, animated = true }: DiffView
   }
 
   return (
-    <div className="glass-surface overflow-hidden bg-black/80 border border-white/[0.08]">
+    <div className="rounded-lg overflow-hidden border border-white/10 bg-black">
       {filename && (
-        <div className="px-4 py-2.5 font-mono text-xs text-[#8B9099] flex items-center gap-2 border-b border-white/[0.08] bg-white/[0.02]">
-          <span className="text-white font-medium">DIFF</span>
-          <span className="text-[#F2F1ED]">{filename}</span>
+        <div className="px-4 py-2 bg-white/[0.04] border-b border-white/[0.08] flex items-center justify-between">
+          <span className="font-mono text-xs text-white">{filename}</span>
+          <span className="font-mono text-[10px] text-[#71717A]">UNIFIED DIFF</span>
         </div>
       )}
-      <div ref={containerRef} className="py-2.5 overflow-x-auto">
-        {lines.map((line, i) => renderLine(line, i))}
+      <div ref={containerRef} className="py-2 overflow-x-auto">
+        {lines.map((l, i) => renderLine(l, i))}
       </div>
     </div>
   );
 }
-

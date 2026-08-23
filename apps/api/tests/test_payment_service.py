@@ -95,3 +95,43 @@ def test_simulate_payment_configured_normal_failure_handling():
         assert result["success"] is False
         assert result["error_type"] == "payment_failed"
         assert result["razorpay_payment_id"] is None
+
+
+def test_verify_webhook_signature_payment_captured():
+    """Verify payment.captured webhook signature and event parsing."""
+    secret = "test_webhook_secret_key_12345"
+    payload = b'{"event":"payment.captured","payload":{"payment":{"entity":{"id":"pay_captured_999","order_id":"order_123"}}}}'
+    expected_sig = hmac.new(
+        secret.encode("utf-8"),
+        msg=payload,
+        digestmod=hashlib.sha256,
+    ).hexdigest()
+
+    with patch.object(settings, "razorpay_webhook_secret", secret):
+        assert payment_service.verify_webhook_signature(payload, expected_sig) is True
+
+
+def test_verify_checkout_signature_valid():
+    """Valid Checkout.js HMAC signature matches order_id|payment_id digest."""
+    secret = "rzp_secret_test_98765"
+    order_id = "order_ABCD1234"
+    payment_id = "pay_XYZ9876"
+    msg = f"{order_id}|{payment_id}".encode("utf-8")
+    expected_sig = hmac.new(secret.encode("utf-8"), msg=msg, digestmod=hashlib.sha256).hexdigest()
+
+    with patch.object(settings, "razorpay_test_key_secret", secret):
+        assert payment_service.verify_checkout_signature(order_id, payment_id, expected_sig) is True
+
+
+def test_verify_checkout_signature_invalid_and_tampered():
+    """Tampered signature or modified order/payment ID is rejected."""
+    secret = "rzp_secret_test_98765"
+    order_id = "order_ABCD1234"
+    payment_id = "pay_XYZ9876"
+
+    with patch.object(settings, "razorpay_test_key_secret", secret):
+        assert payment_service.verify_checkout_signature(order_id, payment_id, "invalid_sig_abc") is False
+        assert payment_service.verify_checkout_signature(order_id, payment_id, "") is False
+        assert payment_service.verify_checkout_signature("tampered_order", payment_id, "some_sig") is False
+
+

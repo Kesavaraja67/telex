@@ -43,7 +43,7 @@ export default function PatchTicket({ patch, repoId }: PatchTicketProps) {
         </div>
         <div className="flex items-center gap-2.5 flex-shrink-0">
           <Badge status={patch.status} />
-          <span className="font-mono text-[10px] text-[#8B9099]">{timeAgo}</span>
+          <span suppressHydrationWarning className="font-mono text-[10px] text-[#8B9099]">{timeAgo}</span>
         </div>
       </div>
 

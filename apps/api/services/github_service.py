@@ -22,11 +22,11 @@ except ImportError:
     GithubException: Any = Exception
 
 
-def get_installation_client(installation_id: int):
+def get_installation_token(installation_id: int) -> str:
     """
-    Return an authenticated PyGithub client scoped to a specific installation.
+    Return an installation access token for shallow cloning and Git CLI authentication.
     """
-    if Github is None or GithubIntegration is None:
+    if GithubIntegration is None:
         raise RuntimeError("PyGithub not installed — run: pip install PyGithub")
 
     private_key = settings.github_app_private_key.replace("\\n", "\n").strip('"\'')
@@ -34,7 +34,17 @@ def get_installation_client(installation_id: int):
         int(settings.github_app_id),
         private_key,
     )
-    token = integration.get_access_token(installation_id).token
+    return integration.get_access_token(installation_id).token
+
+
+def get_installation_client(installation_id: int):
+    """
+    Return an authenticated PyGithub client scoped to a specific installation.
+    """
+    if Github is None:
+        raise RuntimeError("PyGithub not installed — run: pip install PyGithub")
+
+    token = get_installation_token(installation_id)
     return Github(token)
 
 

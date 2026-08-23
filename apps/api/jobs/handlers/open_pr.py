@@ -90,12 +90,23 @@ async def run(payload: dict) -> None:
             logger.info("open_pr: no verified patches for repo %s (version=%s, usage=%s)", repo_id, package_version_id, code_usage_id)
             return
 
-        # Pre-load CodeUsage rows
+        # Pre-load CodeUsage and ValidationRun rows
         usage_map: dict = {}
+        vr_map: dict = {}
+        from db.models import ValidationRun
         for p in patches:
             cu = await session.get(CodeUsage, p.code_usage_id)
             if cu:
                 usage_map[p.id] = cu
+            vr_res = await session.execute(
+                select(ValidationRun)
+                .where(ValidationRun.patch_id == p.id)
+                .order_by(ValidationRun.created_at.desc())
+                .limit(1)
+            )
+            vr = vr_res.scalar_one_or_none()
+            if vr:
+                vr_map[p.id] = vr
 
     # ── PyGithub calls run in a thread — they are blocking I/O ───────────────
     gh = await asyncio.to_thread(get_installation_client, installation_github_id)
@@ -122,6 +133,7 @@ async def run(payload: dict) -> None:
                 "package_name": pkg_name,
                 "new_version": pv_version,
                 "diff": p.diff,
+                "validation": vr_map.get(p.id),
             }
         )
 
@@ -133,14 +145,31 @@ async def run(payload: dict) -> None:
         )
         return
 
-    # Build PR body
+    # Build PR body with explicit verification evidence
     body_lines = [
         f"## Telex Auto-Patch: `{pkg_name}` → `{pv_version}`\n",
         "Telex detected breaking API changes / runtime defects and generated the following patches.\n",
         "**Review each diff carefully before merging. Never auto-merge.**\n",
     ]
     for i, pd in enumerate(patch_dicts, 1):
+        vr = pd.get("validation")
+        vr_evidence = []
+        if vr:
+            mode_display = getattr(vr, "verification_mode", None) or "structural_only"
+            vr_evidence.append(f"- **Verification Mode**: `{mode_display}`")
+            vr_evidence.append(f"- **Applied Cleanly**: {'✓ Passed' if vr.applies_cleanly else '✗ Failed'}")
+            if vr.typechecks is not None:
+                vr_evidence.append(f"- **Typecheck**: {'✓ Passed' if vr.typechecks else '✗ Failed'}")
+            else:
+                vr_evidence.append("- **Typecheck**: N/A (no config found)")
+            if vr.tests_pass is not None:
+                vr_evidence.append(f"- **Automated Tests**: {'✓ Passed' if vr.tests_pass else '✗ Failed'}")
+            else:
+                vr_evidence.append("- **Automated Tests**: N/A (no test suite found)")
+
         body_lines.append(f"\n### Patch {i}: `{pd['file_path']}`\n")
+        if vr_evidence:
+            body_lines.append("**Verification Gate Evidence:**\n" + "\n".join(vr_evidence) + "\n")
         body_lines.append(f"```diff\n{pd['diff']}\n```\n")
 
     summary = "\n".join(body_lines)
