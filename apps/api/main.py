@@ -1,6 +1,9 @@
 """
 Telex FastAPI application entry point.
 """
+import asyncio
+import os
+import uuid
 from contextlib import asynccontextmanager
 import logging
 
@@ -20,7 +23,27 @@ logger = logging.getLogger("telex.api")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Telex API starting up — LLM provider: %s", settings.llm_provider_default)
+    # Start embedded worker loop for free single-service hosting
+    worker_task = None
+    scheduler = None
+    if os.getenv("EMBEDDED_WORKER", "true").lower() in ("true", "1", "yes"):
+        try:
+            from jobs.worker import worker_loop, start_scheduler
+            scheduler = start_scheduler()
+            worker_task = asyncio.create_task(worker_loop(f"worker-embedded-{uuid.uuid4().hex[:6]}"))
+            logger.info("Embedded autonomous job worker started in background.")
+        except Exception as e:
+            logger.warning("Could not start embedded background worker: %s", e)
+
     yield
+
+    if worker_task:
+        worker_task.cancel()
+    if scheduler:
+        try:
+            scheduler.shutdown()
+        except Exception:
+            pass
     logger.info("Telex API shutting down")
 
 
@@ -30,8 +53,6 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
-
-import os
 
 _is_prod = bool(os.getenv("RENDER") or os.getenv("ENVIRONMENT", "").lower() == "production")
 
