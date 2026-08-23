@@ -27,7 +27,7 @@ export default function Nav() {
     if (user) {
       window.location.href = "/dashboard";
     } else {
-      window.location.href = `${apiUrl}/auth/github`;
+      window.location.href = `${apiUrl}/api/auth/github`;
     }
   };
 

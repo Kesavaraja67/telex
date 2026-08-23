@@ -23,7 +23,7 @@ export default function Hero() {
       window.location.href = `https://github.com/apps/${appName}/installations/new`;
     } else {
       // Not signed in: redirect to login first, then automatically forward to installation
-      window.location.href = `${apiUrl}/auth/github?next=install`;
+      window.location.href = `${apiUrl}/api/auth/github?next=install`;
     }
   };
 
