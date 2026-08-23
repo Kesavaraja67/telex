@@ -106,7 +106,7 @@ async def test_diagnose_handler_tier2_llm_flow():
     mock_session_local.return_value.__aenter__.return_value = mock_session
 
     mock_provider = AsyncMock()
-    mock_provider.model_name = "gemini-2.0-flash"
+    mock_provider.model_name = "gemini-2.5-flash"
     mock_provider.classify_failure.return_value = {
         "classification": "code_defect",
         "reasoning": "The payload schema deviates from API contract v2.",
@@ -125,7 +125,7 @@ async def test_diagnose_handler_tier2_llm_flow():
 
         # Event fields updated from LLM response
         assert mock_event.classification == "code_defect"
-        assert mock_event.llm_model == "gemini-2.0-flash"
+        assert mock_event.llm_model == "gemini-2.5-flash"
         assert "Classified via LLM: The payload schema deviates" in mock_event.action_taken
 
         # recover_runtime job enqueued

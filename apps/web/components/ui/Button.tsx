@@ -11,11 +11,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<string, string> = {
   primary:
-    "bg-patch text-ink font-semibold hover:brightness-110 shadow-[0_0_20px_rgba(79,209,197,0.3)]",
+    "bg-white text-black font-semibold hover:bg-white/90 shadow-[0_0_20px_rgba(255,255,255,0.2)]",
   ghost:
-    "border border-muted/40 text-text hover:border-patch hover:text-patch",
+    "border border-white/20 text-white hover:border-white/40 hover:bg-white/5",
   danger:
-    "border border-break/40 text-break hover:bg-break/10",
+    "border border-white/20 text-[#A1A1AA] hover:bg-white/5 hover:text-white",
 };
 
 const sizeStyles: Record<string, string> = {
@@ -47,8 +47,8 @@ export default function Button({
     <button
       ref={ref}
       className={[
-        "font-mono tracking-tight rounded transition-all duration-200 cursor-pointer",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-patch/60",
+        "font-mono tracking-tight rounded-lg transition-all duration-200 cursor-pointer",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
         "disabled:opacity-40 disabled:cursor-not-allowed",
         variantStyles[variant],
         sizeStyles[size],

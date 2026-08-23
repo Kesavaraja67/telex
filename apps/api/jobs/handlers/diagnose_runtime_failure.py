@@ -47,14 +47,16 @@ _LLM_ACTION_PREFIX = "Classified via LLM: "
 
 async def run(payload: dict) -> None:
     from db.session import AsyncSessionLocal
-    from db.models import RecoveryEvent
+    from db.models import RecoveryEvent, PaymentAttempt
     from jobs.queue import enqueue_job
     from services.patch_providers import get_patch_provider
     from config import settings
+    from sqlalchemy import select, func
+    from datetime import datetime, timezone, timedelta
 
     recovery_event_id = uuid.UUID(payload["recovery_event_id"])
 
-    # ── Phase 1: read failure_type ────────────────────────────────────────────
+    # ── Phase 1: read failure_type and recent failure history ─────────────────
     async with AsyncSessionLocal() as session:
         event = await session.get(RecoveryEvent, recovery_event_id)
         if event is None:
@@ -62,6 +64,21 @@ async def run(payload: dict) -> None:
             return
 
         failure_type = event.failure_type
+        attempt = await session.get(PaymentAttempt, event.payment_attempt_id)
+        order_id = attempt.razorpay_order_id if attempt else ""
+
+        # Lightweight evidence check: failures for this order in the last 5 minutes
+        recent_failures_count = 0
+        if order_id:
+            five_mins_ago = datetime.now(timezone.utc) - timedelta(minutes=5)
+            recent_res = await session.execute(
+                select(func.count(PaymentAttempt.id)).where(
+                    PaymentAttempt.razorpay_order_id == order_id,
+                    PaymentAttempt.status == "failed",
+                    PaymentAttempt.created_at >= five_mins_ago,
+                )
+            )
+            recent_failures_count = recent_res.scalar_one()
 
     # ── Phase 2: classify (outside session — LLM call may be slow) ───────────
     if failure_type in DETERMINISTIC_CLASSIFICATIONS:
@@ -79,6 +96,7 @@ async def run(payload: dict) -> None:
         provider = get_patch_provider()
         error_context = (
             f"A payment transaction failed with failure_type='{failure_type}'. "
+            f"Recent failure count for this order in last 5 minutes: {recent_failures_count}. "
             f"This type was not in the deterministic rule table, so LLM judgment is required."
         )
         result = await provider.classify_failure(

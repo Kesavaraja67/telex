@@ -193,3 +193,28 @@ def verify_webhook_signature(payload: bytes, signature: str) -> bool:
     ).hexdigest()
 
     return hmac.compare_digest(expected, signature)
+
+
+def verify_checkout_signature(razorpay_order_id: str, razorpay_payment_id: str, signature: str) -> bool:
+    """
+    Verify Razorpay Checkout.js payment response signature.
+    Per Razorpay documentation:
+    HMAC-SHA256 of f"{order_id}|{payment_id}" using the API key secret.
+    """
+    secret = settings.razorpay_test_key_secret
+    if not secret:
+        logger.error("RAZORPAY_TEST_KEY_SECRET not configured — rejecting signature verification")
+        return False
+
+    if not razorpay_order_id or not razorpay_payment_id or not signature:
+        return False
+
+    msg = f"{razorpay_order_id}|{razorpay_payment_id}".encode("utf-8")
+    expected = hmac.new(
+        secret.encode("utf-8"),
+        msg=msg,
+        digestmod=hashlib.sha256,
+    ).hexdigest()
+
+    return hmac.compare_digest(expected, signature)
+

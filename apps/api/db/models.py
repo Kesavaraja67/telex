@@ -197,6 +197,7 @@ class ValidationRun(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     patch_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patches.id", ondelete="CASCADE"), nullable=False)
+    verification_mode: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # "full" | "structural_only"
     applies_cleanly: Mapped[bool] = mapped_column(Boolean, nullable=False)
     parses: Mapped[bool] = mapped_column(Boolean, nullable=False)
     typechecks: Mapped[Optional[bool]] = mapped_column(Boolean)
@@ -276,6 +277,7 @@ class PaymentAttempt(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     razorpay_order_id: Mapped[str] = mapped_column(Text, nullable=False)
     razorpay_payment_id: Mapped[Optional[str]] = mapped_column(Text)
+    razorpay_event_id: Mapped[Optional[str]] = mapped_column(Text, unique=True, nullable=True)
     amount: Mapped[int] = mapped_column(Integer, nullable=False)  # paise
     status: Mapped[str] = mapped_column(Text, nullable=False, default="created")
     # null = organic attempt; non-null = injected failure type e.g. "timeout"
@@ -314,6 +316,7 @@ class RecoveryEvent(Base):
     llm_provider: Mapped[str] = mapped_column(Text, nullable=False, default="none")
     llm_model: Mapped[str] = mapped_column(Text, nullable=False, default="none")
     outcome: Mapped[str] = mapped_column(Text, nullable=False, default="unresolved")
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Populated when code_defect escalation produces a real PR
     pull_request_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("pull_requests.id"))
     detected_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)

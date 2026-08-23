@@ -1,28 +1,25 @@
 @import "tailwindcss";
 
-/* ─── 70-20-10 Monochrome Engineering Design Tokens ───────────────────────── */
+/* ─── Pure Monochrome Black & White Engineering Tokens ───────────────────────── */
 :root {
-  /* 70% Base Surface */
   --void:           #000000;
-  --surface-base:   rgba(255, 255, 255, 0.025);
-  --surface-raised: rgba(255, 255, 255, 0.05);
+  --surface-base:   rgba(255, 255, 255, 0.03);
+  --surface-raised: rgba(255, 255, 255, 0.06);
 
-  /* 20% Structure & Grays */
-  --text-secondary: #9E9E9E;
+  --text-pure:      #FFFFFF;
+  --text-secondary: #A1A1AA;
   --text-muted:     #71717A;
+  
   --border:         rgba(255, 255, 255, 0.12);
   --border-subtle:  rgba(255, 255, 255, 0.06);
-
-  /* 10% Highlight Accents */
-  --text-pure:      #FFFFFF;
-  --accent-glow:    rgba(255, 255, 255, 0.3);
+  --accent-glow:    rgba(255, 255, 255, 0.4);
 }
 
 /* ─── Tailwind 4 Theme Registration ────────────────────────────────────── */
 @theme inline {
   --color-void:      #000000;
   --color-text-pure: #FFFFFF;
-  --color-secondary: #9E9E9E;
+  --color-secondary: #A1A1AA;
   --color-muted:     #71717A;
 
   --font-header:     "Space Grotesk", system-ui, sans-serif;
@@ -44,7 +41,7 @@ html {
 
 body {
   background-color: #000000;
-  color: #E4E4E7;
+  color: #FFFFFF;
   font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -70,56 +67,85 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .text-silver-gradient {
-  background: linear-gradient(180deg, #FFFFFF 15%, #8E8E93 100%);
+  background: linear-gradient(180deg, #FFFFFF 20%, #71717A 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-/* ─── Infinite Marquee Ticker ───────────────────────────────────────────── */
-@keyframes marquee {
+/* ─── Arqitel & ChainGPT Pure Monochrome Utilities ─────────────────────── */
+
+/* 1. Traveling Laser Border Beam (Pure White Glow) */
+@keyframes border-beam {
   0% {
-    transform: translateX(0%);
+    offset-distance: 0%;
   }
   100% {
-    transform: translateX(-50%);
+    offset-distance: 100%;
   }
 }
 
-.animate-marquee {
-  display: flex;
-  width: max-content;
-  animation: marquee 38s linear infinite;
+/* 2. Cybernetic Grid Background (Pure Monochrome) */
+.cyber-grid {
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
 }
 
-/* ─── Scan Line Animation ────────────────────────────────────────────────── */
-@keyframes scan-line {
+.cyber-grid-radial-mask {
+  mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, #000 70%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, #000 70%, transparent 100%);
+}
+
+/* 3. Glass Surface with White Cursor Glow */
+.glass-surface {
+  background: rgba(12, 12, 12, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+}
+
+.glass-surface:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 12px 40px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* 4. Terminal Scan Line Sweep (Pure White Laser) */
+@keyframes terminal-scan {
   0% {
-    top: 0%;
+    top: -10%;
     opacity: 0;
   }
-  50% {
-    opacity: 1;
+  20% {
+    opacity: 0.9;
+  }
+  80% {
+    opacity: 0.9;
   }
   100% {
-    top: 100%;
+    top: 110%;
     opacity: 0;
   }
 }
 
-.animate-scan {
+.animate-terminal-scan {
   position: absolute;
   left: 0;
   right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
-  animation: scan-line 3.5s ease-in-out infinite;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, #FFFFFF, transparent);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.9);
+  animation: terminal-scan 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
 }
 
 /* ─── Diff Syntax (Pure Monochrome) ─────────────────────────────────────── */
 .diff-add {
   color: #FFFFFF;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
 }
 .diff-del {
   color: rgba(255, 255, 255, 0.4);

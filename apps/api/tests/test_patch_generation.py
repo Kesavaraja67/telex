@@ -69,3 +69,49 @@ def test_extract_diff_unable_to_patch_handling():
     """Extracts UNABLE_TO_PATCH when model signals inability to patch."""
     assert extract_diff("I cannot patch this: UNABLE_TO_PATCH") == "UNABLE_TO_PATCH"
     assert extract_diff("UNABLE_TO_PATCH") == "UNABLE_TO_PATCH"
+
+
+@pytest.mark.asyncio
+async def test_verify_patch_in_clone_no_installation_is_structural_only():
+    """Without installation token, verification_mode is 'structural_only' and is_verified is False."""
+    from jobs.handlers.generate_patch import verify_patch_in_clone
+
+    snippet = "const res = await openai.createCompletion({ model: 'text-davinci-003' });"
+    diff = """--- a/src/index.ts
++++ b/src/index.ts
+@@ -1,1 +1,1 @@
+-const res = await openai.createCompletion({ model: 'text-davinci-003' });
++const res = await openai.chat.completions.create({ model: 'gpt-4' });"""
+
+    result = await verify_patch_in_clone(
+        repo_full_name="org/test-repo",
+        default_branch="main",
+        installation_github_id=None,
+        diff=diff,
+        code_snippet=snippet,
+    )
+    assert result["verification_mode"] == "structural_only"
+    assert result["is_verified"] is False
+    assert result["applies_cleanly"] is True
+
+
+@pytest.mark.asyncio
+async def test_verify_patch_in_clone_broken_patch_rejected():
+    """Broken or out-of-scope diff is rejected by verification gate."""
+    from jobs.handlers.generate_patch import verify_patch_in_clone
+
+    snippet = "const res = await openai.createCompletion();"
+    broken_diff = "not a valid diff format"
+
+    result = await verify_patch_in_clone(
+        repo_full_name="org/test-repo",
+        default_branch="main",
+        installation_github_id=None,
+        diff=broken_diff,
+        code_snippet=snippet,
+    )
+    assert result["verification_mode"] == "structural_only"
+    assert result["is_verified"] is False
+    assert result["applies_cleanly"] is False
+
+

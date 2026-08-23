@@ -61,6 +61,22 @@ async def get_recovery_stats():
             )
         ).scalar_one()
 
+        # Real Revenue Math (paise)
+        # Revenue at risk: sum amount for failed or non-success attempts
+        at_risk_res = await session.execute(
+            select(func.coalesce(func.sum(PaymentAttempt.amount), 0))
+            .where(PaymentAttempt.status != "success")
+        )
+        revenue_at_risk = int(at_risk_res.scalar_one())
+
+        # Revenue recovered: sum amount for PaymentAttempts whose linked RecoveryEvent outcome == "recovered"
+        recovered_res = await session.execute(
+            select(func.coalesce(func.sum(PaymentAttempt.amount), 0))
+            .join(RecoveryEvent, RecoveryEvent.payment_attempt_id == PaymentAttempt.id)
+            .where(RecoveryEvent.outcome == "recovered")
+        )
+        revenue_recovered = int(recovered_res.scalar_one())
+
     recovery_rate = (recovered + escalated) / total_events if total_events > 0 else 0.0
 
     return {
@@ -72,6 +88,8 @@ async def get_recovery_stats():
         "recovery_rate": round(recovery_rate, 4),
         "tier1_classified": tier1_count,
         "tier2_classified": tier2_count,
+        "revenue_at_risk": revenue_at_risk,
+        "revenue_recovered": revenue_recovered,
     }
 
 
@@ -80,15 +98,34 @@ async def get_recovery_events(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    """Return recent recovery events with their classification and outcome."""
+    """Return recent recovery events with their classification, outcome, and amount (paise)."""
     async with AsyncSessionLocal() as session:
         result = await session.execute(
-            select(RecoveryEvent)
+            select(RecoveryEvent, PaymentAttempt.amount)
+            .join(PaymentAttempt, RecoveryEvent.payment_attempt_id == PaymentAttempt.id)
             .order_by(RecoveryEvent.detected_at.desc())
             .limit(limit)
             .offset(offset)
         )
-        events = list(result.scalars())
+        rows = result.all()
+        events = []
+        for event, amount in rows:
+            event_dict = {
+                "id": event.id,
+                "payment_attempt_id": event.payment_attempt_id,
+                "failure_type": event.failure_type,
+                "classification": event.classification,
+                "action_taken": event.action_taken,
+                "llm_provider": event.llm_provider,
+                "llm_model": event.llm_model,
+                "outcome": event.outcome,
+                "pull_request_id": event.pull_request_id,
+                "amount": amount,
+                "detected_at": event.detected_at,
+                "resolved_at": event.resolved_at,
+            }
+            events.append(RecoveryEventOut(**event_dict))
 
     return events
+
 
