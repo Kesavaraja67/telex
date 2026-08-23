@@ -155,6 +155,8 @@ async def run(payload: dict) -> None:
         vr = pd.get("validation")
         vr_evidence = []
         if vr:
+            mode_display = getattr(vr, "verification_mode", None) or "structural_only"
+            vr_evidence.append(f"- **Verification Mode**: `{mode_display}`")
             vr_evidence.append(f"- **Applied Cleanly**: {'✓ Passed' if vr.applies_cleanly else '✗ Failed'}")
             if vr.typechecks is not None:
                 vr_evidence.append(f"- **Typecheck**: {'✓ Passed' if vr.typechecks else '✗ Failed'}")

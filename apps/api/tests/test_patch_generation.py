@@ -115,3 +115,35 @@ async def test_verify_patch_in_clone_broken_patch_rejected():
     assert result["applies_cleanly"] is False
 
 
+@pytest.mark.asyncio
+async def test_verify_patch_in_clone_exception_fails_verification(monkeypatch):
+    """Unexpected exception during verification sets verification_mode='error' and is_verified=False."""
+    from jobs.handlers.generate_patch import verify_patch_in_clone
+    import services.github_service as gh_svc
+
+    snippet = "const res = await openai.createCompletion();"
+    diff = """--- a/src/index.ts
++++ b/src/index.ts
+@@ -1,1 +1,1 @@
+-const res = await openai.createCompletion();
++const res = await openai.chat.completions.create();"""
+
+    monkeypatch.setattr(gh_svc, "get_installation_token", lambda install_id: "fake-token")
+
+    async def mock_exec(*args, **kwargs):
+        raise RuntimeError("Subprocess execution failed catastrophically")
+
+    monkeypatch.setattr("asyncio.create_subprocess_exec", mock_exec)
+
+    result = await verify_patch_in_clone(
+        repo_full_name="org/test-repo",
+        default_branch="main",
+        installation_github_id=12345,
+        diff=diff,
+        code_snippet=snippet,
+    )
+    assert result["verification_mode"] == "error"
+    assert result["is_verified"] is False
+    assert result["applies_cleanly"] is False
+
+

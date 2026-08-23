@@ -143,6 +143,7 @@ export interface RecoveryEvent {
   outcome: "recovered" | "escalated" | "unresolved" | "pending";
   pull_request_id?: string | null;
   amount?: number;
+  retry_count?: number;
   detected_at: string;
   resolved_at?: string | null;
 }
@@ -154,19 +155,21 @@ export const getRecoveryEvents = (limit = 20, offset = 0) =>
   apiFetch<RecoveryEvent[]>(`/api/recovery/events?limit=${limit}&offset=${offset}`);
 
 export interface BatchRunParams {
-  count?: number;
-  failure_rate?: number;
+  count: number;
+  failure_rate: number;
   client_request_id?: string;
 }
 
 export interface BatchRunResult {
-  batch_id: string;
   status: string;
   payment_attempt_ids: string[];
 }
 
-export const triggerBatchRun = (params?: BatchRunParams) =>
-  apiFetch<BatchRunResult>("/api/payments/simulate-batch", {
+export const triggerBatchRun = (params: BatchRunParams) =>
+  apiFetch<BatchRunResult>("/api/payments/batch-run", {
     method: "POST",
-    body: JSON.stringify(params ?? {}),
+    body: JSON.stringify({
+      ...params,
+      client_request_id: params.client_request_id ?? `demo-${Date.now()}`,
+    }),
   });

@@ -62,18 +62,22 @@ async def get_recovery_stats():
         ).scalar_one()
 
         # Real Revenue Math (paise)
-        # Revenue at risk: sum amount for failed or non-success attempts
+        # Revenue at risk: sum amount for failed attempts
         at_risk_res = await session.execute(
             select(func.coalesce(func.sum(PaymentAttempt.amount), 0))
-            .where(PaymentAttempt.status != "success")
+            .where(PaymentAttempt.status == "failed")
         )
         revenue_at_risk = int(at_risk_res.scalar_one())
 
-        # Revenue recovered: sum amount for PaymentAttempts whose linked RecoveryEvent outcome == "recovered"
+        # Revenue recovered: sum amount for PaymentAttempts with at least one recovered RecoveryEvent
         recovered_res = await session.execute(
             select(func.coalesce(func.sum(PaymentAttempt.amount), 0))
-            .join(RecoveryEvent, RecoveryEvent.payment_attempt_id == PaymentAttempt.id)
-            .where(RecoveryEvent.outcome == "recovered")
+            .where(
+                PaymentAttempt.id.in_(
+                    select(RecoveryEvent.payment_attempt_id)
+                    .where(RecoveryEvent.outcome == "recovered")
+                )
+            )
         )
         revenue_recovered = int(recovered_res.scalar_one())
 

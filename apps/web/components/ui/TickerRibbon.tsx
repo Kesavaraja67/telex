@@ -24,7 +24,7 @@ export default function TickerRibbon({
   speed = 35,
   className = "",
 }: TickerRibbonProps) {
-  const repeated = [...items, ...items, ...items];
+  const repeated = [...items, ...items];
 
   return (
     <div className={`w-full overflow-hidden border-y border-white/[0.08] bg-black/50 backdrop-blur-md py-2.5 relative select-none ${className}`}>

@@ -7,14 +7,12 @@ interface StatCounterProps {
   value: number;
   label: string;
   suffix?: string;
-  color?: "patch" | "break" | "text";
 }
 
 export default function StatCounter({
   value,
   label,
   suffix = "",
-  color = "text",
 }: StatCounterProps) {
   const numRef = useRef<HTMLSpanElement>(null);
 

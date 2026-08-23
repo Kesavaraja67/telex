@@ -67,6 +67,30 @@ def validate_patch(diff: str, snippet: str) -> tuple[bool, bool, bool]:
     return applies_cleanly, parses, scope_ok
 
 
+async def _run_subprocess_with_timeout(
+    *cmd: str,
+    cwd: Optional[str] = None,
+    timeout: float = 60.0,
+) -> tuple[int, bytes, bytes]:
+    """Runs a subprocess with strict timeout, killing the process tree if timed out."""
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        return proc.returncode or 0, stdout or b"", stderr or b""
+    except asyncio.TimeoutError:
+        try:
+            proc.kill()
+            await proc.wait()
+        except Exception:
+            pass
+        raise
+
+
 async def verify_patch_in_clone(
     repo_full_name: str,
     default_branch: str,
@@ -142,12 +166,11 @@ async def verify_patch_in_clone(
         clone_url = f"https://x-access-token:{token}@github.com/{repo_full_name}.git"
         logger.info("verify_patch_in_clone: shallow cloning %s into %s", repo_full_name, tmpdir)
 
-        clone_proc = await asyncio.create_subprocess_exec(
+        clone_rc, _, clone_err = await _run_subprocess_with_timeout(
             "git", "clone", "--depth", "1", "--branch", default_branch, clone_url, tmpdir,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=60.0,
         )
-        _, clone_err = await asyncio.wait_for(clone_proc.communicate(), timeout=60.0)
-        if clone_proc.returncode != 0:
+        if clone_rc != 0:
             logger.warning("verify_patch_in_clone: git clone failed: %s", clone_err.decode(errors="replace"))
             return {
                 "applies_cleanly": applies_cleanly,
@@ -160,17 +183,27 @@ async def verify_patch_in_clone(
                 "log": f"Clone failed: {clone_err.decode(errors='replace')[:200]}",
             }
 
+        # Strip credential-bearing clone URL from .git/config immediately after clone
+        try:
+            await _run_subprocess_with_timeout(
+                "git", "remote", "set-url", "origin", f"https://github.com/{repo_full_name}.git",
+                cwd=tmpdir,
+                timeout=10.0,
+            )
+        except Exception as e:
+            logger.warning("verify_patch_in_clone: failed to reset remote origin URL: %s", e)
+
         # Apply diff via git apply
         patch_file = os.path.join(tmpdir, "_telex_candidate.patch")
         with open(patch_file, "w", encoding="utf-8") as f:
             f.write(diff if diff.endswith("\n") else diff + "\n")
 
-        apply_proc = await asyncio.create_subprocess_exec(
+        apply_rc, _, apply_err = await _run_subprocess_with_timeout(
             "git", "apply", "--ignore-whitespace", "_telex_candidate.patch",
-            cwd=tmpdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            cwd=tmpdir,
+            timeout=30.0,
         )
-        _, apply_err = await asyncio.wait_for(apply_proc.communicate(), timeout=30.0)
-        if apply_proc.returncode != 0:
+        if apply_rc != 0:
             applies_cleanly = False
             err_msg = apply_err.decode(errors="replace")
             logger.warning("verify_patch_in_clone: git apply failed: %s", err_msg)
@@ -195,12 +228,12 @@ async def verify_patch_in_clone(
 
         if os.path.exists(tsconfig_path):
             try:
-                tc_proc = await asyncio.create_subprocess_exec(
+                tc_rc, _, tc_err = await _run_subprocess_with_timeout(
                     "npx", "--yes", "tsc", "--noEmit",
-                    cwd=tmpdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    cwd=tmpdir,
+                    timeout=120.0,
                 )
-                _, tc_err = await asyncio.wait_for(tc_proc.communicate(), timeout=120.0)
-                typechecks = (tc_proc.returncode == 0)
+                typechecks = (tc_rc == 0)
                 log_messages.append(f"Typecheck (npx tsc): {'passed' if typechecks else 'failed'}")
                 if not typechecks:
                     log_messages.append(f"Typecheck error: {tc_err.decode(errors='replace')[:400]}")
@@ -210,12 +243,12 @@ async def verify_patch_in_clone(
                 log_messages.append(f"Typecheck crashed: {e}")
         elif os.path.exists(mypy_path) or (os.path.exists(pyproject_path) and "tool.mypy" in open(pyproject_path, encoding="utf-8", errors="ignore").read()):
             try:
-                tc_proc = await asyncio.create_subprocess_exec(
+                tc_rc, _, tc_err = await _run_subprocess_with_timeout(
                     "mypy", ".",
-                    cwd=tmpdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    cwd=tmpdir,
+                    timeout=120.0,
                 )
-                _, tc_err = await asyncio.wait_for(tc_proc.communicate(), timeout=120.0)
-                typechecks = (tc_proc.returncode == 0)
+                typechecks = (tc_rc == 0)
                 log_messages.append(f"Typecheck (mypy): {'passed' if typechecks else 'failed'}")
                 if not typechecks:
                     log_messages.append(f"Typecheck error: {tc_err.decode(errors='replace')[:400]}")
@@ -235,12 +268,12 @@ async def verify_patch_in_clone(
             try:
                 pkg_data = open(pkg_json_path, encoding="utf-8", errors="ignore").read()
                 if '"test"' in pkg_data and "no test specified" not in pkg_data:
-                    test_proc = await asyncio.create_subprocess_exec(
+                    test_rc, _, t_err = await _run_subprocess_with_timeout(
                         "npm", "test",
-                        cwd=tmpdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                        cwd=tmpdir,
+                        timeout=180.0,
                     )
-                    _, t_err = await asyncio.wait_for(test_proc.communicate(), timeout=180.0)
-                    tests_pass = (test_proc.returncode == 0)
+                    tests_pass = (test_rc == 0)
                     log_messages.append(f"Tests (npm test): {'passed' if tests_pass else 'failed'}")
                     if not tests_pass:
                         log_messages.append(f"Test failure output: {t_err.decode(errors='replace')[:400]}")
@@ -253,12 +286,12 @@ async def verify_patch_in_clone(
                 log_messages.append(f"npm test crashed: {e}")
         elif os.path.exists(tests_dir_path):
             try:
-                test_proc = await asyncio.create_subprocess_exec(
+                test_rc, _, t_err = await _run_subprocess_with_timeout(
                     "pytest",
-                    cwd=tmpdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    cwd=tmpdir,
+                    timeout=180.0,
                 )
-                _, t_err = await asyncio.wait_for(test_proc.communicate(), timeout=180.0)
-                tests_pass = (test_proc.returncode == 0)
+                tests_pass = (test_rc == 0)
                 log_messages.append(f"Tests (pytest): {'passed' if tests_pass else 'failed'}")
                 if not tests_pass:
                     log_messages.append(f"Test failure output: {t_err.decode(errors='replace')[:400]}")
@@ -272,6 +305,10 @@ async def verify_patch_in_clone(
 
     except Exception as exc:
         logger.exception("verify_patch_in_clone: unexpected error during verification: %s", exc)
+        verification_mode = "error"
+        applies_cleanly = False
+        typechecks = False
+        tests_pass = False
         log_messages.append(f"Verification error: {exc}")
     finally:
         shutil.rmtree(tmpdir, onerror=_remove_readonly)

@@ -216,13 +216,20 @@ export default function RecoveryPage() {
     }
   }, [stats.revenue_recovered, stats.revenue_at_risk]);
 
+  const isFetchingRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   async function loadData() {
+    if (isFetchingRef.current || !isMountedRef.current) return;
+    isFetchingRef.current = true;
     try {
       const { getRecoveryStats, getRecoveryEvents } = await import("@/lib/api");
       const [fetchedStats, fetchedEvents] = await Promise.all([
         getRecoveryStats(),
         getRecoveryEvents(50, 0),
       ]);
+      if (!isMountedRef.current) return;
       if (fetchedStats && fetchedStats.total_recovery_events > 0) {
         setStats(fetchedStats);
       }
@@ -231,14 +238,21 @@ export default function RecoveryPage() {
       }
     } catch {
       // Backend not reachable — keep current state
+    } finally {
+      isFetchingRef.current = false;
     }
   }
 
   useEffect(() => {
+    isMountedRef.current = true;
     loadData();
     // 2.5-second background polling for live updates
     const interval = setInterval(loadData, 2500);
-    return () => clearInterval(interval);
+    return () => {
+      isMountedRef.current = false;
+      clearInterval(interval);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
   }, []);
 
   async function handleBatchRun() {
@@ -256,7 +270,8 @@ export default function RecoveryPage() {
           ? `Returned existing batch (${result.payment_attempt_ids.length} attempts)`
           : `Created ${result.payment_attempt_ids.length} attempts — worker processing...`
       );
-      setTimeout(loadData, 1200);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(loadData, 1200);
     } catch {
       setRunResult("API not reachable — showing demo data");
     } finally {
@@ -394,21 +409,18 @@ export default function RecoveryPage() {
             value={Math.round(stats.recovery_rate * 100)}
             label="Recovery rate"
             suffix="%"
-            color="text"
           />
         </SpotlightCard>
         <SpotlightCard className="p-1">
           <StatCounter
             value={stats.recovered}
             label="Auto-recovered"
-            color="text"
           />
         </SpotlightCard>
         <SpotlightCard className="p-1">
           <StatCounter
             value={stats.escalated}
             label="Escalated to PR"
-            color="text"
           />
         </SpotlightCard>
         <SpotlightCard className="p-1">
@@ -416,7 +428,6 @@ export default function RecoveryPage() {
             value={tier1Pct}
             label="Tier 1 (no LLM) %"
             suffix="%"
-            color="text"
           />
         </SpotlightCard>
       </div>
@@ -470,7 +481,7 @@ export default function RecoveryPage() {
         </h2>
         <div className="flex flex-col sm:flex-row gap-5 items-start sm:items-end">
           <div className="flex flex-col gap-1.5">
-            <label className="font-mono text-xs text-[#71717A]">Attempts</label>
+            <label htmlFor="batch-run-count" className="font-mono text-xs text-[#71717A]">Attempts</label>
             <input
               id="batch-run-count"
               type="number"
@@ -482,7 +493,7 @@ export default function RecoveryPage() {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="font-mono text-xs text-[#71717A]">
+            <label htmlFor="batch-run-failure-rate" className="font-mono text-xs text-[#71717A]">
               Failure rate ({Math.round(failureRate * 100)}%)
             </label>
             <input

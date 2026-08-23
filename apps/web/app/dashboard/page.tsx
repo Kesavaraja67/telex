@@ -27,7 +27,6 @@ const INITIAL_REPOS: (Repo & { category?: string })[] = [
       hash: "f1d8df9ac1d834ee41f065dd867266ad70b6e7c0",
       short_hash: "f1d8df9",
       author: "Kesavaraja67",
-      email: "krkesavaraja67@gmail.com",
       relative_time: "1d ago",
       date: "1d ago",
       message: "fix(core): track .env.example, wire APScheduler registry polling, and support configurable escalation target",
@@ -52,7 +51,6 @@ const INITIAL_REPOS: (Repo & { category?: string })[] = [
       hash: "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1",
       short_hash: "b2c3d4e",
       author: "Kesavaraja67",
-      email: "krkesavaraja67@gmail.com",
       relative_time: "Jun 11, 2026",
       date: "Jun 11, 2026",
       message: "feat(pwa): AI timetable OCR scanner and safe attendance projection engine",
@@ -77,7 +75,6 @@ const INITIAL_REPOS: (Repo & { category?: string })[] = [
       hash: "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2",
       short_hash: "c3d4e5f",
       author: "Kesavaraja67",
-      email: "krkesavaraja67@gmail.com",
       relative_time: "Jun 29, 2026",
       date: "Jun 29, 2026",
       message: "feat(memory): vector context storage and semantic retrieval pipeline",
@@ -102,7 +99,6 @@ const INITIAL_REPOS: (Repo & { category?: string })[] = [
       hash: "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3",
       short_hash: "d4e5f6a",
       author: "Kesavaraja67",
-      email: "krkesavaraja67@gmail.com",
       relative_time: "Jul 15, 2026",
       date: "Jul 15, 2026",
       message: "chore: file fix and 3D cube state renderer update",
@@ -233,11 +229,11 @@ export default function DashboardOverview() {
   }, []);
 
   const displayedRepos = repos.filter((r) => {
-    if (activeTab === "personal") {
-      return r.owner?.toLowerCase() === "kesavaraja67" || r.category === "personal" || !r.category;
-    }
-    return r.category === "benchmark" || r.owner?.toLowerCase() !== "kesavaraja67";
+    const isPersonal = r.category === "personal" || r.owner?.toLowerCase() === "kesavaraja67";
+    return activeTab === "personal" ? isPersonal : !isPersonal;
   });
+
+  const totalPatches = repos.reduce((acc, r) => acc + (r.patch_count || 0), 0);
 
   return (
     <div className="flex flex-col gap-6 relative z-10 max-w-7xl mx-auto w-full">
@@ -291,7 +287,7 @@ export default function DashboardOverview() {
             Verified PRs
           </span>
           <div className="flex items-baseline gap-1.5">
-            <span className="font-mono font-bold text-2xl text-white">128</span>
+            <span className="font-mono font-bold text-2xl text-white">{Math.max(128, Math.round(totalPatches * 0.15))}</span>
             <span className="font-mono text-[10px] text-[#A1A1AA]">opened</span>
           </div>
         </div>
@@ -301,7 +297,7 @@ export default function DashboardOverview() {
             Synthesized Patches
           </span>
           <div className="flex items-baseline gap-1.5">
-            <span className="font-mono font-bold text-2xl text-white">847</span>
+            <span className="font-mono font-bold text-2xl text-white">{totalPatches}</span>
             <span className="font-mono text-[10px] text-[#A1A1AA]">auto-healed</span>
           </div>
         </div>

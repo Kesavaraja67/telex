@@ -30,7 +30,6 @@ const FALLBACK_REPO_DETAILS: Record<string, RepoDetails> = {
         hash: "f1d8df9ac1d834ee41f065dd867266ad70b6e7c0",
         short_hash: "f1d8df9",
         author: "Kesavaraja67",
-        email: "krkesavaraja67@gmail.com",
         relative_time: "1d ago",
         date: "1d ago",
         message: "fix(core): track .env.example, wire APScheduler registry polling, and support configurable escalation target",
@@ -39,7 +38,6 @@ const FALLBACK_REPO_DETAILS: Record<string, RepoDetails> = {
         hash: "e56d8658f4c13850d83ed571c8a0a0589bc7e854",
         short_hash: "e56d865",
         author: "Kesavaraja67",
-        email: "krkesavaraja67@gmail.com",
         relative_time: "23h ago",
         date: "23h ago",
         message: "test(engine-a): add comprehensive test suite for tree-sitter scanning and patch validation",
@@ -65,7 +63,6 @@ const FALLBACK_REPO_DETAILS: Record<string, RepoDetails> = {
         hash: "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1",
         short_hash: "b2c3d4e",
         author: "Kesavaraja67",
-        email: "krkesavaraja67@gmail.com",
         relative_time: "Jun 11, 2026",
         date: "Jun 11, 2026",
         message: "feat(pwa): AI timetable OCR scanner and safe attendance projection engine",
@@ -91,7 +88,6 @@ const FALLBACK_REPO_DETAILS: Record<string, RepoDetails> = {
         hash: "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2",
         short_hash: "c3d4e5f",
         author: "Kesavaraja67",
-        email: "krkesavaraja67@gmail.com",
         relative_time: "Jun 29, 2026",
         date: "Jun 29, 2026",
         message: "feat(memory): vector context storage and semantic retrieval pipeline",
@@ -117,7 +113,6 @@ const FALLBACK_REPO_DETAILS: Record<string, RepoDetails> = {
         hash: "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3",
         short_hash: "d4e5f6a",
         author: "Kesavaraja67",
-        email: "krkesavaraja67@gmail.com",
         relative_time: "Jul 15, 2026",
         date: "Jul 15, 2026",
         message: "chore: file fix and 3D cube state renderer update",
@@ -143,7 +138,6 @@ const FALLBACK_REPO_DETAILS: Record<string, RepoDetails> = {
         hash: "e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4",
         short_hash: "e5f6a7b",
         author: "ThankaBharathi",
-        email: "thankabharathi0@gmail.com",
         relative_time: "9d ago",
         date: "9d ago",
         message: "fix(admin): populate customer name, refine dynamic streaming Suspense fallback",
@@ -168,11 +162,10 @@ const FALLBACK_REPO_DETAILS: Record<string, RepoDetails> = {
       {
         hash: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
         short_hash: "a1b2c3d",
-        author: "shadcn",
-        email: "shadcn@vercel.com",
+        author: "timneutkens",
         relative_time: "2h ago",
         date: "2h ago",
-        message: "fix(turbopack): optimize module dependency graph traversal and sourcemap cache",
+        message: "perf(turbopack): optimize incremental cache invalidation for dynamic routes",
       },
     ],
   },
@@ -192,13 +185,12 @@ const FALLBACK_REPO_DETAILS: Record<string, RepoDetails> = {
     dependencies: ["httpx", "pydantic", "typing-extensions"],
     commits: [
       {
-        hash: "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1",
-        short_hash: "b2c3d4e",
+        hash: "f0e1d2c3b4a5f6e7d8c9b0a1f2e3d4c5b6a7f8e9",
+        short_hash: "f0e1d2c",
         author: "rattrayalex",
-        email: "alex@openai.com",
         relative_time: "4h ago",
         date: "4h ago",
-        message: "feat: add structured response helpers and retry timeout instrumentation",
+        message: "feat: add structured output support for vision analysis models",
       },
     ],
   },
@@ -218,13 +210,12 @@ const FALLBACK_REPO_DETAILS: Record<string, RepoDetails> = {
     dependencies: ["request-promise-native", "crypto"],
     commits: [
       {
-        hash: "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2",
-        short_hash: "c3d4e5f",
+        hash: "9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b",
+        short_hash: "9a8b7c6",
         author: "razorpay-dev",
-        email: "dev@razorpay.com",
         relative_time: "1d ago",
         date: "1d ago",
-        message: "fix: webhook signature validation and order status error handling",
+        message: "fix(webhook): enforce constant-time HMAC comparison in node SDK",
       },
     ],
   },
@@ -241,22 +232,23 @@ const FALLBACK_REPO_DETAILS: Record<string, RepoDetails> = {
     languages: ["Python", "Starlette", "Pydantic"],
     patch_count: 915,
     status: "healthy",
-    dependencies: ["starlette", "pydantic", "uvicorn"],
+    dependencies: ["starlette", "pydantic", "uvicorn", "email-validator"],
     commits: [
       {
-        hash: "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3",
-        short_hash: "d4e5f6a",
+        hash: "8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e",
+        short_hash: "8f7e6d5",
         author: "tiangolo",
-        email: "tiangolo@gmail.com",
-        relative_time: "1d ago",
-        date: "1d ago",
-        message: "feat: add support for python 3.13 and enhanced exception handlers",
+        relative_time: "3d ago",
+        date: "3d ago",
+        message: "docs: update tutorial for python 3.12 type annotations with Annotated",
       },
     ],
   },
 };
 
-const SAMPLE_DIFF = `@@ -12,4 +12,4 @@
+const SAMPLE_DIFF = `--- a/src/services/payment.ts
++++ b/src/services/payment.ts
+@@ -12,2 +12,2 @@
 - const client = new OpenAI({ apiKey: process.env.OPENAI_KEY });
 - const res = await client.createCompletion({ model: "text-davinci-003", prompt });
 + const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -272,59 +264,63 @@ export default function RepoDetailPage({
 
   const [repo, setRepo] = useState<RepoDetails | null>(null);
   const [aiExplanation, setAiExplanation] = useState<AIExplanation | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [isLoadingAi, setIsLoadingAi] = useState(false);
-  const [patches, setPatches] = useState<RepoPatches | null>(null);
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const { getRepoDetails, getRepoPatches } = await import("@/lib/api");
-        const [repoData, patchData] = await Promise.all([
-          getRepoDetails(repoId).catch(() => null),
-          getRepoPatches(repoId).catch(() => null),
-        ]);
+    let timer: NodeJS.Timeout | null = null;
+    let isMounted = true;
 
+    async function loadData() {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      try {
+        const { getRepoDetails } = await import("@/lib/api");
+        const repoData = await getRepoDetails(repoId).catch(() => null);
+
+        if (!isMounted) return;
         if (repoData) {
           setRepo(repoData);
         } else {
           setRepo(FALLBACK_REPO_DETAILS[repoId] || FALLBACK_REPO_DETAILS["telex"]);
         }
-
-        if (patchData) {
-          setPatches(patchData);
-        }
       } catch {
-        setRepo(FALLBACK_REPO_DETAILS[repoId] || FALLBACK_REPO_DETAILS["telex"]);
+        if (isMounted) {
+          setRepo(FALLBACK_REPO_DETAILS[repoId] || FALLBACK_REPO_DETAILS["telex"]);
+        }
       }
     }
+
     loadData();
-    const timer = setInterval(loadData, 8000);
-    return () => clearInterval(timer);
+    timer = setInterval(loadData, 15000);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadData();
+      }
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibilityChange);
+    }
+
+    return () => {
+      isMounted = false;
+      if (timer) clearInterval(timer);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+      }
+    };
   }, [repoId]);
 
   async function handleRunGeminiExplain() {
     setIsLoadingAi(true);
+    setAiError(null);
     try {
       const { explainRepoWithGemini } = await import("@/lib/api");
       const result = await explainRepoWithGemini(repoId);
       setAiExplanation(result);
-    } catch {
-      setAiExplanation({
-        summary: `Repository ${repo?.full_name} is actively tracked with AST Tree-sitter validation gates and runtime recovery health monitors.`,
-        commit_insights: [
-          {
-            hash: repo?.commits[0]?.short_hash || "HEAD",
-            impact: repo?.commits[0]?.message || "Recent commit update",
-            risk_level: "LOW",
-          },
-        ],
-        architecture_verdict: "Nominal — Tree-sitter AST validation and verification gates active.",
-        risk_score: 14,
-        recommended_actions: [
-          "Maintain continuous integration verification gate",
-          "Ensure SDK version lock on breaking migrations",
-        ],
-      });
+    } catch (err: any) {
+      setAiExplanation(null);
+      setAiError(err?.message || "Failed to generate live Gemini analysis. Please verify API configuration.");
     } finally {
       setIsLoadingAi(false);
     }
@@ -420,6 +416,12 @@ export default function RepoDetailPage({
           </button>
         </div>
 
+        {aiError && (
+          <div className="p-3 rounded-lg bg-white/[0.04] border border-white/20 text-white font-mono text-xs mb-3">
+            <span className="font-semibold text-white/90">Error:</span> {aiError}
+          </div>
+        )}
+
         {aiExplanation ? (
           <motion.div
             initial={{ opacity: 0, y: 6 }}
@@ -478,11 +480,11 @@ export default function RepoDetailPage({
               </div>
             )}
           </motion.div>
-        ) : (
+        ) : !aiError ? (
           <div className="py-4 text-center text-[#71717A] font-mono text-xs relative z-10">
             Click &quot;Run Gemini AI Analysis&quot; to synthesize live architectural risk insights.
           </div>
-        )}
+        ) : null}
       </SpotlightCard>
 
       {/* Streamlined Live Commit Timeline */}
@@ -497,24 +499,25 @@ export default function RepoDetailPage({
         </div>
 
         <div className="flex flex-col gap-2">
-          {repo.commits.map((c) => (
-            <SpotlightCard
-              key={c.hash}
-              spotlightColor="rgba(255, 255, 255, 0.04)"
-              enableTilt={false}
-              className="p-3.5 bg-black/60 backdrop-blur-xl border border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-mono text-xs rounded-lg"
+          {repo.commits.map((c, i) => (
+            <div
+              key={c.hash || i}
+              className="p-3.5 rounded-xl border border-white/[0.08] bg-black/60 backdrop-blur-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:border-white/20 transition-colors"
             >
-              <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                <span className="bg-white/10 text-white font-bold px-1.5 py-0.2 rounded border border-white/15 text-[11px]">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="font-mono text-xs font-bold text-white bg-white/10 px-2 py-1 rounded border border-white/10">
                   {c.short_hash}
                 </span>
-                <span className="text-white font-medium truncate">{c.message}</span>
+                <span className="font-sans text-xs text-white font-medium truncate">
+                  {c.message}
+                </span>
               </div>
-
-              <div className="text-[#71717A] text-[11px] flex-shrink-0">
-                by <span className="text-[#A1A1AA]">{c.author}</span> · {c.relative_time}
+              <div className="flex items-center gap-3 text-xs text-[#71717A] font-mono flex-shrink-0 self-end sm:self-auto">
+                <span className="text-[#A1A1AA]">by {c.author}</span>
+                <span>•</span>
+                <span>{c.relative_time || c.date}</span>
               </div>
-            </SpotlightCard>
+            </div>
           ))}
         </div>
       </div>
@@ -569,7 +572,7 @@ export default function RepoDetailPage({
       {/* Verified Diff Inspection */}
       <div className="flex flex-col gap-2 pt-2">
         <h3 className="font-mono font-semibold text-xs text-[#71717A] uppercase tracking-wider">
-          Latest Verified Patch Diff
+          Latest Verified Patch Diff (Example Reference)
         </h3>
         <DiffViewer diff={SAMPLE_DIFF} filename="services/payment_service.ts" animated={false} />
       </div>

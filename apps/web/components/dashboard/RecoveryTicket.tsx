@@ -49,9 +49,9 @@ export default function RecoveryTicket({ event }: RecoveryTicketProps) {
   const isDeliberateStop = event.action_taken.startsWith("Stopped retrying");
   const badgeStatus = outcomeToBadgeStatus(event.outcome);
 
-  // Derive attempt number if mentioned
+  // Derive attempt number from structured retry_count or action_taken string
   const attemptMatch = event.action_taken.match(/after (\d+) attempts?/);
-  const attemptCount = attemptMatch ? Number(attemptMatch[1]) : (event.outcome === "recovered" ? 1 : null);
+  const attemptCount = event.retry_count ?? (attemptMatch ? Number(attemptMatch[1]) : (event.outcome === "recovered" ? 1 : null));
 
   return (
     <SpotlightCard
@@ -86,14 +86,14 @@ export default function RecoveryTicket({ event }: RecoveryTicketProps) {
           </div>
         </div>
         <div className="flex items-center gap-2.5 flex-shrink-0">
-          {attemptCount !== null && (
+          {!isDeliberateStop && attemptCount !== null && (
             <span className="font-mono text-[10px] text-[#A1A1AA] border border-white/10 px-2 py-0.5 rounded bg-white/[0.02]">
               Attempt #{attemptCount}
             </span>
           )}
           {isDeliberateStop ? (
             <span className="font-mono text-[10px] uppercase font-semibold px-2 py-0.5 rounded bg-white/10 text-white border border-white/25">
-              STOPPED (2/2)
+              STOPPED ({attemptCount || 3} ATTEMPTS)
             </span>
           ) : (
             <Badge status={badgeStatus} />

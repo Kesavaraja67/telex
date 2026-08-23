@@ -5,6 +5,7 @@ for both personal repositories and industry benchmark repositories.
 """
 import os
 import json
+import asyncio
 import urllib.request
 import subprocess
 from datetime import datetime, timezone
@@ -14,9 +15,11 @@ from config import get_settings
 from services.patch_providers.gemini import GeminiProvider
 
 # In-memory cache with 60s TTL to prevent GitHub rate limits
+WORKSPACE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+
 _CACHE: dict[str, Any] = {
     "repos": None,
-    "last_fetched": 0.0,
+    "repos_time": 0,
     "commits_by_repo": {},
 }
 
@@ -78,13 +81,12 @@ def fetch_live_github_commits(repo_full_name: str, limit: int = 5) -> list[dict]
     except Exception:
         # Fallback to local git if it's the current local workspace (telex)
         if "telex" in repo_full_name.lower():
-            return get_local_git_commits("D:\\projects\\telex", limit)
+            return get_local_git_commits(WORKSPACE_ROOT, limit)
         return [
             {
                 "hash": "f1d8df9ac1d834ee41f065dd867266ad70b6e7c0",
                 "short_hash": "f1d8df9",
                 "author": "Kesavaraja67",
-                "email": "krkesavaraja67@gmail.com",
                 "relative_time": "1d ago",
                 "date": "1d ago",
                 "message": "fix(core): track .env.example and wire APScheduler recovery",
@@ -116,7 +118,7 @@ def get_local_git_commits(repo_path: str, limit: int = 5) -> list[dict]:
     except Exception:
         return []
 
-BENCHMARK_REPOS = [
+BENCHMARK_REPOS: list[dict[str, Any]] = [
     {
         "id": "next-js",
         "full_name": "vercel/next.js",
@@ -237,8 +239,8 @@ def fetch_live_github_repos(username: str = "Kesavaraja67") -> list[dict]:
     # Hydrate benchmarks with latest commits
     hydrated_benchmarks = []
     for b in BENCHMARK_REPOS:
-        commits = fetch_live_github_commits(b["full_name"], 3)
-        b_copy = dict(b)
+        commits = fetch_live_github_commits(str(b["full_name"]), 3)
+        b_copy: dict[str, Any] = dict(b)
         b_copy["commits"] = commits
         b_copy["last_commit"] = commits[0] if commits else None
         hydrated_benchmarks.append(b_copy)
@@ -265,8 +267,8 @@ def get_fallback_real_personal_repos() -> list[dict]:
             "patch_count": 847,
             "status": "healthy",
             "category": "personal",
-            "commits": get_local_git_commits("D:\\projects\\telex", 5),
-            "last_commit": (get_local_git_commits("D:\\projects\\telex", 1) or [None])[0],
+            "commits": get_local_git_commits(WORKSPACE_ROOT, 5),
+            "last_commit": (get_local_git_commits(WORKSPACE_ROOT, 1) or [None])[0],
             "dependencies": ["@google/genai", "fastapi", "sqlalchemy", "razorpay", "tree-sitter", "next", "motion"],
         },
         {
@@ -288,7 +290,6 @@ def get_fallback_real_personal_repos() -> list[dict]:
                     "hash": "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1",
                     "short_hash": "b2c3d4e",
                     "author": "Kesavaraja67",
-                    "email": "krkesavaraja67@gmail.com",
                     "relative_time": "Jun 11, 2026",
                     "date": "Jun 11, 2026",
                     "message": "feat(pwa): AI timetable OCR scanner and safe attendance projection engine",
@@ -298,7 +299,6 @@ def get_fallback_real_personal_repos() -> list[dict]:
                 "hash": "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1",
                 "short_hash": "b2c3d4e",
                 "author": "Kesavaraja67",
-                "email": "krkesavaraja67@gmail.com",
                 "relative_time": "Jun 11, 2026",
                 "date": "Jun 11, 2026",
                 "message": "feat(pwa): AI timetable OCR scanner and safe attendance projection engine",
@@ -324,7 +324,6 @@ def get_fallback_real_personal_repos() -> list[dict]:
                     "hash": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2",
                     "short_hash": "c3d4e5f",
                     "author": "Kesavaraja67",
-                    "email": "krkesavaraja67@gmail.com",
                     "relative_time": "Jun 29, 2026",
                     "date": "Jun 29, 2026",
                     "message": "feat(memory): vector context storage and semantic retrieval pipeline",
@@ -334,7 +333,6 @@ def get_fallback_real_personal_repos() -> list[dict]:
                 "hash": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2",
                 "short_hash": "c3d4e5f",
                 "author": "Kesavaraja67",
-                "email": "krkesavaraja67@gmail.com",
                 "relative_time": "Jun 29, 2026",
                 "date": "Jun 29, 2026",
                 "message": "feat(memory): vector context storage and semantic retrieval pipeline",
@@ -360,7 +358,6 @@ def get_fallback_real_personal_repos() -> list[dict]:
                     "hash": "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3",
                     "short_hash": "d4e5f6a",
                     "author": "Kesavaraja67",
-                    "email": "krkesavaraja67@gmail.com",
                     "relative_time": "Jul 15, 2026",
                     "date": "Jul 15, 2026",
                     "message": "chore: file fix and 3D cube state renderer update",
@@ -370,7 +367,6 @@ def get_fallback_real_personal_repos() -> list[dict]:
                 "hash": "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3",
                 "short_hash": "d4e5f6a",
                 "author": "Kesavaraja67",
-                "email": "krkesavaraja67@gmail.com",
                 "relative_time": "Jul 15, 2026",
                 "date": "Jul 15, 2026",
                 "message": "chore: file fix and 3D cube state renderer update",
@@ -383,12 +379,16 @@ def get_core_repositories() -> list[dict]:
     """Returns real GitHub repositories + benchmarks with live commit data."""
     return fetch_live_github_repos("Kesavaraja67")
 
+async def get_core_repositories_async() -> list[dict]:
+    """Asynchronous off-thread wrapper to fetch core repositories without blocking the event loop."""
+    return await asyncio.to_thread(get_core_repositories)
+
 async def explain_repo_with_gemini(repo_id: str) -> dict:
     """Invokes Gemini 2.5 Flash to generate live deep architectural and commit intelligence for a repo."""
-    repos = get_core_repositories()
+    repos = await get_core_repositories_async()
     target_repo = next((r for r in repos if r["id"] == repo_id or r["full_name"].lower() == repo_id.lower() or r["name"].lower() == repo_id.lower()), None)
     if not target_repo:
-        target_repo = repos[0]
+        raise KeyError(f"Repository '{repo_id}' not found")
 
     settings = get_settings()
     gemini = GeminiProvider(api_key=settings.gemini_api_key)

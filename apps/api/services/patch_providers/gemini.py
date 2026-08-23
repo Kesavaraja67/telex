@@ -189,7 +189,11 @@ Provide a structured, high-tech architectural intelligence report. Return ONLY v
             elif "```" in text:
                 text = text.split("```")[1].split("```")[0].strip()
             import json
-            return json.loads(text)
+            result = json.loads(text)
+            if isinstance(result, dict):
+                result["degraded"] = False
+                return result
+            raise ValueError("Invalid JSON response from Gemini model")
         except Exception as e:
             logger.error("GeminiProvider.explain_repo_architecture error: %s", e)
             return {
@@ -208,6 +212,7 @@ Provide a structured, high-tech architectural intelligence report. Return ONLY v
                     "Maintain continuous integration verification gate",
                     "Keep Razorpay webhook idempotency verified",
                 ],
+                "degraded": True,
             }
 
 

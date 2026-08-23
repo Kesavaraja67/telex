@@ -69,7 +69,7 @@ async def run(payload: dict) -> None:
 async def _handle_transient(recovery_event_id: uuid.UUID, order_id: str) -> None:
     """
     Retry the payment in worker thread with deliberate stop rules.
-    - If retry_count >= 2 and failure_type == "card_declined", deliberately STOP.
+    - If retry_count >= 3 and failure_type == "card_declined", deliberately STOP.
     - Otherwise execute transient backoff retry.
     """
     from db.session import AsyncSessionLocal
@@ -77,7 +77,7 @@ async def _handle_transient(recovery_event_id: uuid.UUID, order_id: str) -> None
     from services import payment_service
     from sqlalchemy import select, func
 
-    # Check prior retry count for this order
+    # Check prior retry count for this order with matching classification/failure
     async with AsyncSessionLocal() as session:
         event = await session.get(RecoveryEvent, recovery_event_id)
         if event is None:
@@ -89,6 +89,8 @@ async def _handle_transient(recovery_event_id: uuid.UUID, order_id: str) -> None
             .where(
                 PaymentAttempt.razorpay_order_id == order_id,
                 RecoveryEvent.id != recovery_event_id,
+                RecoveryEvent.failure_type == event.failure_type,
+                RecoveryEvent.classification == "transient",
             )
         )
         prior_retries_count = prior_retries_res.scalar_one()
@@ -104,7 +106,7 @@ async def _handle_transient(recovery_event_id: uuid.UUID, order_id: str) -> None
             )
             event.outcome = "unresolved"
             event.action_taken = (
-                f"Stopped retrying after {current_retry_count - 1} attempts — repeated card decline is unlikely to resolve "
+                f"Stopped retrying after {current_retry_count} attempts — repeated card decline is unlikely to resolve "
                 "automatically. Recommend alternate payment method."
             )
             event.resolved_at = datetime.now(timezone.utc)
@@ -144,8 +146,8 @@ async def _handle_transient(recovery_event_id: uuid.UUID, order_id: str) -> None
 KNOWN_DEFECT_LOCATIONS = {
     "webhook_signature_mismatch": {
         "file_path": "apps/api/routers/payments.py",
-        "line_start": 125,
-        "line_end": 145,
+        "line_start": 145,
+        "line_end": 165,
         "symbol_old": "verify_webhook_signature",
         "symbol_new": "verify_webhook_signature_v2",
         "snippet": 'if not payment_service.verify_webhook_signature(request_body, x_razorpay_signature or ""):\n    raise HTTPException(status_code=401, detail="Invalid webhook signature")',
@@ -153,8 +155,8 @@ KNOWN_DEFECT_LOCATIONS = {
     },
     "webhook_schema_mismatch": {
         "file_path": "apps/api/routers/payments.py",
-        "line_start": 140,
-        "line_end": 165,
+        "line_start": 175,
+        "line_end": 215,
         "symbol_old": "parse_webhook_event",
         "symbol_new": "parse_webhook_event_v2",
         "snippet": 'payment = event.get("payload", {}).get("payment", {}).get("entity", {})\norder_id = payment.get("order_id")\nrazorpay_payment_id = payment.get("id")',
@@ -162,10 +164,10 @@ KNOWN_DEFECT_LOCATIONS = {
     },
     "payment_malformed_response": {
         "file_path": "apps/api/services/payment_service.py",
-        "line_start": 130,
-        "line_end": 165,
-        "symbol_old": "create_payment_attempt",
-        "symbol_new": "create_payment_attempt_v2",
+        "line_start": 140,
+        "line_end": 175,
+        "symbol_old": "simulate_payment",
+        "symbol_new": "simulate_payment_v2",
         "snippet": 'result = client.payment.create(payment_data)\nis_success = result.get("status") not in ("failed",)',
         "description": "Payment response parsing schema defect in payment_service.",
     },

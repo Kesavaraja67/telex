@@ -16,10 +16,12 @@ from typing import Optional
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from db.session import AsyncSessionLocal
 from db.models import PaymentAttempt
 from jobs.queue import enqueue_job
+from schemas import VerifySignatureIn
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/payments", tags=["payments"])
@@ -189,7 +191,12 @@ async def razorpay_webhook(
                         attempt.razorpay_payment_id = razorpay_payment_id
                     if event_id:
                         attempt.razorpay_event_id = event_id
-                    await session.commit()
+                    try:
+                        await session.commit()
+                    except IntegrityError:
+                        await session.rollback()
+                        logger.info("razorpay_webhook: concurrent duplicate event %s ignored", event_id)
+                        return {"status": "ok", "message": "duplicate_ignored"}
 
     # Handle payment.failed event
     if event.get("event") == "payment.failed":
@@ -208,12 +215,17 @@ async def razorpay_webhook(
                         attempt.razorpay_payment_id = razorpay_payment_id
                     if event_id:
                         attempt.razorpay_event_id = event_id
-                    await session.commit()
-                    await enqueue_job(
-                        session,
-                        job_type="detect_payment_failure",
-                        payload={"payment_attempt_id": str(attempt.id)},
-                    )
+                    try:
+                        await session.commit()
+                        await enqueue_job(
+                            session,
+                            job_type="detect_payment_failure",
+                            payload={"payment_attempt_id": str(attempt.id)},
+                        )
+                    except IntegrityError:
+                        await session.rollback()
+                        logger.info("razorpay_webhook: concurrent duplicate event %s ignored", event_id)
+                        return {"status": "ok", "message": "duplicate_ignored"}
 
     return {"status": "ok"}
 

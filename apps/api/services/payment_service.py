@@ -183,7 +183,7 @@ def verify_webhook_signature(payload: bytes, signature: str) -> bool:
         logger.error("RAZORPAY_WEBHOOK_SECRET not configured — rejecting webhook")
         return False
 
-    if not signature:
+    if not signature or not isinstance(signature, str):
         return False
 
     expected = hmac.new(
@@ -192,7 +192,10 @@ def verify_webhook_signature(payload: bytes, signature: str) -> bool:
         digestmod=hashlib.sha256,
     ).hexdigest()
 
-    return hmac.compare_digest(expected, signature)
+    try:
+        return hmac.compare_digest(expected.lower(), signature.strip().lower())
+    except Exception:
+        return False
 
 
 def verify_checkout_signature(razorpay_order_id: str, razorpay_payment_id: str, signature: str) -> bool:
@@ -206,7 +209,7 @@ def verify_checkout_signature(razorpay_order_id: str, razorpay_payment_id: str, 
         logger.error("RAZORPAY_TEST_KEY_SECRET not configured — rejecting signature verification")
         return False
 
-    if not razorpay_order_id or not razorpay_payment_id or not signature:
+    if not razorpay_order_id or not razorpay_payment_id or not signature or not isinstance(signature, str):
         return False
 
     msg = f"{razorpay_order_id}|{razorpay_payment_id}".encode("utf-8")
@@ -216,5 +219,8 @@ def verify_checkout_signature(razorpay_order_id: str, razorpay_payment_id: str, 
         digestmod=hashlib.sha256,
     ).hexdigest()
 
-    return hmac.compare_digest(expected, signature)
+    try:
+        return hmac.compare_digest(expected.lower(), signature.strip().lower())
+    except Exception:
+        return False
 
