@@ -142,49 +142,55 @@ async def _handle_transient(recovery_event_id: uuid.UUID, order_id: str) -> None
     )
 
 
-# Honest defect location mapping for known code defects
-KNOWN_DEFECT_LOCATIONS = {
+# Real defect location mapping for known code defects across monitored repositories
+FAILURE_LOCATION_MAP = {
+    "order_total_mismatch": {
+        "repo_full_name": "Kesavaraja67/sample-store",
+        "file_path": "app/api/order-summary/route.ts",
+        "line_start": 1,
+        "line_end": 40,
+        "symbol_old": "calculateOrderSummary",
+        "symbol_new": "calculateOrderSummaryFixed",
+        "description": "Fee calculation truncation/rounding defect in order summary calculation.",
+        "fallback_snippet": "const subtotal = items.reduce((acc, i) => acc + i.price * i.qty, 0);\nconst tax = Math.floor(subtotal * 0.18);\nconst total = subtotal + tax;",
+    },
     "webhook_signature_mismatch": {
+        "repo_full_name": "Kesavaraja67/sample-store",
         "file_path": "apps/api/routers/payments.py",
         "line_start": 145,
         "line_end": 165,
         "symbol_old": "verify_webhook_signature",
         "symbol_new": "verify_webhook_signature_v2",
-        "snippet": 'if not payment_service.verify_webhook_signature(request_body, x_razorpay_signature or ""):\n    raise HTTPException(status_code=401, detail="Invalid webhook signature")',
         "description": "Cryptographic webhook HMAC signature mismatch detected in payment router.",
+        "fallback_snippet": 'if not payment_service.verify_webhook_signature(request_body, x_razorpay_signature or ""):\n    raise HTTPException(status_code=401, detail="Invalid webhook signature")',
     },
     "webhook_schema_mismatch": {
+        "repo_full_name": "Kesavaraja67/sample-store",
         "file_path": "apps/api/routers/payments.py",
         "line_start": 175,
         "line_end": 215,
         "symbol_old": "parse_webhook_event",
         "symbol_new": "parse_webhook_event_v2",
-        "snippet": 'payment = event.get("payload", {}).get("payment", {}).get("entity", {})\norder_id = payment.get("order_id")\nrazorpay_payment_id = payment.get("id")',
         "description": "Schema structure mismatch in payload parsing for webhook events.",
-    },
-    "payment_malformed_response": {
-        "file_path": "apps/api/services/payment_service.py",
-        "line_start": 140,
-        "line_end": 175,
-        "symbol_old": "simulate_payment",
-        "symbol_new": "simulate_payment_v2",
-        "snippet": 'result = client.payment.create(payment_data)\nis_success = result.get("status") not in ("failed",)',
-        "description": "Payment response parsing schema defect in payment_service.",
+        "fallback_snippet": 'payment = event.get("payload", {}).get("payment", {}).get("entity", {})\norder_id = payment.get("order_id")\nrazorpay_payment_id = payment.get("id")',
     },
 }
+
+KNOWN_DEFECT_LOCATIONS = FAILURE_LOCATION_MAP
 
 
 async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
     """
     Escalate to Engine A pipeline using real defect source locations:
-    seeds a DetectedChange + CodeUsage and enqueues generate_patch.
+    seeds a DetectedChange + CodeUsage (fetching live snippet from GitHub) and enqueues generate_patch.
     For unmapped defect failure types, marks unresolved for manual review.
     """
     from db.session import AsyncSessionLocal
-    from db.models import RecoveryEvent, DetectedChange, CodeUsage, Repo
+    from db.models import RecoveryEvent, DetectedChange, CodeUsage, Repo, Installation
     from jobs.queue import enqueue_job
     from sqlalchemy import select
     from config import settings
+    from services.github_service import fetch_file_content
 
     logger.info("recover_runtime: code_defect — escalating to Engine A pipeline")
 
@@ -193,21 +199,22 @@ async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
         if event is None:
             return
 
-        defect_info = KNOWN_DEFECT_LOCATIONS.get(event.failure_type)
+        defect_info = FAILURE_LOCATION_MAP.get(event.failure_type)
         if not defect_info:
             logger.info("recover_runtime: unmapped code defect '%s' — flagging for manual review", event.failure_type)
             event.outcome = "unresolved"
             event.resolved_at = datetime.now(timezone.utc)
-            event.action_taken = "Code defect suspected but no known source location — flagged for manual review"
+            event.action_taken = "Code defect suspected but source location unknown — flagged for manual review"
             await session.commit()
             return
 
-        # Find the target repo:
+        # Find the target repo matching full_name or configured setting
+        target_name = defect_info.get("repo_full_name") or settings.payment_recovery_repo_name
         repo = None
-        if settings.payment_recovery_repo_name:
+        if target_name:
             named_result = await session.execute(
                 select(Repo).where(
-                    Repo.full_name == settings.payment_recovery_repo_name,
+                    Repo.full_name == target_name,
                     Repo.is_active == True,  # noqa: E712
                 ).limit(1)
             )
@@ -235,6 +242,26 @@ async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
 
         repo_id = repo.id
 
+        # Fetch live current snippet from GitHub API if installation is connected
+        live_snippet = None
+        if repo and repo.installation_id:
+            inst = await session.get(Installation, repo.installation_id)
+            if inst:
+                full_text = await asyncio.to_thread(
+                    fetch_file_content,
+                    repo.full_name,
+                    inst.github_installation_id,
+                    defect_info["file_path"],
+                    repo.default_branch or "main",
+                )
+                if full_text:
+                    lines = full_text.splitlines()
+                    s_idx = max(0, defect_info["line_start"] - 1)
+                    e_idx = min(len(lines), defect_info["line_end"])
+                    live_snippet = "\n".join(lines[s_idx:e_idx])
+
+        snippet_to_use = live_snippet or defect_info.get("fallback_snippet") or defect_info.get("snippet", "")
+
         # Seed a DetectedChange with real defect metadata
         dc = DetectedChange(
             package_version_id=None,
@@ -256,7 +283,7 @@ async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
             file_path=defect_info["file_path"],
             line_start=defect_info["line_start"],
             line_end=defect_info["line_end"],
-            snippet=defect_info["snippet"],
+            snippet=snippet_to_use,
             status="pending",
         )
         session.add(cu)

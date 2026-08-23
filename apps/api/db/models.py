@@ -59,6 +59,8 @@ class Repo(Base):
     full_name: Mapped[str] = mapped_column(Text, nullable=False)
     default_branch: Mapped[str] = mapped_column(Text, nullable=False, default="main")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    requires_tests: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    requires_typecheck: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
     installation: Mapped["Installation"] = relationship(back_populates="repos")
@@ -237,7 +239,7 @@ class Job(Base):
     __tablename__ = "jobs"
     __table_args__ = (
         CheckConstraint(
-            "job_type IN ('poll_registry','extract_changes','scan_repo','generate_patch','open_pr')",
+            "job_type IN ('poll_registry', 'extract_changes', 'scan_repo', 'generate_patch', 'open_pr', 'detect_payment_failure', 'diagnose_runtime_failure', 'recover_runtime')",
             name="ck_jobs_type",
         ),
         CheckConstraint(

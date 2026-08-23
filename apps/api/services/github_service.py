@@ -126,6 +126,25 @@ async def open_patch_pr(
     return await asyncio.to_thread(_do_github_work)
 
 
+def fetch_file_content(
+    repo_full_name: str,
+    installation_id: int,
+    file_path: str,
+    ref: str = "main",
+) -> Optional[str]:
+    """Fetch the text content of a file from GitHub using the installation client."""
+    try:
+        gh = get_installation_client(installation_id)
+        repo = gh.get_repo(repo_full_name)
+        content_file = repo.get_contents(file_path, ref=ref)
+        if hasattr(content_file, "decoded_content"):
+            return content_file.decoded_content.decode("utf-8")
+        return None
+    except Exception as exc:
+        logger.warning("fetch_file_content failed for %s:%s — %s", repo_full_name, file_path, exc)
+        return None
+
+
 def verify_webhook_signature(payload: bytes, signature_header: Optional[str]) -> bool:
     """
     Verify a GitHub webhook HMAC-SHA256 signature.

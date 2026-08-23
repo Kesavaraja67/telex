@@ -22,6 +22,7 @@ from db.session import AsyncSessionLocal
 from db.models import PaymentAttempt
 from jobs.queue import enqueue_job
 from schemas import VerifySignatureIn
+from config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/payments", tags=["payments"])
@@ -30,6 +31,12 @@ router = APIRouter(prefix="/api/payments", tags=["payments"])
 _INJECTED_FAILURE_TYPES = ["timeout", "db_unavailable", "card_declined"]
 # Use same weights as real-world distribution: transient >> code_defect
 _FAILURE_WEIGHTS = [0.45, 0.35, 0.20]
+
+
+def require_demo_key(x_demo_key: Optional[str] = None) -> None:
+    """Validates the demo key for failure injection testing."""
+    if settings.demo_key and x_demo_key != settings.demo_key:
+        raise HTTPException(status_code=403, detail="Invalid or missing demo key")
 
 
 # ── Request/response schemas ──────────────────────────────────────────────────
@@ -72,10 +79,18 @@ async def create_order(body: CreateOrderRequest):
 
 
 @router.post("/pay/{payment_attempt_id}")
-async def pay(payment_attempt_id: str, body: PayRequest):
+async def pay(
+    payment_attempt_id: str,
+    body: PayRequest,
+    x_demo_key: Optional[str] = Header(default=None),
+):
     """
     Simulate a payment. Updates PaymentAttempt and enqueues detect_payment_failure on failure.
+    Requires X-Demo-Key ONLY when force_failure is present.
     """
+    if body.force_failure is not None:
+        require_demo_key(x_demo_key)
+
     from services import payment_service
 
     try:
@@ -231,14 +246,20 @@ async def razorpay_webhook(
 
 
 @router.post("/batch-run")
-async def batch_run(body: BatchRunRequest):
+async def batch_run(
+    body: BatchRunRequest,
+    x_demo_key: Optional[str] = Header(default=None),
+):
     """
     Create `count` payment attempts and inject failures into `failure_rate` fraction of them.
     Returns payment_attempt_ids for all created attempts.
+    Requires X-Demo-Key header for failure simulation.
 
     Idempotent: if client_request_id is provided and already exists, the same
     batch is returned without creating duplicates (section 10.5).
     """
+    require_demo_key(x_demo_key)
+
     from services import payment_service
 
     if body.count < 1 or body.count > 100:

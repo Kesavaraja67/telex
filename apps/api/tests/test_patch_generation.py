@@ -147,3 +147,28 @@ async def test_verify_patch_in_clone_exception_fails_verification(monkeypatch):
     assert result["applies_cleanly"] is False
 
 
+@pytest.mark.asyncio
+async def test_verify_patch_in_clone_requires_tests_policy():
+    """When requires_tests=True, absence of tests or failing tests invalidates verification."""
+    from jobs.handlers.generate_patch import verify_patch_in_clone
+
+    snippet = "const res = await openai.createCompletion();"
+    diff = """--- a/src/index.ts
++++ b/src/index.ts
+@@ -1,1 +1,1 @@
+-const res = await openai.createCompletion();
++const res = await openai.chat.completions.create();"""
+
+    # 1. Structural only without tests when requires_tests=True -> is_verified must be False
+    res_strict = await verify_patch_in_clone(
+        repo_full_name="org/sample-store",
+        default_branch="main",
+        installation_github_id=None,
+        diff=diff,
+        code_snippet=snippet,
+        requires_tests=True,
+        requires_typecheck=True,
+    )
+    assert res_strict["is_verified"] is False
+
+

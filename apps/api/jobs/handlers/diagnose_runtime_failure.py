@@ -37,6 +37,7 @@ DETERMINISTIC_CLASSIFICATIONS: dict[str, str] = {
     "network_error":              "transient",
     "payment_failed":             "transient",
     "card_declined":              "transient",
+    "order_total_mismatch":       "code_defect",
     "webhook_signature_mismatch": "code_defect",
     "webhook_schema_mismatch":    "code_defect",
 }

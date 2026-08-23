@@ -97,6 +97,8 @@ async def verify_patch_in_clone(
     installation_github_id: Optional[int],
     diff: str,
     code_snippet: str,
+    requires_tests: bool = False,
+    requires_typecheck: bool = False,
 ) -> dict:
     """
     Execute the real Verification Gate:
@@ -105,8 +107,9 @@ async def verify_patch_in_clone(
     3. Run `git apply` in clone.
     4. Run repo's typechecker (`npx tsc --noEmit` or `mypy`).
     5. Run repo's test suite (`npm test` or `pytest`).
-    6. Return verification_mode ("full" vs "structural_only"), 3-state booleans, and logs.
-       NOTE: is_verified is ONLY True when verification_mode == "full".
+    6. Enforce per-repo policy (requires_tests, requires_typecheck).
+    7. Return verification_mode ("full" vs "structural_only"), 3-state booleans, and logs.
+       NOTE: is_verified is ONLY True when verification_mode == "full" and all required policies pass.
     """
     from services.github_service import get_installation_token
 
@@ -313,14 +316,16 @@ async def verify_patch_in_clone(
     finally:
         shutil.rmtree(tmpdir, onerror=_remove_readonly)
 
-    # Tightened verified formula: MUST be full mode, clean diff, and non-failing type/test checks
+    # Tightened verified formula: enforces requires_tests / requires_typecheck per repo policy
+    tests_ok = (tests_pass is True) if requires_tests else (tests_pass in (True, None))
+    typecheck_ok = (typechecks is True) if requires_typecheck else (typechecks in (True, None))
     is_verified = (
         verification_mode == "full"
         and applies_cleanly
         and parses
         and scope_ok
-        and typechecks in (True, None)
-        and tests_pass in (True, None)
+        and typecheck_ok
+        and tests_ok
     )
 
     return {
@@ -371,6 +376,8 @@ async def run(payload: dict) -> None:
         repo = await session.get(Repo, cu.repo_id)
         repo_full_name = repo.full_name if repo else ""
         repo_default_branch = repo.default_branch if repo else "main"
+        repo_requires_tests = repo.requires_tests if repo else False
+        repo_requires_typecheck = repo.requires_typecheck if repo else False
 
         installation_github_id: Optional[int] = None
         if repo and repo.installation_id:
@@ -401,6 +408,8 @@ async def run(payload: dict) -> None:
         installation_github_id=installation_github_id,
         diff=diff,
         code_snippet=code_snippet,
+        requires_tests=repo_requires_tests,
+        requires_typecheck=repo_requires_typecheck,
     )
 
     # If verification failed and diff was not an explicit refusal, retry ONCE with error context
@@ -419,6 +428,8 @@ async def run(payload: dict) -> None:
             installation_github_id=installation_github_id,
             diff=diff,
             code_snippet=code_snippet,
+            requires_tests=repo_requires_tests,
+            requires_typecheck=repo_requires_typecheck,
         )
 
     # ── Phase 3: write results in transaction ──────────────────────────────────

@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     web_app_url: str = "http://localhost:3000"
     github_app_slug: str = "telex-agent-dev"
     cors_origins: list[str] = ["http://localhost:3000"]
+    demo_key: str = "telex_demo_secret_2026"
 
 
 @lru_cache

@@ -110,7 +110,7 @@ export default function RecoveryPage() {
   const prevAtRiskRef = useRef<number>(stats.revenue_at_risk);
   const isInitialMount = useRef<boolean>(true);
 
-  // 1. Ambient Leak Particles on "Revenue at Risk" card (continuous, subtle, slow upward drift)
+  // 1. Ambient Leak Particles on "Revenue at Risk" card — strictly data-driven
   useEffect(() => {
     const canvas = streamCanvasRef.current;
     if (!canvas) return;
@@ -118,21 +118,27 @@ export default function RecoveryPage() {
     if (!ctx) return;
 
     let animId: number;
+
+    // Data-driven particle density: 0 when revenue_at_risk is 0, scaling with magnitude
+    const atRisk = stats.revenue_at_risk;
+    const count = atRisk === 0 ? 0 : Math.min(24, Math.max(5, Math.round((atRisk / 100000) * 8)));
+
     const particles: { x: number; y: number; speed: number; opacity: number; size: number }[] = [];
-    for (let i = 0; i < 18; i++) {
+    for (let i = 0; i < count; i++) {
       particles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        speed: 0.2 + Math.random() * 0.3,
-        opacity: 0.15 + Math.random() * 0.2,
-        size: 1.2 + Math.random() * 1.5,
+        speed: 0.2 + Math.random() * 0.35,
+        opacity: 0.12 + Math.random() * 0.25,
+        size: 1.0 + Math.random() * 1.5,
       });
     }
 
     const render = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#FFFFFF";
+      if (particles.length === 0) return;
 
+      ctx.fillStyle = "#FFFFFF";
       for (const p of particles) {
         p.y -= p.speed;
         if (p.y < 0) {
@@ -149,7 +155,7 @@ export default function RecoveryPage() {
     render();
 
     return () => cancelAnimationFrame(animId);
-  }, []);
+  }, [stats.revenue_at_risk]);
 
   // 2. Dual Synchronized Number Tweening & Capture Ripple Confirmation
   useEffect(() => {
