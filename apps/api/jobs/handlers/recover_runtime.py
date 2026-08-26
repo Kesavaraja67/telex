@@ -147,6 +147,7 @@ FAILURE_LOCATION_MAP = {
     "order_total_mismatch": {
         "repo_full_name": "Kesavaraja67/sample-store",
         "file_path": "app/api/order-summary/route.ts",
+        "alt_file_paths": ["src/app/api/order-summary/route.ts"],
         "line_start": 1,
         "line_end": 40,
         "symbol_old": "calculateOrderSummary",
@@ -155,7 +156,7 @@ FAILURE_LOCATION_MAP = {
         "fallback_snippet": "const subtotal = items.reduce((acc, i) => acc + i.price * i.qty, 0);\nconst tax = Math.floor(subtotal * 0.18);\nconst total = subtotal + tax;",
     },
     "webhook_signature_mismatch": {
-        "repo_full_name": "Kesavaraja67/sample-store",
+        "repo_full_name": "Kesavaraja67/telex",
         "file_path": "apps/api/routers/payments.py",
         "line_start": 145,
         "line_end": 165,
@@ -165,7 +166,7 @@ FAILURE_LOCATION_MAP = {
         "fallback_snippet": 'if not payment_service.verify_webhook_signature(request_body, x_razorpay_signature or ""):\n    raise HTTPException(status_code=401, detail="Invalid webhook signature")',
     },
     "webhook_schema_mismatch": {
-        "repo_full_name": "Kesavaraja67/sample-store",
+        "repo_full_name": "Kesavaraja67/telex",
         "file_path": "apps/api/routers/payments.py",
         "line_start": 175,
         "line_end": 215,
@@ -208,8 +209,8 @@ async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
             await session.commit()
             return
 
-        # Find the target repo matching full_name or configured setting
-        target_name = defect_info.get("repo_full_name") or settings.payment_recovery_repo_name
+        # 1. Resolve target repo: prefer explicit setting, then exact mapped name, then matching active repo
+        target_name = settings.payment_recovery_repo_name or defect_info.get("repo_full_name")
         repo = None
         if target_name:
             named_result = await session.execute(
@@ -220,13 +221,24 @@ async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
             )
             repo = named_result.scalar_one_or_none()
             if repo:
-                logger.info("recover_runtime: targeting configured repo %s", repo.full_name)
+                logger.info("recover_runtime: targeting repo %s", repo.full_name)
 
         if repo is None:
-            repo_result = await session.execute(
-                select(Repo).where(Repo.is_active == True).order_by(Repo.created_at.asc()).limit(1)  # noqa: E712
-            )
-            repo = repo_result.scalar_one_or_none()
+            # Fallback: if order_total_mismatch, look for any active repo other than telex (the storefront)
+            if event.failure_type == "order_total_mismatch":
+                store_result = await session.execute(
+                    select(Repo).where(
+                        Repo.is_active == True,  # noqa: E712
+                        Repo.full_name != "Kesavaraja67/telex",
+                    ).order_by(Repo.created_at.asc()).limit(1)
+                )
+                repo = store_result.scalar_one_or_none()
+
+            if repo is None:
+                repo_result = await session.execute(
+                    select(Repo).where(Repo.is_active == True).order_by(Repo.created_at.asc()).limit(1)  # noqa: E712
+                )
+                repo = repo_result.scalar_one_or_none()
 
         if repo is None:
             logger.warning(
@@ -242,23 +254,30 @@ async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
 
         repo_id = repo.id
 
-        # Fetch live current snippet from GitHub API if installation is connected
+        # 2. Fetch live current snippet from GitHub API (trying primary and candidate paths)
+        candidate_paths = [defect_info["file_path"]] + defect_info.get("alt_file_paths", [])
+        resolved_file_path = defect_info["file_path"]
         live_snippet = None
+
         if repo and repo.installation_id:
             inst = await session.get(Installation, repo.installation_id)
             if inst:
-                full_text = await asyncio.to_thread(
-                    fetch_file_content,
-                    repo.full_name,
-                    inst.github_installation_id,
-                    defect_info["file_path"],
-                    repo.default_branch or "main",
-                )
-                if full_text:
-                    lines = full_text.splitlines()
-                    s_idx = max(0, defect_info["line_start"] - 1)
-                    e_idx = min(len(lines), defect_info["line_end"])
-                    live_snippet = "\n".join(lines[s_idx:e_idx])
+                for candidate in candidate_paths:
+                    full_text = await asyncio.to_thread(
+                        fetch_file_content,
+                        repo.full_name,
+                        inst.github_installation_id,
+                        candidate,
+                        repo.default_branch or "main",
+                    )
+                    if full_text:
+                        resolved_file_path = candidate
+                        lines = full_text.splitlines()
+                        s_idx = max(0, defect_info["line_start"] - 1)
+                        e_idx = min(len(lines), defect_info["line_end"])
+                        live_snippet = "\n".join(lines[s_idx:e_idx])
+                        logger.info("recover_runtime: live snippet fetched from %s:%s", repo.full_name, candidate)
+                        break
 
         snippet_to_use = live_snippet or defect_info.get("fallback_snippet") or defect_info.get("snippet", "")
 
@@ -280,7 +299,7 @@ async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
         cu = CodeUsage(
             repo_id=repo_id,
             detected_change_id=dc_id,
-            file_path=defect_info["file_path"],
+            file_path=resolved_file_path,
             line_start=defect_info["line_start"],
             line_end=defect_info["line_end"],
             snippet=snippet_to_use,

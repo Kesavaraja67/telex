@@ -37,7 +37,12 @@ class Settings(BaseSettings):
     next_public_api_url: str = "http://localhost:8000"
     web_app_url: str = "http://localhost:3000"
     github_app_slug: str = "telex-agent-dev"
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://telex-pi.vercel.app",
+        "https://telex-agent-dev.vercel.app",
+    ]
     demo_key: str = "telex_demo_secret_2026"
 
 

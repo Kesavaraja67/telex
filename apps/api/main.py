@@ -56,14 +56,14 @@ app = FastAPI(
 
 _is_prod = bool(os.getenv("RENDER") or os.getenv("ENVIRONMENT", "").lower() == "production")
 
-# CORS — allow local dev and explicitly configured origins
+# CORS — allow local dev, explicitly configured origins, and all vercel deployments
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_origin_regex=None if _is_prod else r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https://.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Cookie"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Cookie", "X-Demo-Key"],
 )
 
 # Mount all routers
