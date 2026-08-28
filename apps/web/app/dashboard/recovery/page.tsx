@@ -86,6 +86,20 @@ const DEMO_EVENTS: RecoveryEvent[] = [
   },
 ];
 
+// ── Pure Live Zero State (Default) ──────────────────────────────────────────
+const ZERO_STATS: RecoveryStats = {
+  total_payment_attempts: 0,
+  total_recovery_events: 0,
+  recovered: 0,
+  escalated: 0,
+  unresolved: 0,
+  recovery_rate: 0,
+  tier1_classified: 0,
+  tier2_classified: 0,
+  revenue_at_risk: 0,
+  revenue_recovered: 0,
+};
+
 const inrFormatter = new Intl.NumberFormat("en-IN", {
   style: "currency",
   currency: "INR",
@@ -93,8 +107,8 @@ const inrFormatter = new Intl.NumberFormat("en-IN", {
 });
 
 export default function RecoveryPage() {
-  const [stats, setStats] = useState<RecoveryStats>(DEMO_STATS);
-  const [events, setEvents] = useState<RecoveryEvent[]>(DEMO_EVENTS);
+  const [stats, setStats] = useState<RecoveryStats>(ZERO_STATS);
+  const [events, setEvents] = useState<RecoveryEvent[]>([]);
   const [count, setCount] = useState(10);
   const [failureRate, setFailureRate] = useState(0.3);
   const [isRunning, setIsRunning] = useState(false);
@@ -236,10 +250,10 @@ export default function RecoveryPage() {
         getRecoveryEvents(50, 0),
       ]);
       if (!isMountedRef.current) return;
-      if (fetchedStats && fetchedStats.total_recovery_events > 0) {
+      if (fetchedStats) {
         setStats(fetchedStats);
       }
-      if (fetchedEvents && fetchedEvents.length > 0) {
+      if (fetchedEvents) {
         setEvents(fetchedEvents);
       }
     } catch {
@@ -546,11 +560,25 @@ export default function RecoveryPage() {
           </span>
         </h2>
         <div className="flex flex-col gap-3">
-          <AnimatePresence mode="popLayout">
-            {events.map((e) => (
-              <RecoveryTicket key={e.id} event={e} />
-            ))}
-          </AnimatePresence>
+          {events.length === 0 ? (
+            <SpotlightCard className="p-8 text-center flex flex-col items-center justify-center gap-3 bg-black/60 backdrop-blur-xl border border-white/10" enableTilt={false}>
+              <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#71717A]">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="font-mono text-sm text-white font-medium">No Active Recovery Incidents</div>
+              <p className="font-sans text-xs text-[#71717A] max-w-md">
+                Autonomous recovery pipeline is active and monitoring live payment webhooks and checkout attempts. Trigger a batch run above or make a storefront checkout to observe live telemetry.
+              </p>
+            </SpotlightCard>
+          ) : (
+            <AnimatePresence mode="popLayout">
+              {events.map((e) => (
+                <RecoveryTicket key={e.id} event={e} />
+              ))}
+            </AnimatePresence>
+          )}
         </div>
       </div>
     </div>
