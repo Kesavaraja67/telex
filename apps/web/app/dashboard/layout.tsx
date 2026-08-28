@@ -86,7 +86,34 @@ export default function DashboardLayout({
               </Link>
             );
           })}
+
+          {/* Quick link back to Landing Page */}
+          <Link
+            href="/"
+            className="font-mono text-xs tracking-wide px-3.5 py-2.5 rounded-xl transition-all flex items-center gap-3 text-[#71717A] hover:text-white hover:bg-white/[0.04] border border-transparent mt-1 group"
+          >
+            <svg className="w-4 h-4 text-[#71717A] group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            <span>Landing Page</span>
+          </Link>
         </nav>
+
+        {/* Connect Repository Sidebar Action */}
+        <div className="pt-4">
+          <a
+            href={`https://github.com/apps/${process.env.NEXT_PUBLIC_GITHUB_APP_NAME || "telex-agent-dev"}/installations/new`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-white text-black font-mono font-semibold text-xs transition-all hover:bg-white/90 hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] active:scale-[0.98]"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span>Connect Repo</span>
+          </a>
+        </div>
 
         {/* Live Daemon Status Indicator */}
         <div className="mt-auto pt-6 border-t border-white/[0.08] flex flex-col gap-4">

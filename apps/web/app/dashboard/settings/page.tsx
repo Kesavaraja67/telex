@@ -62,6 +62,40 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      {/* GitHub Integration */}
+      <section className="flex flex-col gap-4">
+        <h2 className="font-mono font-semibold text-base text-white tracking-tight">
+          Connected Repositories & GitHub App
+        </h2>
+        <SpotlightCard className="p-5" enableTilt={false}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex flex-col gap-1">
+              <div className="font-mono text-sm text-white font-medium flex items-center gap-2">
+                <span>telex-agent-dev</span>
+                <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-white/10 text-white border border-white/20">
+                  INSTALLED
+                </span>
+              </div>
+              <p className="font-sans text-xs text-[#A1A1AA]">
+                Connect any personal or organization repository to grant autonomous PR self-healing permissions.
+              </p>
+            </div>
+            <a
+              href={`https://github.com/apps/${process.env.NEXT_PUBLIC_GITHUB_APP_NAME || "telex-agent-dev"}/installations/new`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-white text-black font-mono font-semibold text-xs transition-all hover:bg-white/90 hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] active:scale-[0.98] shrink-0"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <span>Connect New Repo</span>
+            </a>
+          </div>
+        </SpotlightCard>
+      </section>
+
       {/* Notifications */}
       <section className="flex flex-col gap-4">
         <h2 className="font-mono font-semibold text-base text-white tracking-tight">

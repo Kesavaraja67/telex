@@ -258,15 +258,30 @@ export default function DashboardOverview() {
           </p>
         </div>
 
-        {/* Live sync indicator */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/10 self-start sm:self-center">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white shadow-[0_0_6px_#FFFFFF]" />
-          </span>
-          <span className="font-mono text-[11px] text-white font-medium">
-            Live GitHub Stream
-          </span>
+        {/* Header Actions: Connect Repo Button + Live Sync Indicator */}
+        <div className="flex items-center gap-3 self-start sm:self-center">
+          <a
+            href={`https://github.com/apps/${process.env.NEXT_PUBLIC_GITHUB_APP_NAME || "telex-agent-dev"}/installations/new`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-white text-black font-mono font-semibold text-xs transition-all hover:bg-white/90 hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] active:scale-[0.98]"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span>Connect Repository</span>
+          </a>
+
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/10">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white shadow-[0_0_6px_#FFFFFF]" />
+            </span>
+            <span className="font-mono text-[11px] text-white font-medium">
+              Live GitHub Stream
+            </span>
+          </div>
         </div>
       </div>
 
@@ -322,28 +337,43 @@ export default function DashboardOverview() {
           </span>
         </div>
 
-        {/* Clean Pill Toggle */}
-        <div className="inline-flex p-0.5 rounded-lg bg-white/[0.04] border border-white/10 backdrop-blur-md self-start sm:self-auto">
-          <button
-            onClick={() => setActiveTab("personal")}
-            className={`px-3 py-1 rounded-md font-mono text-xs font-medium transition-all ${
-              activeTab === "personal"
-                ? "bg-white text-black shadow-sm"
-                : "text-[#71717A] hover:text-white"
-            }`}
+        <div className="flex items-center gap-2.5 self-start sm:self-auto">
+          {/* Clean Pill Toggle */}
+          <div className="inline-flex p-0.5 rounded-lg bg-white/[0.04] border border-white/10 backdrop-blur-md">
+            <button
+              onClick={() => setActiveTab("personal")}
+              className={`px-3 py-1 rounded-md font-mono text-xs font-medium transition-all ${
+                activeTab === "personal"
+                  ? "bg-white text-black shadow-sm"
+                  : "text-[#71717A] hover:text-white"
+              }`}
+            >
+              My Repositories
+            </button>
+            <button
+              onClick={() => setActiveTab("benchmark")}
+              className={`px-3 py-1 rounded-md font-mono text-xs font-medium transition-all ${
+                activeTab === "benchmark"
+                  ? "bg-white text-black shadow-sm"
+                  : "text-[#71717A] hover:text-white"
+              }`}
+            >
+              Industry Benchmarks
+            </button>
+          </div>
+
+          <a
+            href={`https://github.com/apps/${process.env.NEXT_PUBLIC_GITHUB_APP_NAME || "telex-agent-dev"}/installations/new`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-white/20 bg-white/5 hover:bg-white/10 text-white font-mono text-xs font-medium transition-colors"
           >
-            My Repositories
-          </button>
-          <button
-            onClick={() => setActiveTab("benchmark")}
-            className={`px-3 py-1 rounded-md font-mono text-xs font-medium transition-all ${
-              activeTab === "benchmark"
-                ? "bg-white text-black shadow-sm"
-                : "text-[#71717A] hover:text-white"
-            }`}
-          >
-            Industry Benchmarks
-          </button>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span>Add Repo</span>
+          </a>
         </div>
       </div>
 

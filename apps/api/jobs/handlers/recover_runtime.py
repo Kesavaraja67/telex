@@ -15,6 +15,7 @@ Recovery logic:
 """
 import asyncio
 import logging
+from typing import Optional, Any, Dict, List
 import uuid
 from datetime import datetime, timezone
 
@@ -143,7 +144,7 @@ async def _handle_transient(recovery_event_id: uuid.UUID, order_id: str) -> None
 
 
 # Real defect location mapping for known code defects across monitored repositories
-FAILURE_LOCATION_MAP = {
+FAILURE_LOCATION_MAP: dict[str, dict[str, Any]] = {
     "order_total_mismatch": {
         "repo_full_name": "Kesavaraja67/sample-store",
         "file_path": "app/api/order-summary/route.ts",
@@ -254,11 +255,21 @@ async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
 
         repo_id = repo.id
 
-        # 2. Fetch live current snippet from GitHub API (trying primary and candidate paths)
-        candidate_paths = [defect_info["file_path"]] + defect_info.get("alt_file_paths", [])
-        resolved_file_path = defect_info["file_path"]
-        live_snippet = None
+        # 2. Extract strongly-typed defect metadata
+        primary_file_path: str = str(defect_info["file_path"])
+        alt_paths: list[str] = [str(p) for p in defect_info.get("alt_file_paths", [])]
+        candidate_paths: list[str] = [primary_file_path] + alt_paths
+        line_start: int = int(defect_info["line_start"])
+        line_end: int = int(defect_info["line_end"])
+        symbol_old: str = str(defect_info["symbol_old"])
+        symbol_new: str = str(defect_info.get("symbol_new") or "")
+        description: str = str(defect_info.get("description") or "")
+        fallback_snippet: str = str(defect_info.get("fallback_snippet") or defect_info.get("snippet") or "")
 
+        resolved_file_path: str = primary_file_path
+        live_snippet: Optional[str] = None
+
+        # Fetch live current snippet from GitHub API (trying primary and candidate paths)
         if repo and repo.installation_id:
             inst = await session.get(Installation, repo.installation_id)
             if inst:
@@ -273,22 +284,22 @@ async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
                     if full_text:
                         resolved_file_path = candidate
                         lines = full_text.splitlines()
-                        s_idx = max(0, defect_info["line_start"] - 1)
-                        e_idx = min(len(lines), defect_info["line_end"])
+                        s_idx = max(0, line_start - 1)
+                        e_idx = min(len(lines), line_end)
                         live_snippet = "\n".join(lines[s_idx:e_idx])
                         logger.info("recover_runtime: live snippet fetched from %s:%s", repo.full_name, candidate)
                         break
 
-        snippet_to_use = live_snippet or defect_info.get("fallback_snippet") or defect_info.get("snippet", "")
+        snippet_to_use = live_snippet or fallback_snippet
 
         # Seed a DetectedChange with real defect metadata
         dc = DetectedChange(
             package_version_id=None,
             source="internal_runtime",
             change_type="behavior_change",
-            symbol_old=defect_info["symbol_old"],
-            symbol_new=defect_info["symbol_new"],
-            description=defect_info["description"],
+            symbol_old=symbol_old,
+            symbol_new=symbol_new,
+            description=description,
             confidence=0.90,
         )
         session.add(dc)
@@ -300,8 +311,8 @@ async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
             repo_id=repo_id,
             detected_change_id=dc_id,
             file_path=resolved_file_path,
-            line_start=defect_info["line_start"],
-            line_end=defect_info["line_end"],
+            line_start=line_start,
+            line_end=line_end,
             snippet=snippet_to_use,
             status="pending",
         )
