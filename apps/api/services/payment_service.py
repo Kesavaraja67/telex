@@ -17,6 +17,7 @@ import hashlib
 import hmac
 import logging
 import uuid
+from typing import Any
 
 from config import settings
 
@@ -30,7 +31,7 @@ _TEST_CARD_DECLINED = "4100280000060003"
 _LOCALLY_SIMULATED_FAILURES = {"timeout", "db_unavailable"}
 
 
-def _get_razorpay_client():
+def _get_razorpay_client() -> Any:
     """Return a configured Razorpay client in Test Mode."""
     try:
         import razorpay  # type: ignore[import]
@@ -49,7 +50,7 @@ def _get_razorpay_client():
 
 def create_order(amount_paise: int) -> dict:
     """
-    Create a Razorpay Test Mode order.
+    Create a Razorpay Test Mode order with resilient test fallback.
 
     Args:
         amount_paise: amount in Indian paise (e.g. 50000 = ₹500).
@@ -57,15 +58,25 @@ def create_order(amount_paise: int) -> dict:
     Returns:
         Razorpay order dict including at minimum {"id": "<order_id>", ...}.
     """
-    client = _get_razorpay_client()
-    order = client.order.create({
-        "amount": amount_paise,
-        "currency": "INR",
-        "receipt": f"telex-{uuid.uuid4().hex[:12]}",
-        "payment_capture": 1,
-    })
-    logger.info("Created Razorpay Test order: %s (amount=%d paise)", order["id"], amount_paise)
-    return order
+    try:
+        client = _get_razorpay_client()
+        order = client.order.create({
+            "amount": amount_paise,
+            "currency": "INR",
+            "receipt": f"telex-{uuid.uuid4().hex[:12]}",
+            "payment_capture": 1,
+        })
+        logger.info("Created Razorpay Test order: %s (amount=%d paise)", order["id"], amount_paise)
+        return order
+    except Exception as exc:
+        logger.warning("Razorpay order creation raised %s — generating simulated test order ID", exc)
+        return {
+            "id": f"order_test_{uuid.uuid4().hex[:14]}",
+            "amount": amount_paise,
+            "currency": "INR",
+            "receipt": f"telex-{uuid.uuid4().hex[:12]}",
+            "status": "created",
+        }
 
 
 def simulate_payment(order_id: str, force_failure: str | None) -> dict:
