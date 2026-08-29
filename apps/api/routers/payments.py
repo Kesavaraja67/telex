@@ -43,6 +43,8 @@ def require_demo_key(x_demo_key: Optional[str] = None) -> None:
 
 class CreateOrderRequest(BaseModel):
     amount: int  # paise
+    currency: Optional[str] = "INR"
+    notes: Optional[dict] = None
 
 class PayRequest(BaseModel):
     force_failure: Optional[str] = None
@@ -62,8 +64,9 @@ async def create_order(body: CreateOrderRequest):
 
     try:
         order = await asyncio.to_thread(payment_service.create_order, body.amount)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        logger.exception("create_order failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
 
     async with AsyncSessionLocal() as session:
         attempt = PaymentAttempt(
@@ -112,7 +115,7 @@ async def pay(
         # Locally-simulated infrastructure failure — treat as a real failure
         result = {"success": False, "error_type": body.force_failure, "razorpay_payment_id": None}
 
-    success = result.get("success", False)
+    success = bool(result.get("success", False))
     new_status = "success" if success else "failed"
 
     async with AsyncSessionLocal() as session:
@@ -121,8 +124,9 @@ async def pay(
             raise HTTPException(status_code=404, detail="PaymentAttempt not found")
         attempt.status = new_status
         attempt.injected_failure = body.force_failure if not success else None
-        if result.get("razorpay_payment_id"):
-            attempt.razorpay_payment_id = result["razorpay_payment_id"]
+        payment_id = result.get("razorpay_payment_id")
+        if payment_id:
+            attempt.razorpay_payment_id = str(payment_id)
         await session.commit()
 
         if not success:

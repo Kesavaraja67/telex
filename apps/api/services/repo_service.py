@@ -387,7 +387,7 @@ async def get_core_repositories_async() -> list[dict]:
                     pr_res = await session.execute(
                         select(func.count(PullRequest.id)).where(PullRequest.repo_id == r.id)
                     )
-                    pr_count = int(pr_res.scalar_one() or 0)
+                    pr_count: int = pr_res.scalar_one() or 0
 
                     personal_repos.append({
                         "id": str(r.id),
