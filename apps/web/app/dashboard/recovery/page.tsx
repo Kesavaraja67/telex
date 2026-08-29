@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { animate } from "animejs";
 import { AnimatePresence, motion } from "motion/react";
 import StatCounter from "@/components/dashboard/StatCounter";
@@ -107,12 +108,25 @@ const inrFormatter = new Intl.NumberFormat("en-IN", {
 });
 
 export default function RecoveryPage() {
-  const [stats, setStats] = useState<RecoveryStats>(ZERO_STATS);
-  const [events, setEvents] = useState<RecoveryEvent[]>([]);
+  const [stats, setStats] = useState<RecoveryStats | null>(null);
+  const [events, setEvents] = useState<RecoveryEvent[] | null>(null);
   const [count, setCount] = useState(10);
   const [failureRate, setFailureRate] = useState(0.3);
   const [isRunning, setIsRunning] = useState(false);
   const [runResult, setRunResult] = useState<string | null>(null);
+  const [isExplicitDemo, setIsExplicitDemo] = useState(false);
+
+  // Check ?demo=true safely on client
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("demo") === "true") {
+        setIsExplicitDemo(true);
+        setStats(DEMO_STATS);
+        setEvents(DEMO_EVENTS);
+      }
+    }
+  }, []);
 
   // Animation refs
   const revenueDisplayRef = useRef<HTMLSpanElement>(null);
@@ -120,9 +134,12 @@ export default function RecoveryPage() {
   const rippleRef = useRef<SVGCircleElement>(null);
   const streamCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  const prevRecoveredRef = useRef<number>(stats.revenue_recovered);
-  const prevAtRiskRef = useRef<number>(stats.revenue_at_risk);
+  const prevRecoveredRef = useRef<number>(0);
+  const prevAtRiskRef = useRef<number>(0);
   const isInitialMount = useRef<boolean>(true);
+
+  const activeStats = stats || ZERO_STATS;
+  const activeEvents = events || [];
 
   // 1. Ambient Leak Particles on "Revenue at Risk" card — strictly data-driven
   useEffect(() => {
@@ -134,7 +151,7 @@ export default function RecoveryPage() {
     let animId: number;
 
     // Data-driven particle density: 0 when revenue_at_risk is 0, scaling with magnitude
-    const atRisk = stats.revenue_at_risk;
+    const atRisk = activeStats.revenue_at_risk;
     const count = atRisk === 0 ? 0 : Math.min(24, Math.max(5, Math.round((atRisk / 100000) * 8)));
 
     const particles: { x: number; y: number; speed: number; opacity: number; size: number }[] = [];
@@ -169,24 +186,27 @@ export default function RecoveryPage() {
     render();
 
     return () => cancelAnimationFrame(animId);
-  }, [stats.revenue_at_risk]);
+  }, [activeStats.revenue_at_risk]);
 
   // 2. Dual Synchronized Number Tweening & Capture Ripple Confirmation
   useEffect(() => {
+    if (!stats) return;
     if (isInitialMount.current) {
       isInitialMount.current = false;
+      prevRecoveredRef.current = activeStats.revenue_recovered;
+      prevAtRiskRef.current = activeStats.revenue_at_risk;
       return;
     }
 
     const startRecoveredRupees = Math.round(prevRecoveredRef.current / 100);
-    const targetRecoveredRupees = Math.round(stats.revenue_recovered / 100);
+    const targetRecoveredRupees = Math.round(activeStats.revenue_recovered / 100);
     const startAtRiskRupees = Math.round(prevAtRiskRef.current / 100);
-    const targetAtRiskRupees = Math.round(stats.revenue_at_risk / 100);
+    const targetAtRiskRupees = Math.round(activeStats.revenue_at_risk / 100);
 
     const hasRecoveredIncreased = targetRecoveredRupees > startRecoveredRupees;
 
-    prevRecoveredRef.current = stats.revenue_recovered;
-    prevAtRiskRef.current = stats.revenue_at_risk;
+    prevRecoveredRef.current = activeStats.revenue_recovered;
+    prevAtRiskRef.current = activeStats.revenue_at_risk;
 
     // Tween Recovered Number
     if (revenueDisplayRef.current) {
@@ -234,7 +254,7 @@ export default function RecoveryPage() {
         },
       });
     }
-  }, [stats.revenue_recovered, stats.revenue_at_risk]);
+  }, [activeStats.revenue_recovered, activeStats.revenue_at_risk]);
 
   const isFetchingRef = useRef(false);
   const isMountedRef = useRef(true);
@@ -242,6 +262,7 @@ export default function RecoveryPage() {
 
   async function loadData() {
     if (isFetchingRef.current || !isMountedRef.current) return;
+    if (isExplicitDemo) return;
     isFetchingRef.current = true;
     try {
       const { getRecoveryStats, getRecoveryEvents } = await import("@/lib/api");
@@ -257,7 +278,9 @@ export default function RecoveryPage() {
         setEvents(fetchedEvents);
       }
     } catch {
-      // Backend not reachable — keep current state
+      // Backend not reachable — fallback to zero stats
+      if (!stats) setStats(ZERO_STATS);
+      if (!events) setEvents([]);
     } finally {
       isFetchingRef.current = false;
     }
@@ -273,7 +296,7 @@ export default function RecoveryPage() {
       clearInterval(interval);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, []);
+  }, [isExplicitDemo]);
 
   async function handleBatchRun() {
     setIsRunning(true);
@@ -299,9 +322,9 @@ export default function RecoveryPage() {
     }
   }
 
-  const totalClassified = stats.tier1_classified + stats.tier2_classified;
+  const totalClassified = activeStats.tier1_classified + activeStats.tier2_classified;
   const tier1Pct = totalClassified > 0
-    ? Math.round((stats.tier1_classified / totalClassified) * 100)
+    ? Math.round((activeStats.tier1_classified / totalClassified) * 100)
     : 0;
 
   return (
@@ -337,6 +360,28 @@ export default function RecoveryPage() {
           </span>
         </div>
       </div>
+
+      {/* Explicit Demo Mode Banner */}
+      {isExplicitDemo && (
+        <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-white/5 border border-white/20 text-white font-mono text-xs">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-white animate-pulse shadow-[0_0_6px_#FFF]" />
+            <span className="font-bold tracking-wider">DEMO MODE (OFFLINE FIXTURES)</span>
+            <span className="text-[#71717A]">— viewing static sample data.</span>
+          </div>
+          <Link href="/dashboard/recovery" className="underline hover:text-white text-[#A1A1AA] transition-colors">
+            Switch to Live Stream
+          </Link>
+        </div>
+      )}
+
+      {/* Loading Stream Banner */}
+      {!stats && !isExplicitDemo && (
+        <SpotlightCard className="p-6 bg-black/60 backdrop-blur-xl border border-white/10 flex items-center justify-center gap-3" enableTilt={false}>
+          <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+          <span className="font-mono text-xs text-white font-medium">Connecting to live recovery telemetry stream...</span>
+        </SpotlightCard>
+      )}
 
       {/* Top-Line Real ₹ Revenue Math Cards (Pure Monochrome High-Contrast Glass) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 relative">
@@ -376,12 +421,12 @@ export default function RecoveryPage() {
                 ref={revenueDisplayRef}
                 className="font-mono font-bold text-3xl md:text-5xl text-white tracking-tight drop-shadow-[0_0_24px_rgba(255,255,255,0.4)]"
               >
-                {inrFormatter.format(stats.revenue_recovered / 100)}
+                {inrFormatter.format(activeStats.revenue_recovered / 100)}
               </span>
             </div>
           </div>
           <p className="font-sans text-xs text-[#71717A] mt-4 relative z-10">
-            Real sum of {stats.recovered} auto-recovered payment transactions.
+            Real sum of {activeStats.recovered} auto-recovered payment transactions.
           </p>
         </SpotlightCard>
 
@@ -412,12 +457,12 @@ export default function RecoveryPage() {
                 ref={atRiskDisplayRef}
                 className="font-mono font-bold text-3xl md:text-5xl text-white tracking-tight"
               >
-                {inrFormatter.format(stats.revenue_at_risk / 100)}
+                {inrFormatter.format(activeStats.revenue_at_risk / 100)}
               </span>
             </div>
           </div>
           <p className="font-sans text-xs text-[#71717A] mt-4 relative z-10">
-            Total volume across {stats.total_recovery_events} intercepted failure events.
+            Total volume across {activeStats.total_recovery_events} intercepted failure events.
           </p>
         </SpotlightCard>
       </div>
@@ -426,20 +471,20 @@ export default function RecoveryPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <SpotlightCard className="p-1">
           <StatCounter
-            value={Math.round(stats.recovery_rate * 100)}
+            value={Math.round(activeStats.recovery_rate * 100)}
             label="Recovery rate"
             suffix="%"
           />
         </SpotlightCard>
         <SpotlightCard className="p-1">
           <StatCounter
-            value={stats.recovered}
+            value={activeStats.recovered}
             label="Auto-recovered"
           />
         </SpotlightCard>
         <SpotlightCard className="p-1">
           <StatCounter
-            value={stats.escalated}
+            value={activeStats.escalated}
             label="Escalated to PR"
           />
         </SpotlightCard>
@@ -472,9 +517,9 @@ export default function RecoveryPage() {
             />
           </div>
           <span className="font-mono text-xs text-[#A1A1AA] flex-shrink-0">
-            <span className="text-white font-bold">{stats.tier1_classified}</span> RULE
+            <span className="text-white font-bold">{activeStats.tier1_classified}</span> RULE
             &nbsp;/&nbsp;
-            <span className="text-white font-medium">{stats.tier2_classified}</span> LLM
+            <span className="text-white font-medium">{activeStats.tier2_classified}</span> LLM
           </span>
         </div>
         <p className="font-sans text-xs text-[#71717A] mt-3">
@@ -484,7 +529,7 @@ export default function RecoveryPage() {
       </SpotlightCard>
 
       {/* Real Live Pipeline Visualizer */}
-      <RecoveryPipelineVisualizer events={events} isRunning={isRunning} />
+      <RecoveryPipelineVisualizer events={activeEvents} isRunning={isRunning} />
 
       {/* Batch-run control */}
       <SpotlightCard className="p-6 bg-black/70 backdrop-blur-xl relative overflow-hidden">
@@ -556,11 +601,11 @@ export default function RecoveryPage() {
         >
           <span>Recent Recovery Events</span>
           <span className="font-mono text-xs text-[#71717A] font-normal">
-            Real-time Feed ({events.length})
+            Real-time Feed ({activeEvents.length})
           </span>
         </h2>
         <div className="flex flex-col gap-3">
-          {events.length === 0 ? (
+          {activeEvents.length === 0 ? (
             <SpotlightCard className="p-8 text-center flex flex-col items-center justify-center gap-3 bg-black/60 backdrop-blur-xl border border-white/10" enableTilt={false}>
               <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#71717A]">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -574,7 +619,7 @@ export default function RecoveryPage() {
             </SpotlightCard>
           ) : (
             <AnimatePresence mode="popLayout">
-              {events.map((e) => (
+              {activeEvents.map((e) => (
                 <RecoveryTicket key={e.id} event={e} />
               ))}
             </AnimatePresence>
