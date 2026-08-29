@@ -38,12 +38,11 @@ def _get_razorpay_client() -> Any:
     except ImportError:
         raise RuntimeError("razorpay package not installed — run: pip install razorpay")
 
-    key_id = settings.razorpay_test_key_id
-    key_secret = settings.razorpay_test_key_secret
+    key_id = settings.razorpay_test_key_id.strip() if settings.razorpay_test_key_id else ""
+    key_secret = settings.razorpay_test_key_secret.strip() if settings.razorpay_test_key_secret else ""
     if not key_id or not key_secret:
         raise RuntimeError(
-            "RAZORPAY_TEST_KEY_ID and RAZORPAY_TEST_KEY_SECRET must be set. "
-            "Use Test Mode keys only — never live keys."
+            "RAZORPAY_TEST_KEY_ID and RAZORPAY_TEST_KEY_SECRET must be set in environment variables."
         )
     return razorpay.Client(auth=(key_id, key_secret))
 

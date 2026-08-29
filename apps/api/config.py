@@ -26,11 +26,11 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     llm_provider_default: str = "gemini"
 
-    # Razorpay — Test Mode only; never use live keys in this project
-    razorpay_test_key_id: str = "rzp_test_TSRbkuczKDusLn"
-    razorpay_test_key_secret: str = "RKHz44yw2BM7vBmAZtYwkMU7"
-    razorpay_webhook_secret: str = "75_club_secure_webhook_2026"
-    payment_recovery_repo_name: str = "Kesavaraja67/aura-drops"
+    # Razorpay — Test Mode only; never commit keys, read from environment
+    razorpay_test_key_id: str = ""
+    razorpay_test_key_secret: str = ""
+    razorpay_webhook_secret: str = ""
+    payment_recovery_repo_name: str = ""
 
     # App
     nextauth_secret: str = "telex-development-session-secret-key-32-chars-min"
