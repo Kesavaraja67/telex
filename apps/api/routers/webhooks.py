@@ -42,6 +42,9 @@ async def github_webhook(
     if event == "installation" and action == "created":
         await _handle_installation_created(payload)
 
+    elif event == "installation" and action == "deleted":
+        await _handle_installation_deleted(payload)
+
     elif event == "installation_repositories":
         await _handle_installation_repositories(payload)
 
@@ -117,7 +120,8 @@ async def _handle_installation_repositories(payload: dict) -> None:
             existing_repo = await session.execute(
                 select(Repo).where(Repo.github_repo_id == repo_data["id"])
             )
-            if existing_repo.scalar_one_or_none() is None:
+            r = existing_repo.scalar_one_or_none()
+            if r is None:
                 repo = Repo(
                     installation_id=inst.id,
                     github_repo_id=repo_data["id"],
@@ -126,8 +130,7 @@ async def _handle_installation_repositories(payload: dict) -> None:
                 )
                 session.add(repo)
             else:
-                existing_r = existing_repo.scalar_one()
-                existing_r.is_active = True
+                r.is_active = True
 
         for repo_data in repos_removed:
             existing_repo = await session.execute(

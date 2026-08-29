@@ -62,8 +62,8 @@ app.add_middleware(
     allow_origins=settings.cors_origins,
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https://.*\.vercel\.app$",
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Cookie", "X-Demo-Key"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Mount all routers

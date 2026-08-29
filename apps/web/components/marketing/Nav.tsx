@@ -23,7 +23,11 @@ export default function Nav() {
   }, []);
 
   const handleAuthAction = () => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const apiUrl =
+      process.env.NEXT_PUBLIC_API_URL ||
+      (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1"
+        ? "https://telex-api.onrender.com"
+        : "http://localhost:8000");
     if (user) {
       window.location.href = "/dashboard";
     } else {

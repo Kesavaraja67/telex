@@ -6,6 +6,7 @@ for both personal repositories and industry benchmark repositories.
 import os
 import json
 import asyncio
+import logging
 import urllib.request
 import subprocess
 from datetime import datetime, timezone
@@ -13,6 +14,8 @@ import time
 from typing import Optional, List, Any
 from config import get_settings
 from services.patch_providers.gemini import GeminiProvider
+
+logger = logging.getLogger(__name__)
 
 # In-memory cache with 60s TTL to prevent GitHub rate limits
 WORKSPACE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -292,7 +295,7 @@ def get_fallback_real_personal_repos() -> list[dict]:
         },
     ]
 
-def fetch_repo_metadata_from_github(repo_full_name: str) -> dict[str, Any]:
+def fetch_repo_metadata_from_github(repo_full_name: str, default_branch: str = "main") -> dict[str, Any]:
     """Dynamically fetches real repository description, languages, and dependencies from GitHub API."""
     metadata: dict[str, Any] = {
         "description": "Connected repository monitored by Telex autonomous telemetry engine.",
@@ -324,10 +327,11 @@ def fetch_repo_metadata_from_github(repo_full_name: str) -> dict[str, Any]:
     except Exception:
         pass
 
-    # 3. Dynamically extract real dependencies from package.json or requirements.txt
+    # 3. Dynamically extract real dependencies from package.json or requirements.txt using default_branch
+    branch_to_use = default_branch or "main"
     try:
-        # Check raw package.json on main or default branch
-        pkg_url = f"https://raw.githubusercontent.com/{repo_full_name}/main/package.json"
+        # Check raw package.json on default branch
+        pkg_url = f"https://raw.githubusercontent.com/{repo_full_name}/{branch_to_use}/package.json"
         req = urllib.request.Request(pkg_url, headers={"User-Agent": "Telex-Autonomous-Agent"})
         with urllib.request.urlopen(req, timeout=4) as resp:
             pkg = json.loads(resp.read().decode())
@@ -336,8 +340,8 @@ def fetch_repo_metadata_from_github(repo_full_name: str) -> dict[str, Any]:
                 metadata["dependencies"] = deps[:6]
     except Exception:
         try:
-            # Fallback for Python repos: requirements.txt
-            req_url = f"https://raw.githubusercontent.com/{repo_full_name}/main/requirements.txt"
+            # Fallback for Python repos: requirements.txt on default branch
+            req_url = f"https://raw.githubusercontent.com/{repo_full_name}/{branch_to_use}/requirements.txt"
             req = urllib.request.Request(req_url, headers={"User-Agent": "Telex-Autonomous-Agent"})
             with urllib.request.urlopen(req, timeout=4) as resp:
                 lines = [l.strip().split("==")[0].split(">=")[0] for l in resp.read().decode().splitlines() if l.strip() and not l.startswith("#")]
@@ -366,41 +370,45 @@ async def get_core_repositories_async() -> list[dict]:
             result = await session.execute(select(Repo).where(Repo.is_active == True))
             db_repos = result.scalars().all()
 
-            for r in db_repos:
-                commits = await asyncio.to_thread(fetch_live_github_commits, r.full_name, 5)
-                meta = await asyncio.to_thread(fetch_repo_metadata_from_github, r.full_name)
-                parts = r.full_name.split("/")
-                owner = parts[0] if len(parts) > 1 else "User"
-                name = parts[1] if len(parts) > 1 else r.full_name
+            if not db_repos:
+                personal_repos = await asyncio.to_thread(get_fallback_real_personal_repos)
+            else:
+                for r in db_repos:
+                    commits = await asyncio.to_thread(fetch_live_github_commits, r.full_name, 5)
+                    meta = await asyncio.to_thread(
+                        fetch_repo_metadata_from_github,
+                        r.full_name,
+                        r.default_branch or "main",
+                    )
+                    parts = r.full_name.split("/")
+                    owner = parts[0] if len(parts) > 1 else "User"
+                    name = parts[1] if len(parts) > 1 else r.full_name
 
-                # Real PR patch count from DB
-                pr_res = await session.execute(
-                    select(func.count(PullRequest.id)).where(PullRequest.repo_id == r.id)
-                )
-                pr_count = int(pr_res.scalar_one() or 0)
+                    pr_res = await session.execute(
+                        select(func.count(PullRequest.id)).where(PullRequest.repo_id == r.id)
+                    )
+                    pr_count = int(pr_res.scalar_one() or 0)
 
-                personal_repos.append({
-                    "id": name.lower(),
-                    "full_name": r.full_name,
-                    "name": name,
-                    "owner": owner,
-                    "description": meta.get("description") or f"Autonomous codebase tracked by Telex Engine ({', '.join(meta['languages'])}).",
-                    "default_branch": r.default_branch or "main",
-                    "is_active": r.is_active,
-                    "created_at": r.created_at,
-                    "github_url": f"https://github.com/{r.full_name}",
-                    "languages": meta.get("languages") or ["TypeScript"],
-                    "patch_count": pr_count,
-                    "status": "healthy",
-                    "category": "personal",
-                    "commits": commits,
-                    "last_commit": commits[0] if commits else None,
-                    "dependencies": meta.get("dependencies") or ["typescript"],
-                })
-    except Exception:
-        pass
-
-    if not personal_repos:
+                    personal_repos.append({
+                        "id": str(r.id),
+                        "full_name": r.full_name,
+                        "name": name,
+                        "owner": owner,
+                        "description": meta.get("description") or f"Autonomous codebase tracked by Telex Engine ({', '.join(meta['languages'])}).",
+                        "default_branch": r.default_branch or "main",
+                        "is_active": r.is_active,
+                        "created_at": r.created_at,
+                        "github_url": f"https://github.com/{r.full_name}",
+                        "languages": meta.get("languages") or ["TypeScript"],
+                        "patch_count": pr_count,
+                        "status": "healthy",
+                        "category": "personal",
+                        "commits": commits,
+                        "last_commit": commits[0] if commits else None,
+                        "dependencies": meta.get("dependencies") or ["typescript"],
+                    })
+    except Exception as exc:
+        logger.exception("get_core_repositories_async failed to load repositories: %s", exc)
         personal_repos = await asyncio.to_thread(get_fallback_real_personal_repos)
 
     # Hydrate benchmarks with latest commits
