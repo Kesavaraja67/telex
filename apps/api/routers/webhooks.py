@@ -45,6 +45,9 @@ async def github_webhook(
     elif event == "installation" and action == "deleted":
         await _handle_installation_deleted(payload)
 
+    elif event == "installation_repositories":
+        await _handle_installation_repositories(payload)
+
     elif event == "push":
         # Future: trigger a re-scan on push to default branch
         pass
@@ -89,6 +92,56 @@ async def _handle_installation_created(payload: dict) -> None:
 
         await session.commit()
     logger.info("Installation created: %s", inst_data.get("account", {}).get("login"))
+
+
+async def _handle_installation_repositories(payload: dict) -> None:
+    """Handle repositories added or removed from an existing installation."""
+    inst_data = payload.get("installation", {})
+    repos_added = payload.get("repositories_added", [])
+    repos_removed = payload.get("repositories_removed", [])
+
+    async with AsyncSessionLocal() as session:
+        existing = await session.execute(
+            select(Installation).where(
+                Installation.github_installation_id == inst_data["id"]
+            )
+        )
+        inst = existing.scalar_one_or_none()
+        if inst is None:
+            inst = Installation(
+                github_installation_id=inst_data["id"],
+                account_login=inst_data.get("account", {}).get("login", "unknown"),
+                account_type=inst_data.get("account", {}).get("type", "User"),
+            )
+            session.add(inst)
+            await session.flush()
+
+        for repo_data in repos_added:
+            existing_repo = await session.execute(
+                select(Repo).where(Repo.github_repo_id == repo_data["id"])
+            )
+            r = existing_repo.scalar_one_or_none()
+            if r is None:
+                repo = Repo(
+                    installation_id=inst.id,
+                    github_repo_id=repo_data["id"],
+                    full_name=repo_data["full_name"],
+                    is_active=True,
+                )
+                session.add(repo)
+            else:
+                r.is_active = True
+
+        for repo_data in repos_removed:
+            existing_repo = await session.execute(
+                select(Repo).where(Repo.github_repo_id == repo_data["id"])
+            )
+            r = existing_repo.scalar_one_or_none()
+            if r:
+                r.is_active = False
+
+        await session.commit()
+    logger.info("Installation repositories updated for installation %s", inst_data.get("id"))
 
 
 async def _handle_installation_deleted(payload: dict) -> None:

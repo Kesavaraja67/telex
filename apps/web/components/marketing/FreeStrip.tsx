@@ -4,9 +4,12 @@ import IllocaButton from "@/components/ui/IllocaButton";
 
 export default function FreeStrip() {
   const handleInstall = () => {
-    window.location.href = `${
-      process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
-    }/auth/github`;
+    const apiUrl =
+      process.env.NEXT_PUBLIC_API_URL ||
+      (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1"
+        ? "https://telex-api.onrender.com"
+        : "http://localhost:8000");
+    window.location.href = `${apiUrl}/api/auth/github`;
   };
 
   return (

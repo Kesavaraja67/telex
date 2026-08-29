@@ -34,14 +34,15 @@ class Settings(BaseSettings):
 
     # App
     nextauth_secret: str = "telex-development-session-secret-key-32-chars-min"
-    next_public_api_url: str = "http://localhost:8000"
-    web_app_url: str = "http://localhost:3000"
+    next_public_api_url: str = "https://telex-api.onrender.com"
+    web_app_url: str = "https://telex-pi.vercel.app"
     github_app_slug: str = "telex-agent-dev"
     cors_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:3001",
         "https://telex-pi.vercel.app",
         "https://telex-agent-dev.vercel.app",
+        "https://aura-drops-gold.vercel.app",
     ]
     demo_key: str = "telex_demo_secret_2026"
 

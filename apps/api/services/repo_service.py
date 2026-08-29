@@ -6,6 +6,7 @@ for both personal repositories and industry benchmark repositories.
 import os
 import json
 import asyncio
+import logging
 import urllib.request
 import subprocess
 from datetime import datetime, timezone
@@ -13,6 +14,8 @@ import time
 from typing import Optional, List, Any
 from config import get_settings
 from services.patch_providers.gemini import GeminiProvider
+
+logger = logging.getLogger(__name__)
 
 # In-memory cache with 60s TTL to prevent GitHub rate limits
 WORKSPACE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -251,8 +254,27 @@ def fetch_live_github_repos(username: str = "Kesavaraja67") -> list[dict]:
     return all_repos
 
 def get_fallback_real_personal_repos() -> list[dict]:
-    """Curated real repos for Kesavaraja67."""
+    """Connected repositories for Kesavaraja67 — Aura Drops and Telex."""
+    aura_drops_commits = fetch_live_github_commits("Kesavaraja67/aura-drops", 5)
     return [
+        {
+            "id": "aura-drops",
+            "full_name": "Kesavaraja67/aura-drops",
+            "name": "aura-drops",
+            "owner": "Kesavaraja67",
+            "description": "Artisan wellness e-commerce storefront with Razorpay checkout and autonomous self-healing payment integration.",
+            "default_branch": "main",
+            "is_active": True,
+            "created_at": datetime(2026, 8, 20, 0, 0, 0, tzinfo=timezone.utc),
+            "github_url": "https://github.com/Kesavaraja67/aura-drops",
+            "languages": ["TypeScript", "Next.js", "React"],
+            "patch_count": 8,
+            "status": "healthy",
+            "category": "personal",
+            "commits": aura_drops_commits,
+            "last_commit": aura_drops_commits[0] if aura_drops_commits else None,
+            "dependencies": ["next", "react", "razorpay", "typescript", "tailwind"],
+        },
         {
             "id": "telex",
             "full_name": "Kesavaraja67/telex",
@@ -271,117 +293,135 @@ def get_fallback_real_personal_repos() -> list[dict]:
             "last_commit": (get_local_git_commits(WORKSPACE_ROOT, 1) or [None])[0],
             "dependencies": ["@google/genai", "fastapi", "sqlalchemy", "razorpay", "tree-sitter", "next", "motion"],
         },
-        {
-            "id": "75-club",
-            "full_name": "Kesavaraja67/75-club",
-            "name": "75-club",
-            "owner": "Kesavaraja67",
-            "description": "Smart attendance tracker for Indian college students — safe bunk calculator, AI timetable scanner, and Pro analytics as a PWA.",
-            "default_branch": "main",
-            "is_active": True,
-            "created_at": datetime(2026, 6, 11, 10, 0, 0, tzinfo=timezone.utc),
-            "github_url": "https://github.com/Kesavaraja67/75-club",
-            "languages": ["TypeScript", "Next.js", "PWA"],
-            "patch_count": 42,
-            "status": "healthy",
-            "category": "personal",
-            "commits": [
-                {
-                    "hash": "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1",
-                    "short_hash": "b2c3d4e",
-                    "author": "Kesavaraja67",
-                    "relative_time": "Jun 11, 2026",
-                    "date": "Jun 11, 2026",
-                    "message": "feat(pwa): AI timetable OCR scanner and safe attendance projection engine",
-                }
-            ],
-            "last_commit": {
-                "hash": "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1",
-                "short_hash": "b2c3d4e",
-                "author": "Kesavaraja67",
-                "relative_time": "Jun 11, 2026",
-                "date": "Jun 11, 2026",
-                "message": "feat(pwa): AI timetable OCR scanner and safe attendance projection engine",
-            },
-            "dependencies": ["next", "react", "typescript", "tailwind", "tesseract.js"],
-        },
-        {
-            "id": "echo-mind-framework",
-            "full_name": "Kesavaraja67/Echo-Mind-Framework",
-            "name": "Echo-Mind-Framework",
-            "owner": "Kesavaraja67",
-            "description": "Modular AI-powered framework designed to simulate memory, reasoning, and contextual decision-making with FastAPI backend.",
-            "default_branch": "main",
-            "is_active": True,
-            "created_at": datetime(2026, 6, 29, 8, 30, 0, tzinfo=timezone.utc),
-            "github_url": "https://github.com/Kesavaraja67/Echo-Mind-Framework",
-            "languages": ["Python", "FastAPI"],
-            "patch_count": 24,
-            "status": "healthy",
-            "category": "personal",
-            "commits": [
-                {
-                    "hash": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2",
-                    "short_hash": "c3d4e5f",
-                    "author": "Kesavaraja67",
-                    "relative_time": "Jun 29, 2026",
-                    "date": "Jun 29, 2026",
-                    "message": "feat(memory): vector context storage and semantic retrieval pipeline",
-                }
-            ],
-            "last_commit": {
-                "hash": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2",
-                "short_hash": "c3d4e5f",
-                "author": "Kesavaraja67",
-                "relative_time": "Jun 29, 2026",
-                "date": "Jun 29, 2026",
-                "message": "feat(memory): vector context storage and semantic retrieval pipeline",
-            },
-            "dependencies": ["fastapi", "pydantic", "langchain", "chromadb"],
-        },
-        {
-            "id": "cube-buddy",
-            "full_name": "Kesavaraja67/Cube-Buddy",
-            "name": "Cube-Buddy",
-            "owner": "Kesavaraja67",
-            "description": "Intelligent, interactive web app that helps users scan, detect, and solve twisty puzzles directly in the browser with 3D visualization.",
-            "default_branch": "main",
-            "is_active": True,
-            "created_at": datetime(2026, 7, 15, 14, 0, 0, tzinfo=timezone.utc),
-            "github_url": "https://github.com/Kesavaraja67/Cube-Buddy",
-            "languages": ["CSS", "JavaScript", "WebGL"],
-            "patch_count": 14,
-            "status": "healthy",
-            "category": "personal",
-            "commits": [
-                {
-                    "hash": "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3",
-                    "short_hash": "d4e5f6a",
-                    "author": "Kesavaraja67",
-                    "relative_time": "Jul 15, 2026",
-                    "date": "Jul 15, 2026",
-                    "message": "chore: file fix and 3D cube state renderer update",
-                }
-            ],
-            "last_commit": {
-                "hash": "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3",
-                "short_hash": "d4e5f6a",
-                "author": "Kesavaraja67",
-                "relative_time": "Jul 15, 2026",
-                "date": "Jul 15, 2026",
-                "message": "chore: file fix and 3D cube state renderer update",
-            },
-            "dependencies": ["three.js", "opencv.js", "css3d"],
-        },
     ]
+
+def fetch_repo_metadata_from_github(repo_full_name: str, default_branch: str = "main") -> dict[str, Any]:
+    """Dynamically fetches real repository description, languages, and dependencies from GitHub API."""
+    metadata: dict[str, Any] = {
+        "description": "Connected repository monitored by Telex autonomous telemetry engine.",
+        "languages": ["TypeScript"],
+        "dependencies": ["typescript"],
+    }
+
+    # 1. Fetch repo description & primary language from GitHub API
+    try:
+        url = f"https://api.github.com/repos/{repo_full_name}"
+        req = urllib.request.Request(url, headers={"User-Agent": "Telex-Autonomous-Agent"})
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            data = json.loads(resp.read().decode())
+            if data.get("description"):
+                metadata["description"] = data["description"]
+            if data.get("language"):
+                metadata["languages"] = [data["language"]]
+    except Exception:
+        pass
+
+    # 2. Fetch full languages breakdown
+    try:
+        lang_url = f"https://api.github.com/repos/{repo_full_name}/languages"
+        req = urllib.request.Request(lang_url, headers={"User-Agent": "Telex-Autonomous-Agent"})
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            lang_data = json.loads(resp.read().decode())
+            if lang_data:
+                metadata["languages"] = list(lang_data.keys())[:3]
+    except Exception:
+        pass
+
+    # 3. Dynamically extract real dependencies from package.json or requirements.txt using default_branch
+    branch_to_use = default_branch or "main"
+    try:
+        # Check raw package.json on default branch
+        pkg_url = f"https://raw.githubusercontent.com/{repo_full_name}/{branch_to_use}/package.json"
+        req = urllib.request.Request(pkg_url, headers={"User-Agent": "Telex-Autonomous-Agent"})
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            pkg = json.loads(resp.read().decode())
+            deps = list(pkg.get("dependencies", {}).keys())
+            if deps:
+                metadata["dependencies"] = deps[:6]
+    except Exception:
+        try:
+            # Fallback for Python repos: requirements.txt on default branch
+            req_url = f"https://raw.githubusercontent.com/{repo_full_name}/{branch_to_use}/requirements.txt"
+            req = urllib.request.Request(req_url, headers={"User-Agent": "Telex-Autonomous-Agent"})
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                lines = [l.strip().split("==")[0].split(">=")[0] for l in resp.read().decode().splitlines() if l.strip() and not l.startswith("#")]
+                if lines:
+                    metadata["dependencies"] = lines[:6]
+        except Exception:
+            pass
+
+    return metadata
+
 
 def get_core_repositories() -> list[dict]:
     """Returns real GitHub repositories + benchmarks with live commit data."""
     return fetch_live_github_repos("Kesavaraja67")
 
+
 async def get_core_repositories_async() -> list[dict]:
-    """Asynchronous off-thread wrapper to fetch core repositories without blocking the event loop."""
-    return await asyncio.to_thread(get_core_repositories)
+    """Dynamically loads connected repositories from the database and hydrates live GitHub commit telemetry."""
+    from db.session import AsyncSessionLocal
+    from db.models import Repo, PullRequest
+    from sqlalchemy import select, func
+
+    personal_repos: list[dict] = []
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(Repo).where(Repo.is_active == True))
+            db_repos = result.scalars().all()
+
+            if not db_repos:
+                personal_repos = await asyncio.to_thread(get_fallback_real_personal_repos)
+            else:
+                for r in db_repos:
+                    commits = await asyncio.to_thread(fetch_live_github_commits, r.full_name, 5)
+                    meta = await asyncio.to_thread(
+                        fetch_repo_metadata_from_github,
+                        r.full_name,
+                        r.default_branch or "main",
+                    )
+                    parts = r.full_name.split("/")
+                    owner = parts[0] if len(parts) > 1 else "User"
+                    name = parts[1] if len(parts) > 1 else r.full_name
+
+                    pr_res = await session.execute(
+                        select(func.count(PullRequest.id)).where(PullRequest.repo_id == r.id)
+                    )
+                    pr_count = int(pr_res.scalar_one() or 0)
+
+                    personal_repos.append({
+                        "id": str(r.id),
+                        "full_name": r.full_name,
+                        "name": name,
+                        "owner": owner,
+                        "description": meta.get("description") or f"Autonomous codebase tracked by Telex Engine ({', '.join(meta['languages'])}).",
+                        "default_branch": r.default_branch or "main",
+                        "is_active": r.is_active,
+                        "created_at": r.created_at,
+                        "github_url": f"https://github.com/{r.full_name}",
+                        "languages": meta.get("languages") or ["TypeScript"],
+                        "patch_count": pr_count,
+                        "status": "healthy",
+                        "category": "personal",
+                        "commits": commits,
+                        "last_commit": commits[0] if commits else None,
+                        "dependencies": meta.get("dependencies") or ["typescript"],
+                    })
+    except Exception as exc:
+        logger.exception("get_core_repositories_async failed to load repositories: %s", exc)
+        personal_repos = await asyncio.to_thread(get_fallback_real_personal_repos)
+
+    # Hydrate benchmarks with latest commits
+    hydrated_benchmarks = []
+    for b in BENCHMARK_REPOS:
+        commits = await asyncio.to_thread(fetch_live_github_commits, str(b["full_name"]), 3)
+        b_copy: dict[str, Any] = dict(b)
+        b_copy["commits"] = commits
+        b_copy["last_commit"] = commits[0] if commits else None
+        hydrated_benchmarks.append(b_copy)
+
+    return personal_repos + hydrated_benchmarks
+
 
 async def explain_repo_with_gemini(repo_id: str) -> dict:
     """Invokes Gemini 2.5 Flash to generate live deep architectural and commit intelligence for a repo."""
