@@ -251,7 +251,7 @@ async def github_callback(code: str, request: Request, state: Optional[str] = No
         max_age=60 * 60 * 24 * 30,  # 30 days
         httponly=True,
         secure=True,
-        samesite="lax",
+        samesite="none",
     )
     # Set display cookie for client UI
     response.set_cookie(
@@ -259,7 +259,8 @@ async def github_callback(code: str, request: Request, state: Optional[str] = No
         value=user_login,
         max_age=60 * 60 * 24 * 30,
         httponly=False,
-        samesite="lax",
+        secure=True,
+        samesite="none",
     )
     return response
 

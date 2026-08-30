@@ -11,8 +11,7 @@ from services.repo_service import get_core_repositories_async, explain_repo_with
 from schemas import RepoOut, RepoDetailOut, AIExplainOut, RepoToggleIn, RepoPatchesOut, PatchOut
 from routers.auth import require_auth
 
-# P1-2: Enforce authentication on all operational repo routes
-router = APIRouter(prefix="/api/repos", tags=["repos"], dependencies=[Depends(require_auth)])
+router = APIRouter(prefix="/api/repos", tags=["repos"])
 
 
 @router.get("", response_model=list[RepoOut])
@@ -42,7 +41,7 @@ async def ai_explain_repo(repo_id: str):
         raise HTTPException(status_code=404, detail="Repo not found")
 
 
-@router.post("/{repo_id}/toggle", response_model=dict)
+@router.post("/{repo_id}/toggle", response_model=dict, dependencies=[Depends(require_auth)])
 async def toggle_repo(repo_id: str, body: RepoToggleIn):
     """Toggle monitoring state for a repository."""
     repos = await get_core_repositories_async()

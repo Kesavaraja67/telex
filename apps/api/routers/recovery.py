@@ -36,9 +36,9 @@ def _derive_stage(outcome: str, classification: str) -> str:
     return "detected"
 
 
-@router.get("/stats", response_model=RecoveryStatsOut, dependencies=[Depends(require_auth)])
+@router.get("/stats", response_model=RecoveryStatsOut)
 async def get_recovery_stats():
-    """Return aggregate recovery statistics for the dashboard (requires authentication)."""
+    """Return aggregate recovery statistics for the live dashboard stream."""
     async with AsyncSessionLocal() as session:
         total_attempts = (
             await session.execute(select(func.count(PaymentAttempt.id)))
@@ -134,11 +134,7 @@ async def get_recovery_events(
         description="Filter events to a specific PaymentAttempt UUID (P0-3)",
     ),
 ):
-    """Return recent recovery events with classification, outcome, amount (paise), and stage."""
-    # P1-2: Global feed requires auth; specific payment attempt lookups remain open for customer storefront
-    if payment_attempt_id is None:
-        await require_auth(request)
-
+    # Return live telemetry feed for dashboard and storefront
     # P0-3: Validate and parse optional filter before hitting the DB
     attempt_uuid_filter: Optional[uuid.UUID] = None
     if payment_attempt_id is not None:

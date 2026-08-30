@@ -9,12 +9,19 @@ const API_BASE =
     : "http://localhost:8000");
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("telex_token") : null;
+  const reqHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...((options?.headers as Record<string, string>) ?? {}),
+  };
+
+  if (token && !reqHeaders["Authorization"]) {
+    reqHeaders["Authorization"] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options?.headers ?? {}),
-    },
+    headers: reqHeaders,
     credentials: "include",
   });
 

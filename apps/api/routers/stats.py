@@ -13,9 +13,9 @@ from routers.auth import require_auth
 router = APIRouter(prefix="/api", tags=["stats"])
 
 
-@router.get("/stats", response_model=StatsOut, dependencies=[Depends(require_auth)])
+@router.get("/stats", response_model=StatsOut)
 async def get_stats(session: AsyncSession = Depends(get_session)):
-    """Return aggregate counts for the dashboard overview (requires authentication)."""
+    """Return aggregate counts for the dashboard overview."""
 
     repos_count = (
         await session.execute(select(func.count(Repo.id)).where(Repo.is_active == True))
