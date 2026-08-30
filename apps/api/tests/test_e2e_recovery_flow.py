@@ -551,3 +551,157 @@ async def test_payment_recovery_rate_vs_execution_rate(patch_db):
         "payment_recovery_rate and recovery_execution_rate must be distinct — "
         "escalation must NOT count as completed recovery"
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 6 — Bounded Stopping: 3 repeated card declines trigger deliberate STOP
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_bounded_stopping_repeated_card_declines(patch_db):
+    """
+    Scenario: Repeated card decline attempts on the same order ID.
+    Safety Guardrail:
+      - Attempt 1: Transient retry attempted
+      - Attempt 2: Transient retry attempted
+      - Attempt 3: DELIBERATE STOP triggered (outcome=unresolved, no further retry)
+    """
+    from db.models import PaymentAttempt, RecoveryEvent
+    from jobs.handlers import recover_runtime
+
+    SessionLocal = patch_db
+    order_id = f"order_decline_{uuid.uuid4().hex[:10]}"
+
+    # Seed PaymentAttempt
+    async with SessionLocal() as session:
+        attempt = PaymentAttempt(
+            razorpay_order_id=order_id,
+            amount=249900,  # ₹2,499
+            status="failed",
+            injected_failure="card_declined",
+        )
+        session.add(attempt)
+        await session.commit()
+        await session.refresh(attempt)
+        attempt_id = attempt.id
+
+        # Seed two prior retry events for this order with failure_type="card_declined"
+        event1 = RecoveryEvent(
+            payment_attempt_id=attempt_id,
+            failure_type="card_declined",
+            classification="transient",
+            action_taken="Simulated retry attempt #1",
+            retry_count=1,
+            outcome="unresolved",
+        )
+        event2 = RecoveryEvent(
+            payment_attempt_id=attempt_id,
+            failure_type="card_declined",
+            classification="transient",
+            action_taken="Simulated retry attempt #2",
+            retry_count=2,
+            outcome="unresolved",
+        )
+        session.add_all([event1, event2])
+        await session.commit()
+
+        # Seed the 3rd recovery event
+        event3 = RecoveryEvent(
+            payment_attempt_id=attempt_id,
+            failure_type="card_declined",
+            classification="transient",
+            action_taken="Pending 3rd retry",
+            outcome="unresolved",
+        )
+        session.add(event3)
+        await session.commit()
+        await session.refresh(event3)
+        event3_id = event3.id
+
+    # Run recover_runtime on the 3rd event
+    with patch("services.payment_service.simulate_payment") as mock_simulate:
+        await recover_runtime.run({
+            "recovery_event_id": str(event3_id),
+            "classification": "transient",
+        })
+        # Crucial safety check: simulate_payment must NOT be called on 3rd attempt
+        mock_simulate.assert_not_called()
+
+    # Verify event3 state in DB
+    async with SessionLocal() as session:
+        updated_event = await session.get(RecoveryEvent, event3_id)
+        assert updated_event is not None
+        assert updated_event.retry_count == 3
+        assert updated_event.outcome == "unresolved"
+        assert "Stopped retrying after 3 attempts" in updated_event.action_taken
+        assert "repeated card decline is unlikely to resolve automatically" in updated_event.action_taken
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 7 — Razorpay Webhook Idempotency: Duplicate delivery ignored
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_duplicate_webhook_delivery_idempotent_ignored(patch_db):
+    """
+    Scenario: Razorpay sends a webhook event (e.g. payment.captured).
+    First delivery succeeds and marks PaymentAttempt as 'success'.
+    Second duplicate delivery with identical event_id is safely ignored (200 OK + duplicate_ignored).
+    """
+    import json
+    from db.models import PaymentAttempt
+    from routers.payments import razorpay_webhook
+    from unittest.mock import AsyncMock
+
+    SessionLocal = patch_db
+    order_id = f"order_hook_{uuid.uuid4().hex[:10]}"
+    event_id = f"evt_{uuid.uuid4().hex[:12]}"
+    payment_id = f"pay_{uuid.uuid4().hex[:12]}"
+
+    # Seed PaymentAttempt
+    async with SessionLocal() as session:
+        attempt = PaymentAttempt(
+            razorpay_order_id=order_id,
+            amount=50000,
+            status="created",
+        )
+        session.add(attempt)
+        await session.commit()
+
+    webhook_payload = {
+        "id": event_id,
+        "event": "payment.captured",
+        "payload": {
+            "payment": {
+                "entity": {
+                    "id": payment_id,
+                    "order_id": order_id,
+                    "amount": 50000,
+                    "status": "captured",
+                }
+            }
+        }
+    }
+    raw_body = json.dumps(webhook_payload).encode("utf-8")
+
+    mock_request = AsyncMock()
+    mock_request.body.return_value = raw_body
+
+    with patch("services.payment_service.verify_webhook_signature", return_value=True):
+        # 1. First webhook delivery
+        resp1 = await razorpay_webhook(mock_request, x_razorpay_signature="test_sig")
+        assert resp1["status"] == "ok"
+
+        # Verify attempt updated
+        async with SessionLocal() as session:
+            stmt = select(PaymentAttempt).where(PaymentAttempt.razorpay_order_id == order_id)
+            res = await session.execute(stmt)
+            att = res.scalar_one()
+            assert att.status == "success"
+            assert att.razorpay_event_id == event_id
+            assert att.razorpay_payment_id == payment_id
+
+        # 2. Duplicate webhook delivery
+        resp2 = await razorpay_webhook(mock_request, x_razorpay_signature="test_sig")
+        assert resp2["status"] == "ok"
+        assert resp2["message"] == "duplicate_ignored"

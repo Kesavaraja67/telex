@@ -18,30 +18,6 @@
 
 ---
 
-## 📊 Live Batch Evidence Summary
-
-```text
-┌──────────────────────────────────────────────────────────────────────────────────────────┐
-│                                TELEX REVENUE RECOVERY AGENT                              │
-│                                                                                          │
-│  LIVE DASHBOARD:  https://telex-pi.vercel.app/dashboard/recovery                         │
-│  DEMO GUIDE:      DEMO.md (15-Minute Evaluator Walkthrough)                              │
-├──────────────────────────────────────────────────────────────────────────────────────────┤
-│  BATCH EVIDENCE METRICS (Sample Test Mode Execution):                                    │
-│                                                                                          │
-│  • Total Payment Attempts:   247                                                         │
-│  • Intercepted Failures:     63                                                          │
-│  • Revenue at Risk:          ₹1,84,500                                                   │
-│  • Revenue Recovered:        ₹1,46,500                                                   │
-│  • Payment Recovery Rate:    65.1%  (Actual payments recovered into merchant balance)    │
-│  • Recovery Execution Rate:  79.4%  (Recovered + safely escalated to PR)                │
-│  • Tier-1 Rule Decisions:    81%    (Zero-token deterministic, 0 latency, 0 cost)        │
-│  • Automated Test Suite:     37 Tests across 5 modules (All passing, SQLite E2E)         │
-└──────────────────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
 ## Overview
 
 Telex is an autonomous revenue recovery and software healing system designed to eliminate merchant revenue loss caused by transient infrastructure outages and upstream code defects.
@@ -157,7 +133,7 @@ Open [http://localhost:3000/dashboard/recovery](http://localhost:3000/dashboard/
 
 ---
 
-## Automated Test Suite (37 Tests)
+## Automated Test Suite (39 Tests)
 
 The test suite validates both Engine A and Engine B end-to-end against an in-process SQLite database without external dependencies:
 
@@ -167,12 +143,14 @@ pytest -v --tb=short
 ```
 
 ### Test Coverage Breakdown:
-- **`test_e2e_recovery_flow.py` (5 E2E Tests)**:
+- **`test_e2e_recovery_flow.py` (7 E2E Tests)**:
   - `test_transient_failure_full_recovery_cycle`: Real timeout → Tier 1 classify → auto-retry → recovered → ₹ recorded.
   - `test_code_defect_full_pr_cycle`: Mismatch report → code_defect → seed `DetectedChange`/`CodeUsage` → `generate_patch` enqueued.
-  - `test_report_mismatch_validation`: 400 on identical amounts, 404 on missing attempt.
+  - `test_report_mismatch_validation`: 400 on identical amounts, 404 on missing attempt, 400 on mismatched amount.
   - `test_derive_stage_all_combinations`: Verifies all 7 outcome × classification stage derivations.
   - `test_payment_recovery_rate_vs_execution_rate`: Asserts distinction between recovered and execution metrics.
+  - `test_bounded_stopping_repeated_card_declines`: Asserts deliberate stop at 3 attempts for unrecoverable declines.
+  - `test_duplicate_webhook_delivery_idempotent_ignored`: Asserts cryptographic webhook idempotency on duplicate event IDs.
 - **`test_diagnose_runtime_failure.py` (7 Tests)**: Deterministic classification lookup, markdown fence parsing, JSON extraction, Tier 2 LLM routing.
 - **`test_payment_service.py` (10 Tests)**: HMAC signature validation, simulated payment errors, Razorpay decline card rules.
 - **`test_patch_generation.py` (10 Tests)**: Unified diff extraction, scope validation, clone verification sandbox.
