@@ -114,10 +114,13 @@ def simulate_payment(order_id: str, force_failure: str | None) -> dict:
         client = _get_razorpay_client()
 
         if force_failure == "card_declined":
-            # Razorpay documented test card that always declines.
-            # Using payment.create with a test card number triggers the real decline flow.
+            # Simulate a card decline using Razorpay's documented test card.
+            # Note: client.payment.create() is the Razorpay payment capture/retrieval API,
+            # not the Standard Checkout payment-collection mechanism. This call is used
+            # intentionally here only to trigger the Test Mode card_declined signal via
+            # the backend, mirroring what happens when a customer's card declines during Checkout.
             payment_data = {
-                "amount": 0,  # fetched from order, but required field
+                "amount": 0,
                 "currency": "INR",
                 "order_id": order_id,
                 "method": "card",
@@ -133,7 +136,6 @@ def simulate_payment(order_id: str, force_failure: str | None) -> dict:
             }
             try:
                 result = client.payment.create(payment_data)
-                # Razorpay may return the payment in a failed state
                 if result.get("status") in ("failed", "created"):
                     return {
                         "success": False,
@@ -142,35 +144,125 @@ def simulate_payment(order_id: str, force_failure: str | None) -> dict:
                     }
                 return {"success": True, "error_type": None, "razorpay_payment_id": result.get("id")}
             except Exception as razorpay_exc:
-                # Razorpay API itself rejected the card — this is the expected result
+                # Razorpay API rejected the card — expected result for a test decline
                 logger.info("simulate_payment: Razorpay declined card (expected): %s", razorpay_exc)
                 return {"success": False, "error_type": "card_declined", "razorpay_payment_id": None}
 
-        # Successful test payment — Razorpay Test Mode accepts any valid test card
-        payment_data = {
-            "amount": 0,
-            "currency": "INR",
-            "order_id": order_id,
-            "method": "upi",
-            "upi": {"vpa": "success@razorpay"},  # Razorpay test VPA that always succeeds
-            "email": "test@example.com",
-            "contact": "9000000000",
-        }
-        try:
-            result = client.payment.create(payment_data)
-            is_success = result.get("status") not in ("failed",)
-            return {
-                "success": is_success,
-                "error_type": None if is_success else "payment_failed",
-                "razorpay_payment_id": result.get("id"),
-            }
-        except Exception as exc:
-            logger.warning("simulate_payment: payment attempt failed: %s", exc)
-            return {"success": False, "error_type": "payment_failed", "razorpay_payment_id": None}
+        # ── force_failure=None: verify if the order already has a captured payment ──
+        # Per Razorpay docs, Standard Checkout payment collection is a customer-facing
+        # browser flow — backends cannot collect payments server-side via payment.create().
+        # The correct backend recovery action for a transient failure is:
+        #   1. Check if the order already has a captured payment (the original attempt
+        #      may have succeeded despite the timeout/failure signal).
+        #   2. If not captured, generate a Checkout retry URL for the customer.
+        # This function handles step 1. Step 2 is handled by generate_checkout_retry_url().
+        return verify_order_payment_status(order_id)
 
     except Exception as exc:
         logger.error("simulate_payment: unexpected error: %s", exc)
         raise
+
+
+def verify_order_payment_status(order_id: str) -> dict:
+    """
+    Verify the final payment state of a Razorpay order via API lookup.
+
+    This is the safe post-action verification step: rather than inferring
+    recovery success from the return value of an action call alone, we
+    independently confirm order state through Razorpay's order.fetch endpoint.
+
+    Returns:
+        dict with keys:
+            success (bool)   — True only if order has at least one captured payment
+            payment_id (str|None) — ID of the captured payment, if any
+            order_status (str)   — raw Razorpay order status string
+    """
+    if not (settings.razorpay_test_key_id and settings.razorpay_test_key_secret):
+        logger.warning("verify_order_payment_status: Razorpay credentials not configured — cannot verify")
+        return {"success": False, "payment_id": None, "order_status": "unknown"}
+    try:
+        client = _get_razorpay_client()
+        order = client.order.fetch(order_id)
+        order_status = order.get("status", "created")
+        if order_status == "paid":
+            # At least one payment captured — order is fully settled
+            payments = client.order.payments(order_id)
+            items = payments.get("items", [])
+            captured = next((p for p in items if p.get("status") == "captured"), None)
+            return {
+                "success": True,
+                "payment_id": captured.get("id") if captured else None,
+                "order_status": order_status,
+            }
+        return {"success": False, "payment_id": None, "order_status": order_status}
+    except Exception as exc:
+        logger.warning("verify_order_payment_status: could not verify order %s: %s", order_id, exc)
+        return {"success": False, "payment_id": None, "order_status": "error"}
+
+
+def recover_simulated_infrastructure(order_id: str, failure_type: str) -> dict:
+    """
+    Deterministic recovery for locally-simulated infrastructure failures
+    (timeout, db_unavailable).
+
+    These failures are injected at the service boundary — no real Razorpay
+    payment was ever attempted. Recovery means: the transient infrastructure
+    condition has been resolved and the payment path is clear again.
+
+    This is explicitly a simulated recovery to match the simulated failure;
+    it never calls Razorpay because no Razorpay payment exists to retry.
+
+    Returns:
+        dict with keys:
+            success (bool)           — always True (infrastructure recovered)
+            recovery_mode (str)      — "simulated_infrastructure_recovery"
+            failure_type (str)       — the original injected failure type
+            synthetic_payment_id (str) — a deterministic local payment reference
+    """
+    synthetic_id = f"pay_recovered_{uuid.uuid4().hex[:12]}"
+    logger.info(
+        "recover_simulated_infrastructure: %s failure for order %s resolved — synthetic payment ref %s",
+        failure_type, order_id, synthetic_id,
+    )
+    return {
+        "success": True,
+        "recovery_mode": "simulated_infrastructure_recovery",
+        "failure_type": failure_type,
+        "synthetic_payment_id": synthetic_id,
+    }
+
+
+def generate_checkout_retry_url(order_id: str, web_app_url: str) -> dict:
+    """
+    Generate a Razorpay Standard Checkout retry URL for a failed payment.
+
+    Per Razorpay documentation, customers can make multiple payment attempts
+    against the same order — the order attempt count simply increments.
+    A new order is only needed when the amount or customer changes.
+
+    This is the correct Razorpay-compliant recovery action for a real transient
+    payment failure (e.g. card_declined, timeout). Instead of the backend
+    attempting server-side payment collection (which Razorpay does not support
+    via Payments API), Telex generates a Checkout retry URL so the customer
+    can re-attempt payment through the Standard Checkout browser flow.
+
+    Args:
+        order_id:    The existing Razorpay order ID to retry.
+        web_app_url: Base URL of the customer-facing storefront.
+
+    Returns:
+        dict with keys:
+            checkout_retry_url (str) — URL for the customer to retry payment
+            order_id (str)           — the original order ID (reused, not new)
+            recovery_mode (str)      — "checkout_retry"
+    """
+    retry_url = f"{web_app_url.rstrip('/')}/checkout/retry?order_id={order_id}"
+    logger.info("generate_checkout_retry_url: retry URL generated for order %s", order_id)
+    return {
+        "checkout_retry_url": retry_url,
+        "order_id": order_id,
+        "recovery_mode": "checkout_retry",
+    }
 
 
 def verify_webhook_signature(payload: bytes, signature: str) -> bool:

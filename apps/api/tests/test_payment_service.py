@@ -83,9 +83,16 @@ def test_simulate_payment_configured_card_declined():
 
 
 def test_simulate_payment_configured_normal_failure_handling():
-    """Normal payment exception from client.payment.create returns failure without synthetic ID."""
+    """
+    simulate_payment(force_failure=None) now delegates to verify_order_payment_status,
+    which queries order.fetch rather than calling payment.create.
+    Per Razorpay docs, backends cannot collect payments via the Payments API;
+    the correct path is to verify if the order is already paid, and if not,
+    generate a Checkout retry URL for the customer.
+    When order.fetch raises, verify_order_payment_status returns success=False.
+    """
     mock_client = MagicMock()
-    mock_client.payment.create.side_effect = Exception("Gateway connection error")
+    mock_client.order.fetch.side_effect = Exception("Gateway connection error")
 
     with patch.object(settings, "razorpay_test_key_id", "rzp_test_key"), \
          patch.object(settings, "razorpay_test_key_secret", "rzp_test_secret"), \
@@ -93,8 +100,9 @@ def test_simulate_payment_configured_normal_failure_handling():
 
         result = payment_service.simulate_payment("order_test_123", force_failure=None)
         assert result["success"] is False
-        assert result["error_type"] == "payment_failed"
-        assert result["razorpay_payment_id"] is None
+        # verify_order_payment_status returns order_status="error" when fetch raises
+        assert result.get("order_status") == "error"
+        assert result.get("payment_id") is None
 
 
 def test_verify_webhook_signature_payment_captured():

@@ -70,13 +70,26 @@ async def run(payload: dict) -> None:
 async def _handle_transient(recovery_event_id: uuid.UUID, order_id: str) -> None:
     """
     Retry the payment in worker thread with deliberate stop rules.
-    - If retry_count >= 3 and failure_type == "card_declined", deliberately STOP.
-    - Otherwise execute transient backoff retry.
+
+    Recovery path splits by failure type:
+    - timeout / db_unavailable (locally-simulated infrastructure failures):
+        → call recover_simulated_infrastructure() — deterministic recovery,
+          no Razorpay call made (matches the simulated failure boundary).
+    - card_declined (real Razorpay Test Mode failure):
+        → call simulate_payment() to retry, then independently verify order
+          state via verify_order_payment_status() before marking recovered.
+    - all others:
+        → attempt simulate_payment() + verify order state.
+
+    Stop rules:
+    - If retry_count >= 3 and failure_type == "card_declined", stop retrying.
     """
     from db.session import AsyncSessionLocal
     from db.models import RecoveryEvent, PaymentAttempt
     from services import payment_service
     from sqlalchemy import select, func
+
+    _SIMULATED_INFRA_FAILURES = {"timeout", "db_unavailable"}
 
     # Check prior retry count for this order with matching classification/failure
     async with AsyncSessionLocal() as session:
@@ -116,21 +129,94 @@ async def _handle_transient(recovery_event_id: uuid.UUID, order_id: str) -> None
 
         await session.commit()
 
-    logger.info("recover_runtime: transient — retrying payment for order %s (attempt #%d)", order_id, current_retry_count)
+    logger.info(
+        "recover_runtime: transient — retrying for order %s (attempt #%d, failure_type=%s)",
+        order_id, current_retry_count, failure_type,
+    )
 
-    try:
-        result = await asyncio.to_thread(payment_service.simulate_payment, order_id, force_failure=None)
-        success = result.get("success", False)
-    except Exception as exc:
-        logger.exception("recover_runtime: retry raised exception: %s", exc)
-        success = False
+    # ── Recovery action: split by failure type ────────────────────────────────
+    success = False
+    action_detail = ""
 
+    if failure_type in _SIMULATED_INFRA_FAILURES:
+        # Locally-simulated infrastructure failure: no real Razorpay payment exists to retry.
+        # Recovery is deterministic — the infrastructure condition has resolved.
+        try:
+            result = await asyncio.to_thread(
+                payment_service.recover_simulated_infrastructure, order_id, failure_type
+            )
+            success = result.get("success", False)
+            action_detail = (
+                f"Simulated infrastructure recovery: {failure_type} resolved. "
+                f"Recovery ref: {result.get('synthetic_payment_id', 'n/a')}"
+            )
+            logger.info(
+                "recover_runtime: simulated infrastructure recovery for %s → success=%s",
+                order_id, success,
+            )
+        except Exception as exc:
+            logger.exception("recover_runtime: recover_simulated_infrastructure raised: %s", exc)
+            success = False
+            action_detail = f"Infrastructure recovery failed unexpectedly: {exc}"
+
+    else:
+        # Real Razorpay failure (card_declined or other).
+        # Step 1: Check if the order is already paid (the original attempt may have
+        # succeeded despite the failure signal).
+        try:
+            verify_result = await asyncio.to_thread(
+                payment_service.verify_order_payment_status, order_id
+            )
+            success = verify_result.get("success", False)
+            verified_payment_id = verify_result.get("payment_id")
+            order_status = verify_result.get("order_status", "unknown")
+        except Exception as exc:
+            logger.warning("recover_runtime: order verification failed for %s: %s", order_id, exc)
+            success = False
+            verified_payment_id = None
+            order_status = "error"
+
+        if success:
+            # Order already has a captured payment — it recovered without intervention
+            action_detail = (
+                f"Order already captured — no retry needed. "
+                f"Order status: {order_status}. Captured payment: {verified_payment_id}."
+            )
+            logger.info(
+                "recover_runtime: order %s already paid (status=%s) — marking recovered",
+                order_id, order_status,
+            )
+        else:
+            # Order not yet paid: generate a Checkout retry URL per Razorpay's Standard
+            # Checkout model. Customers can retry the same order through the browser flow.
+            # We do not call client.payment.create() — that is not a payment-collection API.
+            from config import settings as _settings
+            web_url = _settings.web_app_url or "https://telex-pi.vercel.app"
+            try:
+                retry_info = await asyncio.to_thread(
+                    payment_service.generate_checkout_retry_url, order_id, web_url
+                )
+                action_detail = (
+                    f"Checkout retry URL generated for customer: {retry_info.get('checkout_retry_url')}. "
+                    f"Customer must re-attempt payment via Standard Checkout on the same order."
+                )
+            except Exception as exc:
+                action_detail = f"Checkout retry URL generation failed: {exc}"
+            success = False  # not recovered until customer completes Checkout
+            logger.info(
+                "recover_runtime: checkout retry URL generated for order %s — awaiting customer action",
+                order_id,
+            )
+
+    # ── Persist outcome ───────────────────────────────────────────────────────
     async with AsyncSessionLocal() as session:
         event = await session.get(RecoveryEvent, recovery_event_id)
         if event is None:
             return
         event.outcome = "recovered" if success else "unresolved"
         event.resolved_at = datetime.now(timezone.utc)
+        if action_detail:
+            event.action_taken = action_detail
         if success:
             attempt = await session.get(PaymentAttempt, event.payment_attempt_id)
             if attempt:
