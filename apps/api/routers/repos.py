@@ -1,15 +1,18 @@
 """
 Repos API — list live repositories, commit history, and Gemini 2.5 Flash architecture insights.
 """
-from fastapi import APIRouter, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy import select, or_, cast, Text
+import uuid
 
 from db.session import AsyncSessionLocal
-from db.models import Repo
+from db.models import Repo, Patch, CodeUsage, PullRequest
 from services.repo_service import get_core_repositories_async, explain_repo_with_gemini
 from schemas import RepoOut, RepoDetailOut, AIExplainOut, RepoToggleIn, RepoPatchesOut, PatchOut
+from routers.auth import require_auth
 
-router = APIRouter(prefix="/api/repos", tags=["repos"])
+# P1-2: Enforce authentication on all operational repo routes
+router = APIRouter(prefix="/api/repos", tags=["repos"], dependencies=[Depends(require_auth)])
 
 
 @router.get("", response_model=list[RepoOut])
@@ -63,35 +66,51 @@ async def toggle_repo(repo_id: str, body: RepoToggleIn):
 
 @router.get("/{repo_id}/patches", response_model=RepoPatchesOut)
 async def list_patches(repo_id: str):
-    """Return recent patches for repository."""
+    """Return recent patches for repository from real DB records (P1-8)."""
     repos = await get_core_repositories_async()
     repo = next((r for r in repos if r["id"] == repo_id or r["full_name"] == repo_id or r["name"] == repo_id), None)
     if repo is None:
         raise HTTPException(status_code=404, detail="Repo not found")
     repo_name = repo["full_name"]
 
+    patches_out: list[PatchOut] = []
+    async with AsyncSessionLocal() as session:
+        # Find DB repo row by full_name or id
+        repo_res = await session.execute(
+            select(Repo).where(
+                or_(
+                    Repo.full_name == repo_name,
+                    cast(Repo.id, Text) == repo_id,
+                )
+            ).limit(1)
+        )
+        db_repo = repo_res.scalar_one_or_none()
+
+        if db_repo:
+            stmt = (
+                select(Patch, CodeUsage, PullRequest)
+                .join(CodeUsage, Patch.code_usage_id == CodeUsage.id)
+                .outerjoin(PullRequest, PullRequest.repo_id == db_repo.id)
+                .where(CodeUsage.repo_id == db_repo.id)
+                .order_by(Patch.created_at.desc())
+                .limit(20)
+            )
+            res = await session.execute(stmt)
+            for patch_row, cu_row, pr_row in res.all():
+                patches_out.append(
+                    PatchOut(
+                        id=str(patch_row.id),
+                        package=cu_row.file_path,
+                        old_version="current",
+                        new_version="patched",
+                        status="verified" if patch_row.verified else "generated",
+                        pr_url=pr_row.github_pr_url if pr_row else f"https://github.com/{repo_name}",
+                        usages_patched=1,
+                        opened_at=patch_row.created_at.isoformat() if patch_row.created_at else "2026-08-30T00:00:00Z",
+                    )
+                )
+
     return RepoPatchesOut(
         repo=repo_name,
-        patches=[
-            PatchOut(
-                id="patch-1",
-                package="openai",
-                old_version="3.2.0",
-                new_version="4.0.0",
-                status="merged",
-                pr_url="https://github.com/Kesavaraja67/telex/pull/1",
-                usages_patched=6,
-                opened_at="2026-08-21T18:43:00Z",
-            ),
-            PatchOut(
-                id="patch-2",
-                package="razorpay",
-                old_version="1.3.0",
-                new_version="1.4.1",
-                status="merged",
-                pr_url="https://github.com/Kesavaraja67/telex/pull/2",
-                usages_patched=3,
-                opened_at="2026-08-21T13:40:00Z",
-            ),
-        ]
+        patches=patches_out,
     )

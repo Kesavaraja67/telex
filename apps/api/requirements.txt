@@ -22,3 +22,4 @@ razorpay>=1.4.0
 # Testing
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
+aiosqlite>=0.20.0  # in-process async SQLite for E2E tests (no Postgres needed locally)

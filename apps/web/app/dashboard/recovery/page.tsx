@@ -21,7 +21,9 @@ const DEMO_STATS: RecoveryStats = {
   recovered: 41,
   escalated: 9,
   unresolved: 13,
-  recovery_rate: 0.794,
+  payment_recovery_rate: 0.651,      // 41 / 63 (payments actually recovered)
+  recovery_execution_rate: 0.794,    // (41 + 9) / 63 (recovered + escalated)
+  recovery_rate: 0.651,
   tier1_classified: 51,
   tier2_classified: 12,
   revenue_at_risk: 18450000,    // ₹1,84,500 in paise
@@ -94,6 +96,8 @@ const ZERO_STATS: RecoveryStats = {
   recovered: 0,
   escalated: 0,
   unresolved: 0,
+  payment_recovery_rate: 0,
+  recovery_execution_rate: 0,
   recovery_rate: 0,
   tier1_classified: 0,
   tier2_classified: 0,
@@ -471,7 +475,7 @@ export default function RecoveryPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <SpotlightCard className="p-1">
           <StatCounter
-            value={Math.round(activeStats.recovery_rate * 100)}
+            value={Math.round((activeStats.payment_recovery_rate ?? activeStats.recovery_rate ?? 0) * 100)}
             label="Recovery rate"
             suffix="%"
           />

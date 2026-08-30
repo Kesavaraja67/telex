@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from db.session import AsyncSessionLocal
-from db.models import PaymentAttempt
+from db.models import PaymentAttempt, RecoveryEvent
 from jobs.queue import enqueue_job
 from schemas import VerifySignatureIn
 from config import settings
@@ -54,6 +54,16 @@ class BatchRunRequest(BaseModel):
     failure_rate: float
     client_request_id: Optional[str] = None  # idempotency key (section 10.5)
 
+class ReportOrderMismatchRequest(BaseModel):
+    """
+    Sent by the storefront when it detects a discrepancy between the price it
+    computed client-side and what the backend's order-summary route returned.
+    This is the real entry point for the code_defect → Gemini-patch → PR flow.
+    """
+    payment_attempt_id: str
+    expected_total_paise: int
+    actual_total_paise: int
+
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
@@ -64,9 +74,14 @@ async def create_order(body: CreateOrderRequest):
 
     try:
         order = await asyncio.to_thread(payment_service.create_order, body.amount)
+    except RuntimeError as exc:
+        # Credentials missing or not configured
+        logger.error("create_order: Razorpay not configured: %s", exc)
+        raise HTTPException(status_code=503, detail=f"Payment service unavailable: {exc}")
     except Exception as exc:
-        logger.exception("create_order failed: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc))
+        # Razorpay API error (e.g. authentication failed, bad request)
+        logger.exception("create_order: Razorpay API error: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Razorpay API error: {exc}")
 
     async with AsyncSessionLocal() as session:
         attempt = PaymentAttempt(
@@ -249,6 +264,66 @@ async def razorpay_webhook(
     return {"status": "ok"}
 
 
+@router.post("/report-mismatch")
+async def report_order_mismatch(body: ReportOrderMismatchRequest):
+    """
+    Real incident bridge: Aura Drops calls this when it detects that
+    the order total it computed does not match what the backend returned.
+
+    This is the genuine entry point for the code_defect → classify →
+    Gemini patch synthesis → GitHub PR pipeline (Engine B, Step 4).
+    It is NOT a simulated trigger — the storefront must independently
+    compute the expected total and compare it against the backend's value.
+    """
+    if body.expected_total_paise == body.actual_total_paise:
+        raise HTTPException(
+            status_code=400,
+            detail="expected_total_paise and actual_total_paise are equal — no mismatch to report",
+        )
+
+    try:
+        attempt_uuid = uuid.UUID(body.payment_attempt_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid payment_attempt_id")
+
+    async with AsyncSessionLocal() as session:
+        attempt = await session.get(PaymentAttempt, attempt_uuid)
+        if attempt is None:
+            raise HTTPException(status_code=404, detail="PaymentAttempt not found")
+
+        event = RecoveryEvent(
+            payment_attempt_id=attempt.id,
+            failure_type="order_total_mismatch",
+            # Deterministic: order_total_mismatch always maps to code_defect
+            # per diagnose_runtime_failure.py's Tier-1 classification table.
+            classification="code_defect",
+            action_taken=(
+                f"Storefront reported order total mismatch: "
+                f"expected {body.expected_total_paise} paise, "
+                f"got {body.actual_total_paise} paise"
+            ),
+            llm_provider="none",
+            llm_model="none",
+            outcome="unresolved",
+        )
+        session.add(event)
+        await session.commit()
+        await session.refresh(event)
+
+        await enqueue_job(
+            session,
+            job_type="recover_runtime",
+            payload={"recovery_event_id": str(event.id)},
+        )
+
+    logger.info(
+        "report_order_mismatch: code_defect event %s queued for recovery "
+        "(expected=%d, actual=%d, attempt=%s)",
+        event.id, body.expected_total_paise, body.actual_total_paise, attempt_uuid,
+    )
+    return {"status": "reported", "recovery_event_id": str(event.id)}
+
+
 @router.post("/batch-run")
 async def batch_run(
     body: BatchRunRequest,
@@ -339,5 +414,9 @@ async def batch_run(
         "batch_run: created %d attempts (%d failures injected)",
         body.count, n_failures,
     )
-    return {"status": "created", "payment_attempt_ids": payment_attempt_ids}
+    return {
+        "status": "created",
+        "source": "synthetic_batch",  # P1-1: always label batch-injected runs clearly
+        "payment_attempt_ids": payment_attempt_ids,
+    }
 

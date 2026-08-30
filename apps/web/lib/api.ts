@@ -128,7 +128,9 @@ export interface RecoveryStats {
   recovered: number;
   escalated: number;
   unresolved: number;
-  recovery_rate: number;
+  payment_recovery_rate?: number;
+  recovery_execution_rate?: number;
+  recovery_rate?: number;
   tier1_classified: number;
   tier2_classified: number;
   revenue_at_risk: number;      // paise
@@ -141,6 +143,8 @@ export interface RecoveryEvent {
   failure_type: string;
   classification: "transient" | "code_defect" | "unknown";
   action_taken: string;
+  action?: string;
+  stage?: string;
   llm_provider: string;
   llm_model: string;
   outcome: "recovered" | "escalated" | "unresolved" | "pending";
