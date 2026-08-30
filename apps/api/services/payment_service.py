@@ -49,33 +49,27 @@ def _get_razorpay_client() -> Any:
 
 def create_order(amount_paise: int) -> dict:
     """
-    Create a Razorpay Test Mode order with resilient test fallback.
+    Create a Razorpay Test Mode order.
 
     Args:
         amount_paise: amount in Indian paise (e.g. 50000 = ₹500).
 
     Returns:
         Razorpay order dict including at minimum {"id": "<order_id>", ...}.
+
+    Raises:
+        RuntimeError — if Razorpay credentials are missing or the API call fails.
+                       Callers must surface this as a 502/503, not swallow it.
     """
-    try:
-        client = _get_razorpay_client()
-        order = client.order.create({
-            "amount": amount_paise,
-            "currency": "INR",
-            "receipt": f"telex-{uuid.uuid4().hex[:12]}",
-            "payment_capture": 1,
-        })
-        logger.info("Created Razorpay Test order: %s (amount=%d paise)", order["id"], amount_paise)
-        return order
-    except Exception as exc:
-        logger.warning("Razorpay order creation raised %s — generating simulated test order ID", exc)
-        return {
-            "id": f"order_test_{uuid.uuid4().hex[:14]}",
-            "amount": amount_paise,
-            "currency": "INR",
-            "receipt": f"telex-{uuid.uuid4().hex[:12]}",
-            "status": "created",
-        }
+    client = _get_razorpay_client()
+    order = client.order.create({
+        "amount": amount_paise,
+        "currency": "INR",
+        "receipt": f"telex-{uuid.uuid4().hex[:12]}",
+        "payment_capture": 1,
+    })
+    logger.info("Created Razorpay Test order: %s (amount=%d paise)", order["id"], amount_paise)
+    return order
 
 
 def simulate_payment(order_id: str, force_failure: str | None) -> dict:

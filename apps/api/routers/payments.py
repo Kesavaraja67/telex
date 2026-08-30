@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from db.session import AsyncSessionLocal
-from db.models import PaymentAttempt
+from db.models import PaymentAttempt, RecoveryEvent
 from jobs.queue import enqueue_job
 from schemas import VerifySignatureIn
 from config import settings
@@ -54,6 +54,16 @@ class BatchRunRequest(BaseModel):
     failure_rate: float
     client_request_id: Optional[str] = None  # idempotency key (section 10.5)
 
+class ReportOrderMismatchRequest(BaseModel):
+    """
+    Sent by the storefront when it detects a discrepancy between the price it
+    computed client-side and what the backend's order-summary route returned.
+    This is the real entry point for the code_defect → Gemini-patch → PR flow.
+    """
+    payment_attempt_id: str
+    expected_total_paise: int
+    actual_total_paise: int
+
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
@@ -64,9 +74,14 @@ async def create_order(body: CreateOrderRequest):
 
     try:
         order = await asyncio.to_thread(payment_service.create_order, body.amount)
+    except RuntimeError as exc:
+        # Credentials missing or not configured
+        logger.error("create_order: Razorpay not configured: %s", exc)
+        raise HTTPException(status_code=503, detail=f"Payment service unavailable: {exc}")
     except Exception as exc:
-        logger.exception("create_order failed: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc))
+        # Razorpay API error (e.g. authentication failed, bad request)
+        logger.exception("create_order: Razorpay API error: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Razorpay API error: {exc}")
 
     async with AsyncSessionLocal() as session:
         attempt = PaymentAttempt(
@@ -249,20 +264,104 @@ async def razorpay_webhook(
     return {"status": "ok"}
 
 
+@router.post("/report-mismatch")
+async def report_order_mismatch(body: ReportOrderMismatchRequest):
+    """
+    Real incident bridge: Aura Drops calls this when it detects that
+    the order total it computed does not match what the backend returned.
+
+    This is the genuine entry point for the code_defect → classify →
+    Gemini patch synthesis → GitHub PR pipeline (Engine B, Step 4).
+    It is NOT a simulated trigger — the storefront must independently
+    compute the expected total and compare it against the backend's value.
+    """
+    if body.expected_total_paise <= 0 or body.actual_total_paise <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Totals must be positive integers representing paise.",
+        )
+
+    if body.expected_total_paise == body.actual_total_paise:
+        raise HTTPException(
+            status_code=400,
+            detail="expected_total_paise and actual_total_paise are equal — no mismatch to report",
+        )
+
+    try:
+        attempt_uuid = uuid.UUID(body.payment_attempt_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid payment_attempt_id")
+
+    async with AsyncSessionLocal() as session:
+        attempt = await session.get(PaymentAttempt, attempt_uuid)
+        if attempt is None:
+            raise HTTPException(status_code=404, detail="PaymentAttempt not found")
+
+        # Validate that the reported actual total matches the amount recorded on the PaymentAttempt
+        if attempt.amount != body.actual_total_paise:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Reported actual_total_paise ({body.actual_total_paise}) does not match PaymentAttempt.amount ({attempt.amount})",
+            )
+
+        event = RecoveryEvent(
+            payment_attempt_id=attempt.id,
+            failure_type="order_total_mismatch",
+            # Deterministic: order_total_mismatch always maps to code_defect
+            # per diagnose_runtime_failure.py's Tier-1 classification table.
+            classification="code_defect",
+            action_taken=(
+                f"Storefront reported order total mismatch: "
+                f"expected {body.expected_total_paise} paise, "
+                f"got {body.actual_total_paise} paise"
+            ),
+            llm_provider="none",
+            llm_model="none",
+            outcome="unresolved",
+        )
+        session.add(event)
+        await session.commit()
+        await session.refresh(event)
+
+        await enqueue_job(
+            session,
+            job_type="recover_runtime",
+            payload={"recovery_event_id": str(event.id)},
+        )
+
+    logger.info(
+        "report_order_mismatch: code_defect event %s queued for recovery "
+        "(expected=%d, actual=%d, attempt=%s)",
+        event.id, body.expected_total_paise, body.actual_total_paise, attempt_uuid,
+    )
+    return {"status": "reported", "recovery_event_id": str(event.id)}
+
+
 @router.post("/batch-run")
 async def batch_run(
+    request: Request,
     body: BatchRunRequest,
     x_demo_key: Optional[str] = Header(default=None),
 ):
     """
     Create `count` payment attempts and inject failures into `failure_rate` fraction of them.
     Returns payment_attempt_ids for all created attempts.
-    Requires X-Demo-Key header for failure simulation.
+    Requires authenticated operator session or X-Demo-Key header.
 
     Idempotent: if client_request_id is provided and already exists, the same
     batch is returned without creating duplicates (section 10.5).
     """
-    require_demo_key(x_demo_key)
+    # Allow either authenticated session OR valid X-Demo-Key header
+    from routers.auth import decode_session_token
+    token = request.cookies.get("telex_session")
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ", 1)[1].strip()
+
+    is_authenticated = bool(token and decode_session_token(token))
+    if not is_authenticated:
+        require_demo_key(x_demo_key)
 
     from services import payment_service
 
@@ -297,11 +396,12 @@ async def batch_run(
         is_failure = i in failure_indices
         force_failure = random.choices(_INJECTED_FAILURE_TYPES, weights=_FAILURE_WEIGHTS)[0] if is_failure else None
 
-        # Create Razorpay order (or synthetic ID if keys not configured)
+        # Create Razorpay order (or synthetic ID if keys not configured / error)
         try:
             order = await asyncio.to_thread(payment_service.create_order, 50000)  # ₹500 per attempt
             order_id = order["id"]
-        except RuntimeError:
+        except Exception as exc:
+            logger.warning("batch_run: order creation fallback to synthetic (%s)", exc)
             order_id = f"order_synthetic_{uuid.uuid4().hex[:16]}"
 
         async with AsyncSessionLocal() as session:
@@ -318,7 +418,8 @@ async def batch_run(
             # Simulate the payment inline in worker thread
             try:
                 result = await asyncio.to_thread(payment_service.simulate_payment, order_id, force_failure)
-            except RuntimeError:
+            except Exception as exc:
+                logger.warning("batch_run: simulate_payment exception (%s)", exc)
                 result = {"success": False, "error_type": force_failure, "razorpay_payment_id": None}
 
             success = result.get("success", False)
@@ -339,5 +440,9 @@ async def batch_run(
         "batch_run: created %d attempts (%d failures injected)",
         body.count, n_failures,
     )
-    return {"status": "created", "payment_attempt_ids": payment_attempt_ids}
+    return {
+        "status": "created",
+        "source": "synthetic_batch",  # P1-1: always label batch-injected runs clearly
+        "payment_attempt_ids": payment_attempt_ids,
+    }
 

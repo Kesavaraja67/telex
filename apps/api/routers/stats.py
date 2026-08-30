@@ -8,13 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db.session import get_session
 from db.models import Repo, PullRequest, Patch
 from schemas import StatsOut
+from routers.auth import require_auth
 
 router = APIRouter(prefix="/api", tags=["stats"])
 
 
-@router.get("/stats", response_model=StatsOut)
+@router.get("/stats", response_model=StatsOut, dependencies=[Depends(require_auth)])
 async def get_stats(session: AsyncSession = Depends(get_session)):
-    """Return aggregate counts for the dashboard overview."""
+    """Return aggregate counts for the dashboard overview (requires authentication)."""
 
     repos_count = (
         await session.execute(select(func.count(Repo.id)).where(Repo.is_active == True))

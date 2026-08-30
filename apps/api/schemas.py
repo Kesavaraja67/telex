@@ -131,9 +131,14 @@ class RecoveryEventOut(BaseModel):
     failure_type: str
     classification: str
     action_taken: str
+    # action is an alias of action_taken for frontend clients that read .action
+    action: str
     llm_provider: str
     llm_model: str
     outcome: str
+    # stage is a computed UX field derived from outcome + classification:
+    # "detected" | "classifying" | "recovering" | "escalated" | "resolved" | "unresolved"
+    stage: str
     pull_request_id: Optional[uuid.UUID] = None
     amount: Optional[int] = 0  # paise
     detected_at: datetime
@@ -148,7 +153,12 @@ class RecoveryStatsOut(BaseModel):
     recovered: int
     escalated: int
     unresolved: int
-    recovery_rate: float  # fraction 0.0–1.0
+    # payment_recovery_rate: fraction of events where the payment was actually recovered
+    # (escalations do NOT count — do not present escalation as completed recovery)
+    payment_recovery_rate: float
+    # recovery_execution_rate: fraction of events handled (recovered OR escalated)
+    # label this explicitly when showing it — never call it just "recovery rate"
+    recovery_execution_rate: float
     tier1_classified: int  # classified via deterministic rule (no LLM)
     tier2_classified: int  # classified via LLM call
     revenue_at_risk: int = 0  # paise

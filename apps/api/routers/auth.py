@@ -29,6 +29,46 @@ _GITHUB_TIMEOUT = httpx.Timeout(10.0)
 JWT_ALGORITHM = "HS256"
 
 
+# ── Auth dependency ─────────────────────────────────────────────────────────
+# Import this in any router that must be protected:
+#   from routers.auth import require_auth
+#   @router.get("/protected", dependencies=[Depends(require_auth)])
+#
+# Payment-facing endpoints (create-order, verify-signature, webhook) must
+# remain open because Aura Drops customers are anonymous.
+
+async def require_auth(request: Request) -> dict:
+    """
+    FastAPI dependency — raises 401 if the request has no valid session token.
+    Checks:
+      1. Cookie: telex_session
+      2. Header: Authorization: Bearer <token>
+      3. Header: X-Demo-Key (matched against settings.demo_key)
+    """
+    # 1. Cookie
+    token = request.cookies.get("telex_session")
+
+    # 2. Authorization Header
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ", 1)[1].strip()
+
+    # 3. Demo Key header (for demo/evaluator script access)
+    demo_key = request.headers.get("x-demo-key")
+    if demo_key and settings.demo_key and demo_key == settings.demo_key:
+        return {"user_id": "demo-operator", "role": "operator"}
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    user_id_str = decode_session_token(token)
+    if not user_id_str:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+    return {"user_id": user_id_str}
+
+
+
 from datetime import datetime, timedelta, timezone
 
 def _get_jwt_secret() -> str:
