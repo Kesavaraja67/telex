@@ -47,6 +47,8 @@ export default function RecoveryTicket({ event }: RecoveryTicketProps) {
 
   const tier = getTierLabel(event.action_taken);
   const isDeliberateStop = event.action_taken.startsWith("Stopped retrying");
+  const isSimulatedInfra = event.action_taken.startsWith("Simulated infrastructure recovery");
+  const isCheckoutRetry = event.action_taken.startsWith("Checkout retry URL generated");
   const badgeStatus = outcomeToBadgeStatus(event.outcome);
 
   // Derive attempt number from structured retry_count or action_taken string
@@ -117,7 +119,13 @@ export default function RecoveryTicket({ event }: RecoveryTicketProps) {
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
               </svg>
-              <span>RETRY SUCCEEDED (AUTO-RESOLVED)</span>
+              <span>
+                {isSimulatedInfra
+                  ? "INFRASTRUCTURE RECOVERED — AUTO-RESOLVED"
+                  : isCheckoutRetry
+                  ? "CHECKOUT RETRY ISSUED"
+                  : "RETRY SUCCEEDED (AUTO-RESOLVED)"}
+              </span>
             </span>
           )}
           {event.outcome === "unresolved" && (
@@ -126,6 +134,8 @@ export default function RecoveryTicket({ event }: RecoveryTicketProps) {
             >
               {isDeliberateStop
                 ? "DELIBERATE STOP — REPEATED CARD DECLINE HALTED"
+                : isCheckoutRetry
+                ? "CHECKOUT RETRY ISSUED — AWAITING CUSTOMER"
                 : "RETRY FAILED — MANUAL REVIEW REQUIRED"}
             </span>
           )}

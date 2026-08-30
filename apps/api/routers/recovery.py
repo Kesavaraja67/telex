@@ -17,20 +17,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/recovery", tags=["recovery"])
 
 
-def _derive_stage(outcome: str, classification: str) -> str:
+def _derive_stage(outcome: str, classification: str, action_taken: str = "") -> str:
     """
-    Compute a UX-friendly stage label from stored outcome + classification.
+    Compute a UX-friendly stage label from stored outcome + classification + action_taken.
 
     Mapping (computed at read time, no extra DB column needed):
-      recovered                         -> "resolved"
-      escalated                         -> "escalated"
-      code_defect + unresolved          -> "recovering"  (Gemini patch in flight)
-      unresolved (other classification) -> "detected"
+      recovered                                       -> "resolved"
+      escalated                                       -> "escalated"
+      unresolved + action_taken starts with
+        "Checkout retry URL generated"                -> "awaiting_customer"
+      code_defect + unresolved                        -> "recovering"  (Gemini patch in flight)
+      unresolved (other classification)               -> "detected"
     """
     if outcome == "recovered":
         return "resolved"
     if outcome == "escalated":
         return "escalated"
+    if outcome == "unresolved" and action_taken.startswith("Checkout retry URL generated"):
+        return "awaiting_customer"
     if classification == "code_defect" and outcome == "unresolved":
         return "recovering"
     return "detected"
@@ -157,7 +161,7 @@ async def get_recovery_events(
         events = []
         for event, amount in rows:
             # P0-4: Derive stage and action at read time — no new DB columns needed
-            stage = _derive_stage(event.outcome, event.classification)
+            stage = _derive_stage(event.outcome, event.classification, event.action_taken)
             event_dict = {
                 "id": event.id,
                 "payment_attempt_id": event.payment_attempt_id,

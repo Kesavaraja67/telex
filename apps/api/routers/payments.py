@@ -225,6 +225,7 @@ async def razorpay_webhook(
         order_id = payment.get("order_id")
         razorpay_payment_id = payment.get("id")
         if order_id:
+            from datetime import datetime, timezone
             async with AsyncSessionLocal() as session:
                 result = await session.execute(
                     select(PaymentAttempt).where(PaymentAttempt.razorpay_order_id == order_id).limit(1)
@@ -236,6 +237,35 @@ async def razorpay_webhook(
                         attempt.razorpay_payment_id = razorpay_payment_id
                     if event_id:
                         attempt.razorpay_event_id = event_id
+
+                    # Close the recovery loop: mark any unresolved RecoveryEvent for
+                    # this attempt as recovered. The payment.captured webhook is the
+                    # authoritative signal that the customer's retry actually succeeded.
+                    # verify-signature alone does NOT close this — only capture does.
+                    recovery_res = await session.execute(
+                        select(RecoveryEvent)
+                        .where(
+                            RecoveryEvent.payment_attempt_id == attempt.id,
+                            RecoveryEvent.outcome == "unresolved",
+                        )
+                        .order_by(RecoveryEvent.detected_at.desc())
+                        .limit(1)
+                    )
+                    recovery_event = recovery_res.scalar_one_or_none()
+                    if recovery_event:
+                        recovery_event.outcome = "recovered"
+                        recovery_event.resolved_at = datetime.now(timezone.utc)
+                        recovery_event.action_taken = (
+                            f"Customer retry succeeded — payment captured by Razorpay. "
+                            f"Payment ID: {razorpay_payment_id or 'unknown'}. "
+                            f"Webhook event: {event_id or 'unknown'}."
+                        )
+                        logger.info(
+                            "razorpay_webhook: RecoveryEvent %s closed → recovered via payment.captured "
+                            "(payment_id=%s, order_id=%s)",
+                            recovery_event.id, razorpay_payment_id, order_id,
+                        )
+
                     try:
                         await session.commit()
                     except IntegrityError:
