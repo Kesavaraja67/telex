@@ -20,7 +20,7 @@
 
 ## 📊 Live Batch Evidence Summary
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
 │                                TELEX REVENUE RECOVERY AGENT                              │
 │                                                                                          │
@@ -36,7 +36,7 @@
 │  • Payment Recovery Rate:    65.1%  (Actual payments recovered into merchant balance)    │
 │  • Recovery Execution Rate:  79.4%  (Recovered + safely escalated to PR)                │
 │  • Tier-1 Rule Decisions:    81%    (Zero-token deterministic, 0 latency, 0 cost)        │
-│  • Automated Test Suite:     37 Tests across 6 modules (All passing, SQLite E2E)         │
+│  • Automated Test Suite:     37 Tests across 5 modules (All passing, SQLite E2E)         │
 └──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -49,7 +49,7 @@ Telex is an autonomous revenue recovery and software healing system designed to 
 1. **Engine B (Live Revenue Recovery & Detection)**: Intercepts failed transactions in Razorpay Test Mode, classifies them through an intelligent **two-tier classifier** (deterministic rule lookup vs. LLM judgment), executes bounded retries with exponential backoff for transient issues, and records verified revenue recovered.
 2. **Engine A (Unified Code Defect Repair & PR Substrate)**: When a code defect is diagnosed (e.g. `order_total_mismatch`, `webhook_signature_mismatch`), Telex seeds a suspect call-site representation via Tree-Sitter AST, prompts an LLM (Gemini 2.5 Flash / Claude) for a unified git patch, verifies it in an isolated clone sandbox (test & typecheck gates), and opens a **human-reviewed GitHub Pull Request**.
 
-```
+```text
                      ┌────────────────────────────────────────────────────────┐
                      │                      TELEX ENGINE                      │
                      └────────────────────────────────────────────────────────┘
@@ -117,7 +117,7 @@ Telex does not blindly pass plain timeouts to an LLM.
 | **Engine A** | Verification Gate | Isolated git clone verification, patch validation, & tests | Live |
 | **Engine A** | GitHub App Integration | Automated branch creation & human-reviewed PR submission | Live |
 | **Job Queue** | Async DB Job Worker | PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` + heartbeats | Live |
-| **Dashboard** | Next.js 15 Web App | Real-time telemetry, recovery tickets, and live event stream | Live |
+| **Dashboard** | Next.js 16 Web App | Real-time telemetry, recovery tickets, and live event stream | Live |
 | **CI & Testing**| GitHub Actions CI | Automated backend pytest + frontend tsc lint pipeline | Live |
 
 ---

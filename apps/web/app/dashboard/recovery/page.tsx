@@ -472,11 +472,18 @@ export default function RecoveryPage() {
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <SpotlightCard className="p-1">
           <StatCounter
             value={Math.round((activeStats.payment_recovery_rate ?? activeStats.recovery_rate ?? 0) * 100)}
-            label="Recovery rate"
+            label="Payment recovery rate"
+            suffix="%"
+          />
+        </SpotlightCard>
+        <SpotlightCard className="p-1">
+          <StatCounter
+            value={Math.round((activeStats.recovery_execution_rate ?? activeStats.recovery_rate ?? 0) * 100)}
+            label="Recovery execution rate"
             suffix="%"
           />
         </SpotlightCard>

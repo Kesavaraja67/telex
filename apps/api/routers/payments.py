@@ -275,6 +275,12 @@ async def report_order_mismatch(body: ReportOrderMismatchRequest):
     It is NOT a simulated trigger — the storefront must independently
     compute the expected total and compare it against the backend's value.
     """
+    if body.expected_total_paise <= 0 or body.actual_total_paise <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Totals must be positive integers representing paise.",
+        )
+
     if body.expected_total_paise == body.actual_total_paise:
         raise HTTPException(
             status_code=400,
@@ -290,6 +296,13 @@ async def report_order_mismatch(body: ReportOrderMismatchRequest):
         attempt = await session.get(PaymentAttempt, attempt_uuid)
         if attempt is None:
             raise HTTPException(status_code=404, detail="PaymentAttempt not found")
+
+        # Validate that the reported actual total matches the amount recorded on the PaymentAttempt
+        if attempt.amount != body.actual_total_paise:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Reported actual_total_paise ({body.actual_total_paise}) does not match PaymentAttempt.amount ({attempt.amount})",
+            )
 
         event = RecoveryEvent(
             payment_attempt_id=attempt.id,
@@ -326,18 +339,29 @@ async def report_order_mismatch(body: ReportOrderMismatchRequest):
 
 @router.post("/batch-run")
 async def batch_run(
+    request: Request,
     body: BatchRunRequest,
     x_demo_key: Optional[str] = Header(default=None),
 ):
     """
     Create `count` payment attempts and inject failures into `failure_rate` fraction of them.
     Returns payment_attempt_ids for all created attempts.
-    Requires X-Demo-Key header for failure simulation.
+    Requires authenticated operator session or X-Demo-Key header.
 
     Idempotent: if client_request_id is provided and already exists, the same
     batch is returned without creating duplicates (section 10.5).
     """
-    require_demo_key(x_demo_key)
+    # Allow either authenticated session OR valid X-Demo-Key header
+    from routers.auth import decode_session_token
+    token = request.cookies.get("telex_session")
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ", 1)[1].strip()
+
+    is_authenticated = bool(token and decode_session_token(token))
+    if not is_authenticated:
+        require_demo_key(x_demo_key)
 
     from services import payment_service
 
@@ -372,11 +396,12 @@ async def batch_run(
         is_failure = i in failure_indices
         force_failure = random.choices(_INJECTED_FAILURE_TYPES, weights=_FAILURE_WEIGHTS)[0] if is_failure else None
 
-        # Create Razorpay order (or synthetic ID if keys not configured)
+        # Create Razorpay order (or synthetic ID if keys not configured / error)
         try:
             order = await asyncio.to_thread(payment_service.create_order, 50000)  # ₹500 per attempt
             order_id = order["id"]
-        except RuntimeError:
+        except Exception as exc:
+            logger.warning("batch_run: order creation fallback to synthetic (%s)", exc)
             order_id = f"order_synthetic_{uuid.uuid4().hex[:16]}"
 
         async with AsyncSessionLocal() as session:
@@ -393,7 +418,8 @@ async def batch_run(
             # Simulate the payment inline in worker thread
             try:
                 result = await asyncio.to_thread(payment_service.simulate_payment, order_id, force_failure)
-            except RuntimeError:
+            except Exception as exc:
+                logger.warning("batch_run: simulate_payment exception (%s)", exc)
                 result = {"success": False, "error_type": force_failure, "razorpay_payment_id": None}
 
             success = result.get("success", False)

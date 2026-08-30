@@ -62,11 +62,15 @@ def get_settings() -> Settings:
 settings = get_settings()
 
 
+import os
+
 # P1-3: Fail loudly at startup if running in production without real secrets.
-# This prevents silent misbehaviour from mis-deployed builds.
-if settings.environment == "production":
+# Uses normalized predicate (checks RENDER or case-insensitive ENVIRONMENT=production).
+_is_production = bool(os.getenv("RENDER") or settings.environment.strip().lower() == "production")
+
+if _is_production:
     _missing: list[str] = []
-    if settings.nextauth_secret == _DEFAULT_SECRET:
+    if not settings.nextauth_secret or settings.nextauth_secret == _DEFAULT_SECRET:
         _missing.append("NEXTAUTH_SECRET")
     if not settings.razorpay_test_key_id:
         _missing.append("RAZORPAY_TEST_KEY_ID")

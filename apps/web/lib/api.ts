@@ -175,9 +175,6 @@ export interface BatchRunResult {
 export const triggerBatchRun = (params: BatchRunParams) =>
   apiFetch<BatchRunResult>("/api/payments/batch-run", {
     method: "POST",
-    headers: {
-      "x-demo-key": process.env.NEXT_PUBLIC_DEMO_KEY || "telex_demo_secret_2026",
-    },
     body: JSON.stringify({
       ...params,
       client_request_id: params.client_request_id ?? `demo-${Date.now()}`,

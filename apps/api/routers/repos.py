@@ -88,15 +88,25 @@ async def list_patches(repo_id: str):
 
         if db_repo:
             stmt = (
-                select(Patch, CodeUsage, PullRequest)
+                select(Patch, CodeUsage)
                 .join(CodeUsage, Patch.code_usage_id == CodeUsage.id)
-                .outerjoin(PullRequest, PullRequest.repo_id == db_repo.id)
                 .where(CodeUsage.repo_id == db_repo.id)
                 .order_by(Patch.created_at.desc())
                 .limit(20)
             )
             res = await session.execute(stmt)
-            for patch_row, cu_row, pr_row in res.all():
+            for patch_row, cu_row in res.all():
+                # Query associated pull request if opened
+                pr_res = await session.execute(
+                    select(PullRequest)
+                    .where(
+                        PullRequest.repo_id == db_repo.id,
+                        PullRequest.patch_ids.contains([patch_row.id]),
+                    )
+                    .limit(1)
+                )
+                pr_row = pr_res.scalar_one_or_none()
+
                 patches_out.append(
                     PatchOut(
                         id=str(patch_row.id),

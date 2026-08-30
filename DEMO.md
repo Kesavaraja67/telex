@@ -24,7 +24,7 @@ Using curl or the UI Batch Simulator:
 ```bash
 curl -X POST "https://telex-api.onrender.com/api/payments/batch-run" \
   -H "Content-Type: application/json" \
-  -H "x-demo-key: telex_demo_secret_2026" \
+  -H "x-demo-key: ${DEMO_KEY:-your_demo_key}" \
   -d '{"count": 10, "failure_rate": 0.5}'
 ```
 

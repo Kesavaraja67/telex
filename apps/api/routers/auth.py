@@ -55,7 +55,7 @@ async def require_auth(request: Request) -> dict:
             token = auth_header.split(" ", 1)[1].strip()
 
     # 3. Demo Key header (for demo/evaluator script access)
-    demo_key = request.headers.get("x-demo-key") or request.query_params.get("demo_key")
+    demo_key = request.headers.get("x-demo-key")
     if demo_key and settings.demo_key and demo_key == settings.demo_key:
         return {"user_id": "demo-operator", "role": "operator"}
 
