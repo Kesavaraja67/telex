@@ -8,159 +8,9 @@ import CyberGridBackground from "@/components/ui/CyberGridBackground";
 import Badge from "@/components/ui/Badge";
 import type { Repo } from "@/lib/api";
 
-const INITIAL_REPOS: (Repo & { category?: string })[] = [
-  {
-    id: "aura-drops",
-    full_name: "Kesavaraja67/aura-drops",
-    name: "aura-drops",
-    owner: "Kesavaraja67",
-    description: "Artisan wellness e-commerce storefront with Razorpay checkout and autonomous self-healing payment integration.",
-    default_branch: "main",
-    is_active: true,
-    created_at: "2026-08-20T00:00:00Z",
-    github_url: "https://github.com/Kesavaraja67/aura-drops",
-    languages: ["TypeScript", "Next.js", "React"],
-    patch_count: 8,
-    status: "healthy",
-    category: "personal",
-    last_commit: {
-      hash: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
-      short_hash: "a1b2c3d",
-      author: "Kesavaraja67",
-      relative_time: "recently",
-      date: "recently",
-      message: "feat(checkout): Razorpay payment gateway integration with autonomous signature verification",
-    },
-    dependencies: ["next", "react", "razorpay", "typescript", "tailwind"],
-  },
-  {
-    id: "telex",
-    full_name: "Kesavaraja67/telex",
-    name: "telex",
-    owner: "Kesavaraja67",
-    description: "Autonomous dependency self-healing & runtime payment recovery platform with verification gates.",
-    default_branch: "main",
-    is_active: true,
-    created_at: "2026-08-01T12:00:00Z",
-    github_url: "https://github.com/Kesavaraja67/telex",
-    languages: ["Python", "TypeScript", "SQL"],
-    patch_count: 847,
-    status: "healthy",
-    category: "personal",
-    last_commit: {
-      hash: "ffd2731",
-      short_hash: "ffd2731",
-      author: "Kesavaraja67",
-      relative_time: "recently",
-      date: "recently",
-      message: "feat(ui): add Landing Page link and Connect Repo action in sidebar",
-    },
-    dependencies: ["@google/genai", "fastapi", "sqlalchemy", "razorpay", "tree-sitter", "next", "motion"],
-  },
-  {
-    id: "next-js",
-    full_name: "vercel/next.js",
-    name: "next.js",
-    owner: "vercel",
-    description: "The React Framework for the Web — App Router, Server Actions, Dynamic I/O, and Turbopack.",
-    default_branch: "canary",
-    is_active: true,
-    created_at: "2016-10-25T00:00:00Z",
-    github_url: "https://github.com/vercel/next.js",
-    languages: ["Rust", "TypeScript", "JavaScript"],
-    patch_count: 1420,
-    status: "healthy",
-    category: "benchmark",
-    last_commit: {
-      hash: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
-      short_hash: "a1b2c3d",
-      author: "shadcn",
-      email: "shadcn@vercel.com",
-      relative_time: "2h ago",
-      date: "2h ago",
-      message: "fix(turbopack): optimize module dependency graph traversal and sourcemap cache",
-    },
-    dependencies: ["react", "react-dom", "turbopack", "swc"],
-  },
-  {
-    id: "openai-python",
-    full_name: "openai/openai-python",
-    name: "openai-python",
-    owner: "openai",
-    description: "The official Python library for the OpenAI API with streaming completions, audio, and structured outputs.",
-    default_branch: "main",
-    is_active: true,
-    created_at: "2020-06-11T00:00:00Z",
-    github_url: "https://github.com/openai/openai-python",
-    languages: ["Python", "Pydantic", "Httpx"],
-    patch_count: 684,
-    status: "healthy",
-    category: "benchmark",
-    last_commit: {
-      hash: "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1",
-      short_hash: "b2c3d4e",
-      author: "rattrayalex",
-      email: "alex@openai.com",
-      relative_time: "4h ago",
-      date: "4h ago",
-      message: "feat: add structured response helpers and retry timeout instrumentation",
-    },
-    dependencies: ["httpx", "pydantic", "typing-extensions"],
-  },
-  {
-    id: "razorpay-node",
-    full_name: "razorpay/razorpay-node",
-    name: "razorpay-node",
-    owner: "razorpay",
-    description: "Official Node.js SDK for Razorpay payment gateway API integration, orders, refunds, and webhook HMAC verification.",
-    default_branch: "master",
-    is_active: true,
-    created_at: "2016-01-15T00:00:00Z",
-    github_url: "https://github.com/razorpay/razorpay-node",
-    languages: ["TypeScript", "JavaScript"],
-    patch_count: 312,
-    status: "healthy",
-    category: "benchmark",
-    last_commit: {
-      hash: "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2",
-      short_hash: "c3d4e5f",
-      author: "razorpay-dev",
-      email: "dev@razorpay.com",
-      relative_time: "1d ago",
-      date: "1d ago",
-      message: "fix: webhook signature validation and order status error handling",
-    },
-    dependencies: ["request-promise-native", "crypto"],
-  },
-  {
-    id: "fastapi",
-    full_name: "fastapi/fastapi",
-    name: "fastapi",
-    owner: "fastapi",
-    description: "FastAPI framework, high performance, easy to learn, fast to code, ready for production.",
-    default_branch: "master",
-    is_active: true,
-    created_at: "2018-12-05T00:00:00Z",
-    github_url: "https://github.com/fastapi/fastapi",
-    languages: ["Python", "Starlette", "Pydantic"],
-    patch_count: 915,
-    status: "healthy",
-    category: "benchmark",
-    last_commit: {
-      hash: "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3",
-      short_hash: "d4e5f6a",
-      author: "tiangolo",
-      email: "tiangolo@gmail.com",
-      relative_time: "1d ago",
-      date: "1d ago",
-      message: "feat: add support for python 3.13 and enhanced exception handlers",
-    },
-    dependencies: ["starlette", "pydantic", "uvicorn"],
-  },
-];
 
 export default function DashboardOverview() {
-  const [repos, setRepos] = useState<(Repo & { category?: string })[]>(INITIAL_REPOS);
+  const [repos, setRepos] = useState<(Repo & { category?: string })[]>([]);
   const [activeTab, setActiveTab] = useState<"personal" | "benchmark">("personal");
 
   useEffect(() => {
@@ -168,11 +18,11 @@ export default function DashboardOverview() {
       try {
         const { getRepos } = await import("@/lib/api");
         const data = await getRepos();
-        if (data && data.length > 0) {
+        if (data) {
           setRepos(data as (Repo & { category?: string })[]);
         }
       } catch {
-        // Keep initial repos
+        // API unreachable — keep current state (empty on first load)
       }
     }
     loadRepos();

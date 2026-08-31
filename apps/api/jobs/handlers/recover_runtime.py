@@ -232,7 +232,6 @@ async def _handle_transient(recovery_event_id: uuid.UUID, order_id: str) -> None
 # Real defect location mapping for known code defects across monitored repositories
 FAILURE_LOCATION_MAP: dict[str, dict[str, Any]] = {
     "order_total_mismatch": {
-        "repo_full_name": "Kesavaraja67/sample-store",
         "file_path": "app/api/order-summary/route.ts",
         "alt_file_paths": ["src/app/api/order-summary/route.ts"],
         "line_start": 1,
@@ -243,7 +242,6 @@ FAILURE_LOCATION_MAP: dict[str, dict[str, Any]] = {
         "fallback_snippet": "const subtotal = items.reduce((acc, i) => acc + i.price * i.qty, 0);\nconst tax = Math.floor(subtotal * 0.18);\nconst total = subtotal + tax;",
     },
     "webhook_signature_mismatch": {
-        "repo_full_name": "Kesavaraja67/telex",
         "file_path": "apps/api/routers/payments.py",
         "line_start": 145,
         "line_end": 165,
@@ -253,7 +251,6 @@ FAILURE_LOCATION_MAP: dict[str, dict[str, Any]] = {
         "fallback_snippet": 'if not payment_service.verify_webhook_signature(request_body, x_razorpay_signature or ""):\n    raise HTTPException(status_code=401, detail="Invalid webhook signature")',
     },
     "webhook_schema_mismatch": {
-        "repo_full_name": "Kesavaraja67/telex",
         "file_path": "apps/api/routers/payments.py",
         "line_start": 175,
         "line_end": 215,
@@ -311,12 +308,12 @@ async def _handle_code_defect(recovery_event_id: uuid.UUID) -> None:
                 logger.info("recover_runtime: targeting repo %s", repo.full_name)
 
         if repo is None:
-            # Fallback: if order_total_mismatch, look for any active repo other than telex (the storefront)
+            # Fallback: if order_total_mismatch, look for any active connected storefront repo
             if event.failure_type == "order_total_mismatch":
                 store_result = await session.execute(
                     select(Repo).where(
                         Repo.is_active == True,  # noqa: E712
-                        Repo.full_name != "Kesavaraja67/telex",
+                        Repo.full_name.notilike("%telex%"),
                     ).order_by(Repo.created_at.asc()).limit(1)
                 )
                 repo = store_result.scalar_one_or_none()

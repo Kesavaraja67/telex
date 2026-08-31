@@ -10,242 +10,6 @@ import Badge from "@/components/ui/Badge";
 import DiffViewer from "@/components/dashboard/DiffViewer";
 import type { RepoDetails, AIExplanation, RepoPatches } from "@/lib/api";
 
-const FALLBACK_REPO_DETAILS: Record<string, RepoDetails> = {
-  "telex": {
-    id: "telex",
-    full_name: "Kesavaraja67/telex",
-    name: "telex",
-    owner: "Kesavaraja67",
-    description: "Autonomous dependency self-healing & runtime payment recovery platform with verification gates.",
-    default_branch: "main",
-    is_active: true,
-    created_at: "2026-08-01T12:00:00Z",
-    github_url: "https://github.com/Kesavaraja67/telex",
-    languages: ["Python", "TypeScript", "SQL"],
-    patch_count: 847,
-    status: "healthy",
-    dependencies: ["@google/genai", "fastapi", "sqlalchemy", "razorpay", "tree-sitter", "next", "motion"],
-    commits: [
-      {
-        hash: "f1d8df9ac1d834ee41f065dd867266ad70b6e7c0",
-        short_hash: "f1d8df9",
-        author: "Kesavaraja67",
-        relative_time: "1d ago",
-        date: "1d ago",
-        message: "fix(core): track .env.example, wire APScheduler registry polling, and support configurable escalation target",
-      },
-      {
-        hash: "e56d8658f4c13850d83ed571c8a0a0589bc7e854",
-        short_hash: "e56d865",
-        author: "Kesavaraja67",
-        relative_time: "23h ago",
-        date: "23h ago",
-        message: "test(engine-a): add comprehensive test suite for tree-sitter scanning and patch validation",
-      },
-    ],
-  },
-  "75-club": {
-    id: "75-club",
-    full_name: "Kesavaraja67/75-club",
-    name: "75-club",
-    owner: "Kesavaraja67",
-    description: "Smart attendance tracker for Indian college students — safe bunk calculator, AI timetable scanner, and Pro analytics as a PWA.",
-    default_branch: "main",
-    is_active: true,
-    created_at: "2026-06-11T10:00:00Z",
-    github_url: "https://github.com/Kesavaraja67/75-club",
-    languages: ["TypeScript", "Next.js", "PWA"],
-    patch_count: 42,
-    status: "healthy",
-    dependencies: ["next", "react", "typescript", "tailwind", "tesseract.js"],
-    commits: [
-      {
-        hash: "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1",
-        short_hash: "b2c3d4e",
-        author: "Kesavaraja67",
-        relative_time: "Jun 11, 2026",
-        date: "Jun 11, 2026",
-        message: "feat(pwa): AI timetable OCR scanner and safe attendance projection engine",
-      },
-    ],
-  },
-  "echo-mind-framework": {
-    id: "echo-mind-framework",
-    full_name: "Kesavaraja67/Echo-Mind-Framework",
-    name: "Echo-Mind-Framework",
-    owner: "Kesavaraja67",
-    description: "Modular AI-powered framework designed to simulate memory, reasoning, and contextual decision-making with FastAPI backend.",
-    default_branch: "main",
-    is_active: true,
-    created_at: "2026-06-29T08:30:00Z",
-    github_url: "https://github.com/Kesavaraja67/Echo-Mind-Framework",
-    languages: ["Python", "FastAPI"],
-    patch_count: 24,
-    status: "healthy",
-    dependencies: ["fastapi", "pydantic", "langchain", "chromadb"],
-    commits: [
-      {
-        hash: "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2",
-        short_hash: "c3d4e5f",
-        author: "Kesavaraja67",
-        relative_time: "Jun 29, 2026",
-        date: "Jun 29, 2026",
-        message: "feat(memory): vector context storage and semantic retrieval pipeline",
-      },
-    ],
-  },
-  "cube-buddy": {
-    id: "cube-buddy",
-    full_name: "Kesavaraja67/Cube-Buddy",
-    name: "Cube-Buddy",
-    owner: "Kesavaraja67",
-    description: "Intelligent, interactive web app that helps users scan, detect, and solve twisty puzzles directly in the browser with 3D visualization.",
-    default_branch: "main",
-    is_active: true,
-    created_at: "2026-07-15T14:00:00Z",
-    github_url: "https://github.com/Kesavaraja67/Cube-Buddy",
-    languages: ["CSS", "JavaScript", "WebGL"],
-    patch_count: 14,
-    status: "healthy",
-    dependencies: ["three.js", "opencv.js", "css3d"],
-    commits: [
-      {
-        hash: "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3",
-        short_hash: "d4e5f6a",
-        author: "Kesavaraja67",
-        relative_time: "Jul 15, 2026",
-        date: "Jul 15, 2026",
-        message: "chore: file fix and 3D cube state renderer update",
-      },
-    ],
-  },
-  "ppr": {
-    id: "ppr",
-    full_name: "Kesavaraja67/ppr",
-    name: "ppr",
-    owner: "Kesavaraja67",
-    description: "Partial Prerendering (PPR) and high-performance server streaming optimization engine for Next.js applications.",
-    default_branch: "main",
-    is_active: true,
-    created_at: "2026-08-10T12:00:00Z",
-    github_url: "https://github.com/Kesavaraja67/ppr",
-    languages: ["TypeScript", "Next.js"],
-    patch_count: 19,
-    status: "healthy",
-    dependencies: ["next", "react", "typescript"],
-    commits: [
-      {
-        hash: "e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4",
-        short_hash: "e5f6a7b",
-        author: "ThankaBharathi",
-        relative_time: "9d ago",
-        date: "9d ago",
-        message: "fix(admin): populate customer name, refine dynamic streaming Suspense fallback",
-      },
-    ],
-  },
-  "next-js": {
-    id: "next-js",
-    full_name: "vercel/next.js",
-    name: "next.js",
-    owner: "vercel",
-    description: "The React Framework for the Web — App Router, Server Actions, Dynamic I/O, and Turbopack.",
-    default_branch: "canary",
-    is_active: true,
-    created_at: "2016-10-25T00:00:00Z",
-    github_url: "https://github.com/vercel/next.js",
-    languages: ["Rust", "TypeScript", "JavaScript"],
-    patch_count: 1420,
-    status: "healthy",
-    dependencies: ["react", "react-dom", "turbopack", "swc"],
-    commits: [
-      {
-        hash: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
-        short_hash: "a1b2c3d",
-        author: "timneutkens",
-        relative_time: "2h ago",
-        date: "2h ago",
-        message: "perf(turbopack): optimize incremental cache invalidation for dynamic routes",
-      },
-    ],
-  },
-  "openai-python": {
-    id: "openai-python",
-    full_name: "openai/openai-python",
-    name: "openai-python",
-    owner: "openai",
-    description: "The official Python library for the OpenAI API with streaming completions, audio, and structured outputs.",
-    default_branch: "main",
-    is_active: true,
-    created_at: "2020-06-11T00:00:00Z",
-    github_url: "https://github.com/openai/openai-python",
-    languages: ["Python", "Pydantic", "Httpx"],
-    patch_count: 684,
-    status: "healthy",
-    dependencies: ["httpx", "pydantic", "typing-extensions"],
-    commits: [
-      {
-        hash: "f0e1d2c3b4a5f6e7d8c9b0a1f2e3d4c5b6a7f8e9",
-        short_hash: "f0e1d2c",
-        author: "rattrayalex",
-        relative_time: "4h ago",
-        date: "4h ago",
-        message: "feat: add structured output support for vision analysis models",
-      },
-    ],
-  },
-  "razorpay-node": {
-    id: "razorpay-node",
-    full_name: "razorpay/razorpay-node",
-    name: "razorpay-node",
-    owner: "razorpay",
-    description: "Official Node.js SDK for Razorpay payment gateway API integration, orders, refunds, and webhook HMAC verification.",
-    default_branch: "master",
-    is_active: true,
-    created_at: "2016-01-15T00:00:00Z",
-    github_url: "https://github.com/razorpay/razorpay-node",
-    languages: ["TypeScript", "JavaScript"],
-    patch_count: 312,
-    status: "healthy",
-    dependencies: ["request-promise-native", "crypto"],
-    commits: [
-      {
-        hash: "9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b",
-        short_hash: "9a8b7c6",
-        author: "razorpay-dev",
-        relative_time: "1d ago",
-        date: "1d ago",
-        message: "fix(webhook): enforce constant-time HMAC comparison in node SDK",
-      },
-    ],
-  },
-  "fastapi": {
-    id: "fastapi",
-    full_name: "fastapi/fastapi",
-    name: "fastapi",
-    owner: "fastapi",
-    description: "FastAPI framework, high performance, easy to learn, fast to code, ready for production.",
-    default_branch: "master",
-    is_active: true,
-    created_at: "2018-12-05T00:00:00Z",
-    github_url: "https://github.com/fastapi/fastapi",
-    languages: ["Python", "Starlette", "Pydantic"],
-    patch_count: 915,
-    status: "healthy",
-    dependencies: ["starlette", "pydantic", "uvicorn", "email-validator"],
-    commits: [
-      {
-        hash: "8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e",
-        short_hash: "8f7e6d5",
-        author: "tiangolo",
-        relative_time: "3d ago",
-        date: "3d ago",
-        message: "docs: update tutorial for python 3.12 type annotations with Annotated",
-      },
-    ],
-  },
-};
-
 const SAMPLE_DIFF = `--- a/src/services/payment.ts
 +++ b/src/services/payment.ts
 @@ -12,2 +12,2 @@
@@ -266,6 +30,7 @@ export default function RepoDetailPage({
   const [aiExplanation, setAiExplanation] = useState<AIExplanation | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [isLoadingAi, setIsLoadingAi] = useState(false);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
@@ -280,12 +45,13 @@ export default function RepoDetailPage({
         if (!isMounted) return;
         if (repoData) {
           setRepo(repoData);
+          setNotFound(false);
         } else {
-          setRepo(FALLBACK_REPO_DETAILS[repoId] || FALLBACK_REPO_DETAILS["telex"]);
+          setNotFound(true);
         }
       } catch {
         if (isMounted) {
-          setRepo(FALLBACK_REPO_DETAILS[repoId] || FALLBACK_REPO_DETAILS["telex"]);
+          setNotFound(true);
         }
       }
     }
@@ -327,6 +93,23 @@ export default function RepoDetailPage({
   }
 
   if (!repo) {
+    if (notFound) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 text-center">
+          <div className="font-mono text-sm text-white font-semibold">Repository not connected</div>
+          <div className="text-xs text-[#71717A] max-w-sm">
+            This repository is not registered with the Telex GitHub App or has been uninstalled.
+          </div>
+          <Link
+            href="/dashboard"
+            className="mt-2 text-xs font-mono px-3 py-1.5 rounded bg-white/10 text-white border border-white/15 hover:bg-white/20 transition-all"
+          >
+            ← Back to Fleet Overview
+          </Link>
+        </div>
+      );
+    }
+
     return (
       <div className="flex items-center justify-center min-h-[50vh] text-[#71717A] font-mono text-sm">
         Loading repository telemetry…
