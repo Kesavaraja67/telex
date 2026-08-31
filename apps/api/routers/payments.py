@@ -367,7 +367,10 @@ async def report_order_mismatch(body: ReportOrderMismatchRequest):
         await enqueue_job(
             session,
             job_type="recover_runtime",
-            payload={"recovery_event_id": str(event.id)},
+            payload={
+                "recovery_event_id": str(event.id),
+                "classification": "code_defect",
+            },
         )
 
     logger.info(
