@@ -112,6 +112,8 @@ async def run(payload: dict) -> None:
     gh = await asyncio.to_thread(get_installation_client, installation_github_id)
     gh_repo = await asyncio.to_thread(gh.get_repo, repo_full_name)
 
+    from services.github_service import open_patch_pr, get_installation_client, apply_diff_to_content
+
     patch_dicts: list[dict] = []
     for p in patches:
         cu = usage_map.get(p.id)
@@ -126,10 +128,16 @@ async def run(payload: dict) -> None:
             logger.warning("open_pr: could not fetch %s: %s", cu.file_path, exc)
             continue
 
+        # Compute patched content by applying the validated diff
+        apply_ok, new_content, apply_log = apply_diff_to_content(cu.file_path, original, p.diff)
+        if not apply_ok:
+            logger.warning("open_pr: could not apply diff to %s: %s", cu.file_path, apply_log)
+            new_content = original
+
         patch_dicts.append(
             {
                 "file_path": cu.file_path,
-                "new_content": original,
+                "new_content": new_content,
                 "package_name": pkg_name,
                 "new_version": pv_version,
                 "diff": p.diff,

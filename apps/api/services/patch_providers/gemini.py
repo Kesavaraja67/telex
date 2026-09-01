@@ -1,6 +1,7 @@
 import json
 import re
 import logging
+from typing import Optional
 
 from google import genai  # type: ignore[import]
 from google.genai import types as genai_types  # type: ignore[import]
@@ -85,6 +86,33 @@ class GeminiProvider(PatchProvider):
     def model_name(self) -> str:
         return self._model_name
 
+    async def _generate_with_retry(self, prompt: str, max_retries: int = 3) -> Optional[str]:
+        """Call Gemini API with automatic exponential backoff on transient 429 / 503 / 504 errors."""
+        import asyncio
+        delay = 2.0
+        last_exc: Optional[Exception] = None
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = await self.client.aio.models.generate_content(
+                    model=self._model_name,
+                    contents=prompt,
+                )
+                return response.text
+            except Exception as exc:
+                last_exc = exc
+                err_str = str(exc).lower()
+                is_transient = any(code in err_str for code in ("503", "429", "504", "unavailable", "deadline", "resource_exhausted"))
+                if is_transient and attempt < max_retries:
+                    logger.warning("GeminiProvider: transient error on attempt %d/%d (%s) — retrying in %.1fs", attempt, max_retries, exc, delay)
+                    await asyncio.sleep(delay)
+                    delay *= 2.0
+                else:
+                    raise exc
+        if last_exc:
+            raise last_exc
+        return None
+
     async def generate_patch(
         self,
         old_api: str,
@@ -102,17 +130,15 @@ class GeminiProvider(PatchProvider):
             defect_description=defect_description or "Runtime defect detected — see observed evidence below.",
             observed_evidence=observed_evidence or "No additional evidence provided.",
         )
-        # Transient errors (network, quota, server) propagate so the worker
-        # retries the job.  Only intentional no-patch output becomes UNABLE_TO_PATCH.
-        response = await self.client.aio.models.generate_content(
-            model=self._model_name,
-            contents=prompt,
-        )
-        # response.text is None when content is blocked by safety filters
-        if response.text is None:
-            logger.warning("GeminiProvider: response.text is None (content blocked or empty)")
-            return "UNABLE_TO_PATCH"
-        return extract_diff(response.text)
+        try:
+            text = await self._generate_with_retry(prompt)
+            if text is None:
+                logger.warning("GeminiProvider: response.text is None (content blocked or empty)")
+                return "UNABLE_TO_PATCH"
+            return extract_diff(text)
+        except Exception as exc:
+            logger.error("GeminiProvider.generate_patch failed after retries: %s", exc)
+            raise
 
     async def classify_failure(
         self,
@@ -129,18 +155,19 @@ class GeminiProvider(PatchProvider):
             failure_type=failure_type,
             error_context=error_context,
         )
-        response = await self.client.aio.models.generate_content(
-            model=self._model_name,
-            contents=prompt,
-        )
-        if response.text is None:
-            logger.warning("GeminiProvider.classify_failure: response.text is None")
-            return {
-                "classification": "unknown",
-                "reasoning": "Provider returned no usable content (safety filter or empty response).",
-                "recommended_action": "Treat as transient and retry once; escalate if it recurs.",
-            }
-        return parse_classification_response(response.text)
+        try:
+            text = await self._generate_with_retry(prompt)
+            if text is None:
+                logger.warning("GeminiProvider.classify_failure: response.text is None")
+                return {
+                    "classification": "unknown",
+                    "reasoning": "Provider returned no usable content (safety filter or empty response).",
+                    "recommended_action": "Treat as transient and retry once; escalate if it recurs.",
+                }
+            return parse_classification_response(text)
+        except Exception as exc:
+            logger.error("GeminiProvider.classify_failure failed after retries: %s", exc)
+            raise
 
     async def explain_repo_architecture(
         self,

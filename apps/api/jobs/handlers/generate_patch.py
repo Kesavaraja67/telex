@@ -117,27 +117,37 @@ async def _run_subprocess_with_timeout(
         raise
 
 
-async def verify_patch_in_clone(
+async def verify_patch_via_github(
     repo_full_name: str,
     default_branch: str,
     installation_github_id: Optional[int],
     diff: str,
     code_snippet: str,
+    file_path: str = "src/index.ts",
     requires_tests: bool = False,
     requires_typecheck: bool = False,
 ) -> dict:
     """
-    Execute the real Verification Gate:
-    1. Check structural validity (applies_cleanly, parses, scope_ok).
-    2. If installation token is available, shallow-clone the repo into an isolated tempdir.
-    3. Run `git apply` in clone.
-    4. Run repo's typechecker (`npx tsc --noEmit` or `mypy`).
-    5. Run repo's test suite (`npm test` or `pytest`).
-    6. Enforce per-repo policy (requires_tests, requires_typecheck).
-    7. Return verification_mode ("full" vs "structural_only"), 3-state booleans, and logs.
-       NOTE: is_verified is ONLY True when verification_mode == "full" and all required policies pass.
+    Execute the Verification Gate using Dynamic GitHub Actions (Zero-Memory on Render):
+    1. Structural check (applies_cleanly, parses, scope_ok).
+    2. Micro git apply check on single file (< 2 MB RAM, ~10ms).
+    3. Detect repository ecosystem and generate dynamic verification workflow.
+    4. Create temporary verification branch telex/verify/<id> on GitHub.
+    5. Commit candidate patch AND dynamic .github/workflows/telex-verify-<id>.yml atomically.
+    6. GitHub Actions triggers native npm ci / tsc / npm test on GitHub's 7GB runners.
+    7. Poll and verify ONLY the Telex verification gate check runs.
+    8. Return strictly verified result and logs.
     """
-    from services.github_service import get_installation_token
+    from services.github_service import (
+        fetch_file_content,
+        apply_diff_to_content,
+        create_or_update_branch,
+        detect_repo_environment,
+        generate_telex_verification_workflow,
+        commit_verification_bundle,
+        delete_branch,
+        wait_for_telex_verification,
+    )
 
     # 1. Structural checks
     applies_cleanly, parses, scope_ok = validate_patch(diff, code_snippet)
@@ -153,8 +163,8 @@ async def verify_patch_in_clone(
             "log": "Structural check failed: diff does not parse or is out of scope.",
         }
 
-    # If no installation token is configured or available, we cannot do a full verification
-    if not installation_github_id:
+    # If no installation token is configured, cannot perform full verification
+    if not installation_github_id or not repo_full_name:
         return {
             "applies_cleanly": applies_cleanly,
             "parses": parses,
@@ -166,230 +176,152 @@ async def verify_patch_in_clone(
             "log": "No GitHub App installation token available — cannot perform full verification.",
         }
 
-    token = None
     try:
-        token = await asyncio.to_thread(get_installation_token, installation_github_id)
-    except Exception as exc:
-        logger.warning("verify_patch_in_clone: could not retrieve installation token: %s", exc)
-
-    if not token:
-        return {
-            "applies_cleanly": applies_cleanly,
-            "parses": parses,
-            "scope_ok": scope_ok,
-            "typechecks": None,
-            "tests_pass": None,
-            "verification_mode": "structural_only",
-            "is_verified": False,
-            "log": "Token retrieval unavailable — cannot perform full verification.",
-        }
-
-    tmpdir = tempfile.mkdtemp(prefix="telex_verify_")
-    typechecks: Optional[bool] = None
-    tests_pass: Optional[bool] = None
-    verification_mode = "full"
-    log_messages: list[str] = []
-
-    try:
-        # Clone isolated shallow copy
-        clone_url = f"https://x-access-token:{token}@github.com/{repo_full_name}.git"
-        logger.info("verify_patch_in_clone: shallow cloning %s into %s", repo_full_name, tmpdir)
-
-        clone_rc, _, clone_err = await _run_subprocess_with_timeout(
-            "git", "clone", "--depth", "1", "--branch", default_branch, clone_url, tmpdir,
-            timeout=60.0,
+        # 2. Fetch original file and apply diff locally in micro temp dir (~2 MB RAM)
+        original_content = await asyncio.to_thread(
+            fetch_file_content, repo_full_name, installation_github_id, file_path, default_branch
         )
-        if clone_rc != 0:
-            logger.warning("verify_patch_in_clone: git clone failed: %s", clone_err.decode(errors="replace"))
-            return {
-                "applies_cleanly": applies_cleanly,
-                "parses": parses,
-                "scope_ok": scope_ok,
-                "typechecks": None,
-                "tests_pass": None,
-                "verification_mode": "structural_only",
-                "is_verified": False,
-                "log": f"Clone failed: {clone_err.decode(errors='replace')[:200]}",
-            }
+        if not original_content:
+            original_content = code_snippet
 
-        # Strip credential-bearing clone URL from .git/config immediately after clone
-        try:
-            await _run_subprocess_with_timeout(
-                "git", "remote", "set-url", "origin", f"https://github.com/{repo_full_name}.git",
-                cwd=tmpdir,
-                timeout=10.0,
-            )
-        except Exception as e:
-            logger.warning("verify_patch_in_clone: failed to reset remote origin URL: %s", e)
-
-        # Apply diff via git apply
-        patch_file = os.path.join(tmpdir, "_telex_candidate.patch")
-        with open(patch_file, "w", encoding="utf-8") as f:
-            f.write(diff if diff.endswith("\n") else diff + "\n")
-
-        apply_rc, _, apply_err = await _run_subprocess_with_timeout(
-            "git", "apply", "--ignore-whitespace", "_telex_candidate.patch",
-            cwd=tmpdir,
-            timeout=30.0,
-        )
-        if apply_rc != 0:
-            applies_cleanly = False
-            err_msg = apply_err.decode(errors="replace")
-            logger.warning("verify_patch_in_clone: git apply failed: %s", err_msg)
-            log_messages.append(f"git apply failed: {err_msg}")
+        apply_ok, new_content, apply_log = apply_diff_to_content(file_path, original_content, diff)
+        if not apply_ok:
+            logger.warning("verify_patch_via_github: micro git apply failed: %s", apply_log)
             return {
                 "applies_cleanly": False,
                 "parses": parses,
                 "scope_ok": scope_ok,
                 "typechecks": None,
                 "tests_pass": None,
-                "verification_mode": "full",
+                "verification_mode": "git_apply_failed",
                 "is_verified": False,
-                "log": f"git apply failed: {err_msg}",
+                "log": f"git apply failed: {apply_log}",
             }
 
-        log_messages.append("git apply succeeded cleanly.")
+        # 3. Detect repository ecosystem and generate dynamic verification workflow
+        env_info = await asyncio.to_thread(
+            detect_repo_environment, repo_full_name, installation_github_id, default_branch
+        )
+        workflow_id = uuid.uuid4().hex[:8]
+        verify_branch = f"telex/verify/{workflow_id}"
+        workflow_name = f"Telex Verification {workflow_id}"
+        workflow_file_path = f".github/workflows/telex-verify-{workflow_id}.yml"
 
-        # Install ALL dependencies (including devDependencies) so typecheck and
-        # tests can run. We explicitly pass NODE_ENV=development because some
-        # CI environments default to production and skip devDeps silently.
-        pkg_json_path = os.path.join(tmpdir, "package.json")
-        if os.path.exists(pkg_json_path):
-            logger.info("verify_patch_in_clone: running npm ci (with devDependencies) in %s", tmpdir)
-            try:
-                ci_rc, _, ci_err = await _run_subprocess_with_timeout(
-                    "npm", "ci", "--include=dev", "--prefer-offline",
-                    cwd=tmpdir,
-                    timeout=300.0,
-                    extra_env={"NODE_ENV": "development"},
-                )
-                if ci_rc != 0:
-                    err_text = ci_err.decode(errors="replace")[:400]
-                    log_messages.append(f"npm ci failed (non-fatal, typecheck/tests may still run): {err_text}")
-                    logger.warning("verify_patch_in_clone: npm ci failed: %s", err_text)
-                else:
-                    log_messages.append("npm ci succeeded (devDependencies installed).")
-            except asyncio.TimeoutError:
-                log_messages.append("npm ci timed out after 300s (non-fatal).")
-                logger.warning("verify_patch_in_clone: npm ci timed out")
-            except Exception as e:
-                log_messages.append(f"npm ci crashed (non-fatal): {e}")
-                logger.warning("verify_patch_in_clone: npm ci crashed: %s", e)
+        workflow_yaml = generate_telex_verification_workflow(
+            env_info=env_info,
+            branch_name=verify_branch,
+            workflow_name=workflow_name,
+        )
 
-        # Typecheck detection (3 states: True=passed, False=failed or errored, None=not configured)
-        tsconfig_path = os.path.join(tmpdir, "tsconfig.json")
-        mypy_path = os.path.join(tmpdir, "mypy.ini")
-        pyproject_path = os.path.join(tmpdir, "pyproject.toml")
+        # 4. Create isolated verification branch on GitHub
+        logger.info("verify_patch_via_github: creating verification branch %s on %s", verify_branch, repo_full_name)
+        base_sha = await asyncio.to_thread(
+            create_or_update_branch, repo_full_name, installation_github_id, verify_branch, default_branch
+        )
 
-        if os.path.exists(tsconfig_path):
-            try:
-                tc_rc, _, tc_err = await _run_subprocess_with_timeout(
-                    "npx", "--yes", "tsc", "--noEmit",
-                    cwd=tmpdir,
-                    timeout=120.0,
-                )
-                typechecks = (tc_rc == 0)
-                log_messages.append(f"Typecheck (npx tsc): {'passed' if typechecks else 'failed'}")
-                if not typechecks:
-                    log_messages.append(f"Typecheck error: {tc_err.decode(errors='replace')[:400]}")
-            except Exception as e:
-                logger.warning("Typecheck command failed to execute: %s", e)
-                typechecks = False  # Configured check errored during run
-                log_messages.append(f"Typecheck crashed: {e}")
-        elif os.path.exists(mypy_path) or (os.path.exists(pyproject_path) and "tool.mypy" in open(pyproject_path, encoding="utf-8", errors="ignore").read()):
-            try:
-                tc_rc, _, tc_err = await _run_subprocess_with_timeout(
-                    "mypy", ".",
-                    cwd=tmpdir,
-                    timeout=120.0,
-                )
-                typechecks = (tc_rc == 0)
-                log_messages.append(f"Typecheck (mypy): {'passed' if typechecks else 'failed'}")
-                if not typechecks:
-                    log_messages.append(f"Typecheck error: {tc_err.decode(errors='replace')[:400]}")
-            except Exception as e:
-                logger.warning("mypy command failed to execute: %s", e)
-                typechecks = False  # Configured check errored during run
-                log_messages.append(f"Typecheck crashed: {e}")
+        if not base_sha:
+            return {
+                "applies_cleanly": True,
+                "parses": True,
+                "scope_ok": scope_ok,
+                "typechecks": False,
+                "tests_pass": False,
+                "verification_mode": "error",
+                "is_verified": False,
+                "log": "Verification branch creation on GitHub failed.",
+            }
+
+        # 5. Commit BOTH the patched file and dynamic workflow atomically to verification branch
+        commit_sha = await asyncio.to_thread(
+            commit_verification_bundle,
+            repo_full_name=repo_full_name,
+            installation_id=installation_github_id,
+            branch_name=verify_branch,
+            patched_file_path=file_path,
+            patched_content=new_content,
+            workflow_file_path=workflow_file_path,
+            workflow_content=workflow_yaml,
+        )
+
+        if not commit_sha:
+            return {
+                "applies_cleanly": True,
+                "parses": True,
+                "scope_ok": scope_ok,
+                "typechecks": False,
+                "tests_pass": False,
+                "verification_mode": "error",
+                "is_verified": False,
+                "log": "Failed to commit candidate patch and dynamic verification workflow to GitHub.",
+            }
+
+        # 6. Poll GitHub Actions verification gate
+        ci_result = await wait_for_telex_verification(
+            repo_full_name=repo_full_name,
+            installation_id=installation_github_id,
+            commit_sha=commit_sha,
+            expected_workflow_name=workflow_name,
+            timeout_seconds=180.0,
+        )
+
+        # Clean up temporary verification branch on GitHub asynchronously
+        asyncio.create_task(asyncio.to_thread(delete_branch, repo_full_name, installation_github_id, verify_branch))
+
+        # 7. Interpret results strictly
+        if ci_result["workflow_found"] and ci_result["completed"]:
+            verification_mode = "github_actions"
+            typechecks = ci_result["typechecks"]
+            tests_pass = ci_result["tests_pass"]
+            all_passed = (ci_result["conclusion"] == "success")
+
+            tests_ok = (tests_pass is True) if (requires_tests or env_info.get("has_test")) else (tests_pass in (True, None))
+            typecheck_ok = (typechecks is True) if (requires_typecheck or env_info.get("has_typecheck")) else (typechecks in (True, None))
+
+            is_verified = (
+                all_passed
+                and applies_cleanly
+                and parses
+                and scope_ok
+                and tests_ok
+                and typecheck_ok
+            )
+            return {
+                "applies_cleanly": True,
+                "parses": parses,
+                "scope_ok": scope_ok,
+                "typechecks": typechecks,
+                "tests_pass": tests_pass,
+                "verification_mode": verification_mode,
+                "is_verified": is_verified,
+                "log": f"Dynamic GitHub Actions Verification: {ci_result['conclusion']}\n{ci_result['log']}",
+            }
         else:
-            typechecks = None  # Genuinely not configured
-            log_messages.append("Typecheck: no tsconfig.json or mypy configuration found.")
-
-        # Test suite detection (3 states: True=passed, False=failed or errored, None=not configured)
-        pkg_json_path = os.path.join(tmpdir, "package.json")
-        tests_dir_path = os.path.join(tmpdir, "tests")
-
-        if os.path.exists(pkg_json_path):
-            try:
-                pkg_data = open(pkg_json_path, encoding="utf-8", errors="ignore").read()
-                if '"test"' in pkg_data and "no test specified" not in pkg_data:
-                    test_rc, _, t_err = await _run_subprocess_with_timeout(
-                        "npm", "test",
-                        cwd=tmpdir,
-                        timeout=180.0,
-                    )
-                    tests_pass = (test_rc == 0)
-                    log_messages.append(f"Tests (npm test): {'passed' if tests_pass else 'failed'}")
-                    if not tests_pass:
-                        log_messages.append(f"Test failure output: {t_err.decode(errors='replace')[:400]}")
-                else:
-                    tests_pass = None  # Genuinely no test script
-                    log_messages.append("Tests: package.json has no test script.")
-            except Exception as e:
-                logger.warning("npm test command failed to execute: %s", e)
-                tests_pass = False  # Configured check errored during run
-                log_messages.append(f"npm test crashed: {e}")
-        elif os.path.exists(tests_dir_path):
-            try:
-                test_rc, _, t_err = await _run_subprocess_with_timeout(
-                    "pytest",
-                    cwd=tmpdir,
-                    timeout=180.0,
-                )
-                tests_pass = (test_rc == 0)
-                log_messages.append(f"Tests (pytest): {'passed' if tests_pass else 'failed'}")
-                if not tests_pass:
-                    log_messages.append(f"Test failure output: {t_err.decode(errors='replace')[:400]}")
-            except Exception as e:
-                logger.warning("pytest command failed to execute: %s", e)
-                tests_pass = False  # Configured check errored during run
-                log_messages.append(f"pytest crashed: {e}")
-        else:
-            tests_pass = None  # Genuinely not configured
-            log_messages.append("Tests: no test suite configuration found.")
-
+            return {
+                "applies_cleanly": True,
+                "parses": parses,
+                "scope_ok": scope_ok,
+                "typechecks": False,
+                "tests_pass": False,
+                "verification_mode": "github_actions_unresponsive",
+                "is_verified": False,
+                "log": f"Verification failed: GitHub Actions workflow did not complete successfully ({ci_result.get('log', 'unresponsive')}).",
+            }
     except Exception as exc:
-        logger.exception("verify_patch_in_clone: unexpected error during verification: %s", exc)
-        verification_mode = "error"
-        applies_cleanly = False
-        typechecks = False
-        tests_pass = False
-        log_messages.append(f"Verification error: {exc}")
-    finally:
-        shutil.rmtree(tmpdir, onerror=_remove_readonly)
+        logger.exception("verify_patch_via_github error: %s", exc)
+        return {
+            "applies_cleanly": False,
+            "parses": parses,
+            "scope_ok": scope_ok,
+            "typechecks": False,
+            "tests_pass": False,
+            "verification_mode": "error",
+            "is_verified": False,
+            "log": f"Verification error: {exc}",
+        }
 
-    # Tightened verified formula: enforces requires_tests / requires_typecheck per repo policy
-    tests_ok = (tests_pass is True) if requires_tests else (tests_pass in (True, None))
-    typecheck_ok = (typechecks is True) if requires_typecheck else (typechecks in (True, None))
-    is_verified = (
-        verification_mode == "full"
-        and applies_cleanly
-        and parses
-        and scope_ok
-        and typecheck_ok
-        and tests_ok
-    )
 
-    return {
-        "applies_cleanly": applies_cleanly,
-        "parses": parses,
-        "scope_ok": scope_ok,
-        "typechecks": typechecks,
-        "tests_pass": tests_pass,
-        "verification_mode": verification_mode,
-        "is_verified": is_verified,
-        "log": "\n".join(log_messages),
-    }
+# Backwards-compatible alias
+verify_patch_in_clone = verify_patch_via_github
 
 
 async def run(payload: dict) -> None:
@@ -441,6 +373,7 @@ async def run(payload: dict) -> None:
         new_api = dc.symbol_new or ""
         defect_description = dc.description or ""
         code_snippet = cu.snippet or ""
+        file_path = cu.file_path
         context = f"File: {cu.file_path}\nLines {cu.line_start}–{cu.line_end}"
 
         # Extract observed behavioral evidence from the originating RecoveryEvent (if any)
@@ -464,18 +397,19 @@ async def run(payload: dict) -> None:
         observed_evidence=observed_evidence,
     )
 
-    v_result = await verify_patch_in_clone(
+    v_result = await verify_patch_via_github(
         repo_full_name=repo_full_name,
         default_branch=repo_default_branch,
         installation_github_id=installation_github_id,
         diff=diff,
         code_snippet=code_snippet,
+        file_path=file_path,
         requires_tests=repo_requires_tests,
         requires_typecheck=repo_requires_typecheck,
     )
 
     # If verification failed and diff was not an explicit refusal, retry ONCE with error context
-    if not v_result["is_verified"] and diff != "UNABLE_TO_PATCH" and v_result["verification_mode"] == "full":
+    if not v_result["is_verified"] and diff != "UNABLE_TO_PATCH" and v_result["verification_mode"] in ("github_actions", "git_apply_failed", "git_apply_clean"):
         logger.info("generate_patch: first attempt failed verification (%s) — retrying once with error feedback", v_result["log"])
         retry_context = f"{context}\n\nIMPORTANT: Your previous patch attempt failed verification with error:\n{v_result['log']}\nPlease generate a corrected minimal unified diff."
         diff = await provider.generate_patch(
@@ -486,12 +420,13 @@ async def run(payload: dict) -> None:
             defect_description=defect_description,
             observed_evidence=observed_evidence,
         )
-        v_result = await verify_patch_in_clone(
+        v_result = await verify_patch_via_github(
             repo_full_name=repo_full_name,
             default_branch=repo_default_branch,
             installation_github_id=installation_github_id,
             diff=diff,
             code_snippet=code_snippet,
+            file_path=file_path,
             requires_tests=repo_requires_tests,
             requires_typecheck=repo_requires_typecheck,
         )
