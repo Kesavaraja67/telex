@@ -1,5 +1,7 @@
 services:
-  # 100% Free Tier Web Service (FastAPI + Embedded Autonomous Background Worker)
+  # ── API Web Service ──────────────────────────────────────────────────────────
+  # Serves FastAPI endpoints only — NO embedded worker.
+  # Free plan (512 MB) is sufficient for API-only workloads.
   - type: web
     name: telex-api
     runtime: python
@@ -7,6 +9,51 @@ services:
     rootDir: apps/api
     buildCommand: pip install -r requirements.txt && alembic upgrade head
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: EMBEDDED_WORKER
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: GITHUB_APP_ID
+        sync: false
+      - key: GITHUB_APP_CLIENT_ID
+        sync: false
+      - key: GITHUB_APP_PRIVATE_KEY
+        sync: false
+      - key: GITHUB_WEBHOOK_SECRET
+        sync: false
+      - key: GITHUB_OAUTH_CLIENT_ID
+        sync: false
+      - key: GITHUB_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LLM_PROVIDER_DEFAULT
+        value: gemini
+      - key: NEXTAUTH_SECRET
+        sync: false
+      - key: RAZORPAY_TEST_KEY_ID
+        sync: false
+      - key: RAZORPAY_TEST_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: PAYMENT_RECOVERY_REPO_NAME
+        sync: false
+
+  # ── Autonomous Background Worker ─────────────────────────────────────────────
+  # Runs the job queue: generate_patch (npm ci + tsc + npm test), recover_runtime,
+  # open_pr, etc. Isolated from the API so heavy verification never OOMs the web service.
+  # Starter plan provides 512 MB dedicated RAM for the worker container.
+  - type: worker
+    name: telex-worker
+    runtime: python
+    plan: starter
+    rootDir: apps/api
+    buildCommand: pip install -r requirements.txt
+    startCommand: python worker.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.11
@@ -38,4 +85,5 @@ services:
         sync: false
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
-
+      - key: PAYMENT_RECOVERY_REPO_NAME
+        sync: false

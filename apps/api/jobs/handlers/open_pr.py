@@ -173,7 +173,12 @@ async def run(payload: dict) -> None:
         body_lines.append(f"```diff\n{pd['diff']}\n```\n")
 
     summary = "\n".join(body_lines)
-    branch_name = f"telex/{pkg_name}/{pv_version}"
+
+    # Include a short unique ID so concurrent defects don't collide on the same branch.
+    # Priority: recovery_event_id → code_usage_id → fallback uuid4
+    unique_id_source = re_id_raw or cu_id_raw or str(uuid.uuid4())
+    short_id = unique_id_source.split("-")[0]  # e.g. "a3f2c1b8"
+    branch_name = f"telex/{pkg_name}/{pv_version}/{short_id}"
 
     try:
         pr_url, pr_number = await open_patch_pr(

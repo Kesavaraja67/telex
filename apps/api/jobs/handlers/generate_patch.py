@@ -71,21 +71,47 @@ async def _run_subprocess_with_timeout(
     *cmd: str,
     cwd: Optional[str] = None,
     timeout: float = 60.0,
+    extra_env: Optional[dict] = None,
 ) -> tuple[int, bytes, bytes]:
-    """Runs a subprocess with strict timeout, killing the process tree if timed out."""
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        cwd=cwd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    """
+    Runs a subprocess with strict timeout.
+    On timeout or error, kills the entire process group to prevent orphaned
+    Node/npm child processes from lingering and consuming memory.
+    """
+    import signal
+    env = None
+    if extra_env:
+        env = {**os.environ, **extra_env}
+
+    # Start in a new process group so we can kill all children at once
+    kwargs: dict = {
+        "cwd": cwd,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+    }
+    if hasattr(os, "setsid"):  # Unix/Linux (Render)
+        kwargs["start_new_session"] = True
+    if env:
+        kwargs["env"] = env
+
+    proc = await asyncio.create_subprocess_exec(*cmd, **kwargs)
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         return proc.returncode or 0, stdout or b"", stderr or b""
-    except asyncio.TimeoutError:
+    except (asyncio.TimeoutError, Exception) as exc:
+        # Kill the entire process group (handles npm spawning node children)
         try:
-            proc.kill()
-            await proc.wait()
+            _killpg = getattr(os, "killpg", None)
+            _getpgid = getattr(os, "getpgid", None)
+            _SIGKILL = getattr(signal, "SIGKILL", signal.SIGTERM)  # SIGTERM on Windows
+            if _killpg and _getpgid and proc.pid:  # Unix/Linux (Render)
+                try:
+                    _killpg(_getpgid(proc.pid), _SIGKILL)
+                except ProcessLookupError:
+                    pass
+            else:  # Windows fallback
+                proc.kill()
+            await asyncio.wait_for(proc.wait(), timeout=5.0)
         except Exception:
             pass
         raise
@@ -224,21 +250,28 @@ async def verify_patch_in_clone(
 
         log_messages.append("git apply succeeded cleanly.")
 
-        # Install dependencies so typecheck and tests can run against real node_modules
+        # Install ALL dependencies (including devDependencies) so typecheck and
+        # tests can run. We explicitly pass NODE_ENV=development because some
+        # CI environments default to production and skip devDeps silently.
         pkg_json_path = os.path.join(tmpdir, "package.json")
         if os.path.exists(pkg_json_path):
-            logger.info("verify_patch_in_clone: running npm ci in %s", tmpdir)
+            logger.info("verify_patch_in_clone: running npm ci (with devDependencies) in %s", tmpdir)
             try:
                 ci_rc, _, ci_err = await _run_subprocess_with_timeout(
-                    "npm", "ci", "--prefer-offline", "--ignore-scripts",
+                    "npm", "ci", "--include=dev", "--prefer-offline",
                     cwd=tmpdir,
                     timeout=300.0,
+                    extra_env={"NODE_ENV": "development"},
                 )
                 if ci_rc != 0:
-                    log_messages.append(f"npm ci failed (non-fatal): {ci_err.decode(errors='replace')[:300]}")
-                    logger.warning("verify_patch_in_clone: npm ci failed: %s", ci_err.decode(errors="replace")[:300])
+                    err_text = ci_err.decode(errors="replace")[:400]
+                    log_messages.append(f"npm ci failed (non-fatal, typecheck/tests may still run): {err_text}")
+                    logger.warning("verify_patch_in_clone: npm ci failed: %s", err_text)
                 else:
-                    log_messages.append("npm ci succeeded.")
+                    log_messages.append("npm ci succeeded (devDependencies installed).")
+            except asyncio.TimeoutError:
+                log_messages.append("npm ci timed out after 300s (non-fatal).")
+                logger.warning("verify_patch_in_clone: npm ci timed out")
             except Exception as e:
                 log_messages.append(f"npm ci crashed (non-fatal): {e}")
                 logger.warning("verify_patch_in_clone: npm ci crashed: %s", e)
