@@ -224,6 +224,25 @@ async def verify_patch_in_clone(
 
         log_messages.append("git apply succeeded cleanly.")
 
+        # Install dependencies so typecheck and tests can run against real node_modules
+        pkg_json_path = os.path.join(tmpdir, "package.json")
+        if os.path.exists(pkg_json_path):
+            logger.info("verify_patch_in_clone: running npm ci in %s", tmpdir)
+            try:
+                ci_rc, _, ci_err = await _run_subprocess_with_timeout(
+                    "npm", "ci", "--prefer-offline", "--ignore-scripts",
+                    cwd=tmpdir,
+                    timeout=300.0,
+                )
+                if ci_rc != 0:
+                    log_messages.append(f"npm ci failed (non-fatal): {ci_err.decode(errors='replace')[:300]}")
+                    logger.warning("verify_patch_in_clone: npm ci failed: %s", ci_err.decode(errors="replace")[:300])
+                else:
+                    log_messages.append("npm ci succeeded.")
+            except Exception as e:
+                log_messages.append(f"npm ci crashed (non-fatal): {e}")
+                logger.warning("verify_patch_in_clone: npm ci crashed: %s", e)
+
         # Typecheck detection (3 states: True=passed, False=failed or errored, None=not configured)
         tsconfig_path = os.path.join(tmpdir, "tsconfig.json")
         mypy_path = os.path.join(tmpdir, "mypy.ini")
@@ -385,10 +404,18 @@ async def run(payload: dict) -> None:
             if inst:
                 installation_github_id = inst.github_installation_id
 
-        old_api = dc.symbol_old
+        old_api = dc.symbol_old or ""
         new_api = dc.symbol_new or ""
-        code_snippet = cu.snippet
+        defect_description = dc.description or ""
+        code_snippet = cu.snippet or ""
         context = f"File: {cu.file_path}\nLines {cu.line_start}–{cu.line_end}"
+
+        # Extract observed behavioral evidence from the originating RecoveryEvent (if any)
+        observed_evidence = ""
+        if recovery_event_id:
+            recovery_event = await session.get(RecoveryEvent, recovery_event_id)
+            if recovery_event and recovery_event.action_taken:
+                observed_evidence = recovery_event.action_taken
 
     # ── Phase 2: call provider and verify with 1-retry fallback ────────────────
     provider = get_patch_provider()
@@ -400,6 +427,8 @@ async def run(payload: dict) -> None:
         new_api=new_api,
         code_snippet=code_snippet,
         context=context,
+        defect_description=defect_description,
+        observed_evidence=observed_evidence,
     )
 
     v_result = await verify_patch_in_clone(
@@ -421,6 +450,8 @@ async def run(payload: dict) -> None:
             new_api=new_api,
             code_snippet=code_snippet,
             context=retry_context,
+            defect_description=defect_description,
+            observed_evidence=observed_evidence,
         )
         v_result = await verify_patch_in_clone(
             repo_full_name=repo_full_name,

@@ -91,12 +91,16 @@ class GeminiProvider(PatchProvider):
         new_api: str,
         code_snippet: str,
         context: str,
+        defect_description: str = "",
+        observed_evidence: str = "",
     ) -> str:
         prompt = PATCH_PROMPT_TEMPLATE.format(
-            old_api=old_api,
-            new_api=new_api,
+            old_api=old_api or "(not applicable)",
+            new_api=new_api or "(not applicable)",
             code_snippet=code_snippet,
             context=context,
+            defect_description=defect_description or "Runtime defect detected — see observed evidence below.",
+            observed_evidence=observed_evidence or "No additional evidence provided.",
         )
         # Transient errors (network, quota, server) propagate so the worker
         # retries the job.  Only intentional no-patch output becomes UNABLE_TO_PATCH.

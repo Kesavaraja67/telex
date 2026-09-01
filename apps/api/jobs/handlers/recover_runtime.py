@@ -237,9 +237,18 @@ FAILURE_LOCATION_MAP: dict[str, dict[str, Any]] = {
         "line_start": 1,
         "line_end": 40,
         "symbol_old": "calculateOrderSummary",
-        "symbol_new": "calculateOrderSummaryFixed",
-        "description": "Fee calculation truncation/rounding defect in order summary calculation.",
-        "fallback_snippet": "const subtotal = items.reduce((acc, i) => acc + i.price * i.qty, 0);\nconst tax = Math.floor(subtotal * 0.18);\nconst total = subtotal + tax;",
+        "symbol_new": "",
+        "description": (
+            "Fee calculation produces a value 1 paise lower than expected. "
+            "The observed regression (e.g. expected 247, actual 246) is consistent with "
+            "a truncation operation (Math.trunc) being used instead of rounding (Math.round) "
+            "when computing the platform fee. No other behavior should be changed."
+        ),
+        "fallback_snippet": (
+            "// Platform fee calculation — suspect truncation\n"
+            "const platformFee = Math.trunc(subtotal * feeRate);\n"
+            "const total = subtotal + platformFee;"
+        ),
     },
     "webhook_signature_mismatch": {
         "file_path": "apps/api/routers/payments.py",

@@ -2,24 +2,35 @@
 Prompt templates — Appendix A.
 """
 
-PATCH_PROMPT_TEMPLATE = """You are generating a minimal code patch to fix a breaking API change.
+PATCH_PROMPT_TEMPLATE = """You are repairing a confirmed runtime software defect.
 
-OLD API:
-{old_api}
+DEFECT DESCRIPTION:
+{defect_description}
 
-NEW API:
-{new_api}
+OBSERVED EVIDENCE:
+{observed_evidence}
 
-CODE TO FIX:
-{code_snippet}
-
-SURROUNDING CONTEXT:
+FILE UNDER REPAIR:
 {context}
 
-Return ONLY a unified diff that updates the code to use the new API.
-Do not change anything unrelated to this specific API call.
-Do not add comments explaining the change.
-If you cannot confidently produce a correct patch, return exactly: UNABLE_TO_PATCH"""
+CURRENT SOURCE CODE:
+{code_snippet}
+
+ADDITIONAL CONTEXT:
+Old symbol: {old_api}
+New symbol: {new_api}
+
+Generate the smallest correct unified diff that fixes the described defect.
+
+Requirements:
+- Change ONLY the code necessary to fix the described defect.
+- Preserve all existing behavior unrelated to the defect.
+- The diff MUST apply cleanly to the source shown above.
+- Return ONLY a valid unified diff (--- / +++ / @@ headers included).
+- Do NOT add comments explaining the change.
+- Do NOT invent new APIs, files, or functions.
+- Do NOT rewrite unrelated code.
+- If you cannot confidently produce a correct minimal patch, return exactly: UNABLE_TO_PATCH"""
 
 
 CLASSIFY_FAILURE_PROMPT_TEMPLATE = """You are classifying a runtime payment failure to determine whether it requires a code fix or just a retry.

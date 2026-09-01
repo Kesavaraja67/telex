@@ -21,9 +21,14 @@ class PatchProvider(Protocol):
         new_api: str,
         code_snippet: str,
         context: str,
+        defect_description: str = "",
+        observed_evidence: str = "",
     ) -> str:
         """
-        Generate a unified diff that migrates code_snippet from old_api to new_api.
+        Generate a unified diff that repairs a confirmed runtime defect.
+
+        defect_description: human-readable summary of what is wrong (from DetectedChange.description).
+        observed_evidence:  concrete behavioral evidence (e.g. expected vs actual values from failing test).
 
         Returns:
             A unified diff string, or the literal string "UNABLE_TO_PATCH" if
