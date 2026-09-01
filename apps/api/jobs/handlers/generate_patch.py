@@ -67,56 +67,6 @@ def validate_patch(diff: str, snippet: str) -> tuple[bool, bool, bool]:
     return applies_cleanly, parses, scope_ok
 
 
-async def _run_subprocess_with_timeout(
-    *cmd: str,
-    cwd: Optional[str] = None,
-    timeout: float = 60.0,
-    extra_env: Optional[dict] = None,
-) -> tuple[int, bytes, bytes]:
-    """
-    Runs a subprocess with strict timeout.
-    On timeout or error, kills the entire process group to prevent orphaned
-    Node/npm child processes from lingering and consuming memory.
-    """
-    import signal
-    env = None
-    if extra_env:
-        env = {**os.environ, **extra_env}
-
-    # Start in a new process group so we can kill all children at once
-    kwargs: dict = {
-        "cwd": cwd,
-        "stdout": subprocess.PIPE,
-        "stderr": subprocess.PIPE,
-    }
-    if hasattr(os, "setsid"):  # Unix/Linux (Render)
-        kwargs["start_new_session"] = True
-    if env:
-        kwargs["env"] = env
-
-    proc = await asyncio.create_subprocess_exec(*cmd, **kwargs)
-    try:
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        return proc.returncode or 0, stdout or b"", stderr or b""
-    except (asyncio.TimeoutError, Exception) as exc:
-        # Kill the entire process group (handles npm spawning node children)
-        try:
-            _killpg = getattr(os, "killpg", None)
-            _getpgid = getattr(os, "getpgid", None)
-            _SIGKILL = getattr(signal, "SIGKILL", signal.SIGTERM)  # SIGTERM on Windows
-            if _killpg and _getpgid and proc.pid:  # Unix/Linux (Render)
-                try:
-                    _killpg(_getpgid(proc.pid), _SIGKILL)
-                except ProcessLookupError:
-                    pass
-            else:  # Windows fallback
-                proc.kill()
-            await asyncio.wait_for(proc.wait(), timeout=5.0)
-        except Exception:
-            pass
-        raise
-
-
 async def verify_patch_via_github(
     repo_full_name: str,
     default_branch: str,
