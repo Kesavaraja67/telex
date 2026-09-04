@@ -6,8 +6,8 @@ import TelexLogo from "@/components/ui/TelexLogo";
 
 const NAV_LINKS = [
   { href: "#how-it-works", label: "01 // Pipeline" },
-  { href: "#live-signal", label: "02 // Live Feed" },
-  { href: "/dashboard/recovery", label: "03 // Stream" },
+  { href: "/dashboard/recovery", label: "02 // Live Stream" },
+  { href: "/dashboard", label: "03 // Dashboard" },
 ];
 
 export default function Nav() {

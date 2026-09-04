@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import { motion } from "motion/react";
 import { Plus_Jakarta_Sans } from "next/font/google";
-import PackageMarkers from "./PackageMarkers";
 import IllocaButton from "@/components/ui/IllocaButton";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -142,11 +141,6 @@ export default function Hero() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Watched Packages Telemetry Grid */}
-      <div className="w-full max-w-6xl mx-auto mt-16">
-        <PackageMarkers />
       </div>
     </section>
   );

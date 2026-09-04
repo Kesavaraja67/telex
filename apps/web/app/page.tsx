@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Nav from "@/components/marketing/Nav";
 import Hero from "@/components/marketing/Hero";
 import LiveMarquee from "@/components/marketing/LiveMarquee";
-import LiveSignal from "@/components/marketing/LiveSignal";
 import HowItWorks from "@/components/marketing/HowItWorks";
 import FreeStrip from "@/components/marketing/FreeStrip";
 import Marginalia from "@/components/marketing/Marginalia";
@@ -22,7 +21,6 @@ export default function LandingPage() {
       <Nav />
       <Hero />
       <LiveMarquee />
-      <LiveSignal />
       <HowItWorks />
       <FreeStrip />
 

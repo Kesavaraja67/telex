@@ -8,12 +8,12 @@ const STEPS = [
     title: "Live Razorpay Telemetry & Webhook Interception",
     description:
       "Telex monitors live Razorpay checkout attempts and cryptographically verifies webhooks (X-Razorpay-Signature) in real time. The moment a transaction drops or order values mismatch, it intercepts the failure.",
-    code: `// Ingested: Razorpay Live Telemetry
+    code: `// Failure Ingestion Schema
 {
-  order_id: "order_Q19f8xK2bLmP9z",
-  failure: "order_total_mismatch",
-  amount_paise: 99900,
-  merchant_status: "REVENUE_AT_RISK"
+  "source": "razorpay_checkout",
+  "failure_type": "order_total_mismatch",
+  "classification": "code_defect",
+  "escalation": "ast_patch_generation"
 }`,
   },
   {
@@ -21,10 +21,10 @@ const STEPS = [
     title: "Two-Tier Classifier & Gemini AST Synthesis",
     description:
       "Tier-1 resolves transient timeouts in <1ms with 0 tokens and bounded retry backoff. Code defects (e.g. order calculation bugs) trigger Gemini AST intelligence to synthesize a minimal unified diff.",
-    code: `// Synthesized Candidate Patch
+    code: `// Unified Diff Synthesis
 -const order = await razorpay.orders.create({ amount });
 +const order = await razorpay.orders.create({
-+  amount: Math.round(amount * 100), // paise
++  amount: toPaise(amount),
 +  currency: "INR"
 +});`,
   },
@@ -33,13 +33,12 @@ const STEPS = [
     title: "Bounded Recovery & Ephemeral Native CI Gate",
     description:
       "Transient failures recover real revenue in ₹ paise. Code repairs run through an isolated GitHub Actions verification gate (real build, tsc, and test suite) before opening a human-reviewed PR.",
-    code: `# Ephemeral GitHub Actions Verification Gate
-jobs:
-  telex-verify:
-    runs-on: ubuntu-latest
-    steps:
-      - run: npm ci && npx tsc && npm test
-# Verdict: 100% Passed -> Submitting PR`,
+    code: `# Ephemeral Native CI Gate
+steps:
+  - run: npm ci
+  - run: npx tsc --noEmit
+  - run: npm test
+# Gate: Target repository CI proved green`,
   },
 ];
 
