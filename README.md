@@ -6,6 +6,7 @@
 
 <p align="center">
   <strong>Autonomous AI Revenue Recovery & Self-Healing Patch Agent for Live Razorpay Payment Failures.</strong><br>
+  <em>Built for the Razorpay Pay 2026 Buildathon.</em><br>
   <em>Detect revenue at risk → Classify deterministically (Tier 1) or via LLM (Tier 2) → Execute bounded recovery → Escalate code defects to verified GitHub PRs.</em>
 </p>
 
@@ -13,7 +14,9 @@
   <a href="https://telex-pi.vercel.app"><img src="https://img.shields.io/badge/Live_Dashboard-telex--pi.vercel.app-white?style=flat-square&logo=vercel" alt="Live Dashboard" /></a>
   <a href="https://telex-pi.vercel.app/dashboard/recovery"><img src="https://img.shields.io/badge/Live_Telemetry-Recovery_Stream-black?style=flat-square" alt="Live Stream" /></a>
   <a href="https://telex-api.onrender.com/health"><img src="https://img.shields.io/badge/API_Status-Live_200_OK-green?style=flat-square" alt="API Status" /></a>
+  <a href="ARCHITECTURE.md"><img src="https://img.shields.io/badge/Architecture-ARCHITECTURE.md-purple?style=flat-square" alt="Architecture" /></a>
   <a href="DEMO.md"><img src="https://img.shields.io/badge/Reproduction_Guide-DEMO.md-blue?style=flat-square" alt="Demo Guide" /></a>
+  <img src="https://img.shields.io/badge/Tests-40%2F40_Passing-brightgreen?style=flat-square" alt="Tests 40 Passing" />
 </p>
 
 ---
@@ -90,7 +93,7 @@ Telex does not blindly pass plain timeouts to an LLM.
 | **Engine B** | Bounded Auto-Recovery | Non-blocking retry worker with deliberate stopping rules | Live |
 | **Engine A** | Tree-Sitter AST Scanner | Multi-language AST call site scanning (`.ts`, `.tsx`, `.js`) | Live |
 | **Engine A** | Patch Generator | Gemini 2.5 Flash / Claude unified diff synthesis | Live |
-| **Engine A** | Verification Gate | Isolated git clone verification, patch validation, & tests | Live |
+| **Engine A** | Verification Gate | Ephemeral GitHub Actions CI gate (real target repo build + test suite) & clone sandbox | Live |
 | **Engine A** | GitHub App Integration | Automated branch creation & human-reviewed PR submission | Live |
 | **Job Queue** | Async DB Job Worker | PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` + heartbeats | Live |
 | **Dashboard** | Next.js 16 Web App | Real-time telemetry, recovery tickets, and live event stream | Live |
@@ -133,7 +136,7 @@ Open [http://localhost:3000/dashboard/recovery](http://localhost:3000/dashboard/
 
 ---
 
-## Automated Test Suite (39 Tests)
+## Automated Test Suite (40 Tests)
 
 The test suite validates both Engine A and Engine B end-to-end against an in-process SQLite database without external dependencies:
 
@@ -142,7 +145,7 @@ cd apps/api
 pytest -v --tb=short
 ```
 
-### Test Coverage Breakdown:
+### Test Coverage Breakdown (40/40 Passing):
 - **`test_e2e_recovery_flow.py` (7 E2E Tests)**:
   - `test_transient_failure_full_recovery_cycle`: Real timeout → Tier 1 classify → auto-retry → recovered → ₹ recorded.
   - `test_code_defect_full_pr_cycle`: Mismatch report → code_defect → seed `DetectedChange`/`CodeUsage` → `generate_patch` enqueued.
@@ -153,7 +156,7 @@ pytest -v --tb=short
   - `test_duplicate_webhook_delivery_idempotent_ignored`: Asserts cryptographic webhook idempotency on duplicate event IDs.
 - **`test_diagnose_runtime_failure.py` (7 Tests)**: Deterministic classification lookup, markdown fence parsing, JSON extraction, Tier 2 LLM routing.
 - **`test_payment_service.py` (10 Tests)**: HMAC signature validation, simulated payment errors, Razorpay decline card rules.
-- **`test_patch_generation.py` (10 Tests)**: Unified diff extraction, scope validation, clone verification sandbox.
+- **`test_patch_generation.py` (11 Tests)**: Unified diff extraction, scope validation, clone verification sandbox, required-tests policies, and ephemeral GitHub Actions CI verification gate (`test_verify_patch_via_github_actions_success`).
 - **`test_code_scanner.py` (5 Tests)**: Tree-Sitter AST call-site discovery across JS/TS/TSX.
 
 For step-by-step evaluation instructions, see [DEMO.md](DEMO.md).

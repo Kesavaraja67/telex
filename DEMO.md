@@ -24,7 +24,7 @@ Using curl or the UI Batch Simulator:
 ```bash
 curl -X POST "https://telex-api.onrender.com/api/payments/batch-run" \
   -H "Content-Type: application/json" \
-  -H "x-demo-key: ${DEMO_KEY:-your_demo_key}" \
+  -H "x-demo-key: ${DEMO_KEY:-telex_demo_secret_2026}" \
   -d '{"count": 10, "failure_rate": 0.5}'
 ```
 
@@ -75,12 +75,16 @@ curl -X POST "https://telex-api.onrender.com/api/payments/report-mismatch" \
 
 ## Running Local Verification Tests
 
-Telex includes 37 automated tests across unit and E2E integration suites:
+Telex includes 40 automated tests across unit, integration, and E2E recovery suites:
 
 ```bash
 cd apps/api
-pip install -r requirements.txt
 pytest -v --tb=short
+```
+
+Expected output:
+```text
+======================= 40 passed, 8 warnings in 3.40s =======================
 ```
 
 To run the E2E recovery flow specifically:
