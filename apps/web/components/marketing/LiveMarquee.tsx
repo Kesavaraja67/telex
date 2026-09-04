@@ -1,14 +1,14 @@
 "use client";
 
 const TICKER_ITEMS = [
+  { pkg: "RAZORPAY CHECKOUT", change: "order_total_mismatch auto-repaired", status: "PR GENERATED" },
+  { pkg: "RAZORPAY WEBHOOK", change: "X-Razorpay-Signature HMAC fix", status: "CI VERIFIED" },
+  { pkg: "RAZORPAY TIMEOUT", change: "transient retry → ₹500 recovered", status: "REVENUE RECOVERED" },
+  { pkg: "RAZORPAY ORDERS", change: "currency unit paise conversion patched", status: "CI VERIFIED" },
+  { pkg: "RAZORPAY NODE SDK", change: "v2.9.2 orders.create signature migration", status: "AUTO-PATCHED" },
+  { pkg: "RATE LIMIT GUARD", change: "bounded backoff retry (0 tokens)", status: "TIER-1 RECOVERED" },
+  { pkg: "AURA DROPS DEMO", change: "checkout payment idempotency repair", status: "CI VERIFIED" },
   { pkg: "OPENAI@4.0.0", change: "createCompletion → completions.create", status: "AUTO-PATCHED" },
-  { pkg: "STRIPE@18.1.0", change: "charges.create → paymentIntents", status: "AST VALIDATED" },
-  { pkg: "NEXT@15.0.0", change: "params Promise async unwrapped", status: "PR GENERATED" },
-  { pkg: "DRIZZLE-ORM@0.36.0", change: "relations → foreignKey definition", status: "AUTO-PATCHED" },
-  { pkg: "PRISMA@6.0.0", change: "driverAdapters explicit init", status: "AST VALIDATED" },
-  { pkg: "SUPABASE@2.45.0", change: "auth.getUser session migration", status: "AUTO-PATCHED" },
-  { pkg: "LANGCHAIN@0.3.0", change: "core module import splitting", status: "PR GENERATED" },
-  { pkg: "AXIOS@1.7.0", change: "AbortSignal timeout unified", status: "AST VALIDATED" },
 ];
 
 export default function LiveMarquee() {

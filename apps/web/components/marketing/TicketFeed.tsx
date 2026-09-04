@@ -18,53 +18,53 @@ export interface TicketData {
 const DEMO_TICKETS: TicketData[] = [
   {
     id: "1",
-    package: "openai",
-    oldVersion: "3.2.0",
-    newVersion: "4.0.0",
-    diff: "-const result = await client.createCompletion(params);\n+const result = await client.completions.create(params);",
-    timestamp: "2m ago",
+    package: "razorpay / checkout",
+    oldVersion: "order_total_mismatch",
+    newVersion: "ci-verified",
+    diff: "-const order = await rzp.orders.create({ amount: total });\n+const order = await rzp.orders.create({ amount: Math.round(total * 100), currency: \"INR\" });",
+    timestamp: "1m ago",
     status: "merged",
-    usagesPatched: 6,
-  },
-  {
-    id: "2",
-    package: "axios",
-    oldVersion: "0.27.2",
-    newVersion: "1.0.0",
-    diff: "-axios.get(url, { params })\n+axios.get(url, { params }).then(r => r.data)",
-    timestamp: "14m ago",
-    status: "open",
     usagesPatched: 3,
   },
   {
-    id: "3",
-    package: "react-router-dom",
-    oldVersion: "5.3.4",
-    newVersion: "6.0.0",
-    diff: "-import { Switch, Route } from 'react-router-dom';\n+import { Routes, Route } from 'react-router-dom';",
-    timestamp: "1h ago",
+    id: "2",
+    package: "razorpay / webhook",
+    oldVersion: "hmac_mismatch",
+    newVersion: "ci-verified",
+    diff: "-const valid = validateWebhook(body, sig);\n+const valid = validateWebhookSignature(body, sig, process.env.RAZORPAY_WEBHOOK_SECRET);",
+    timestamp: "8m ago",
     status: "merged",
-    usagesPatched: 12,
+    usagesPatched: 1,
+  },
+  {
+    id: "3",
+    package: "razorpay / timeout",
+    oldVersion: "network_error",
+    newVersion: "recovered (₹500.00)",
+    diff: "// Bounded backoff retry succeeded on attempt 2\n// Outcome: recovered | Revenue collected: ₹500.00 (50000 paise)",
+    timestamp: "19m ago",
+    status: "merged",
+    usagesPatched: 1,
   },
   {
     id: "4",
-    package: "@prisma/client",
-    oldVersion: "4.16.2",
-    newVersion: "5.0.0",
-    diff: "-prisma.user.findUnique({ where: { id } })\n+prisma.user.findUniqueOrThrow({ where: { id } })",
-    timestamp: "3h ago",
-    status: "open",
-    usagesPatched: 2,
+    package: "razorpay-node",
+    oldVersion: "v2.8.0",
+    newVersion: "v2.9.2",
+    diff: "-const client = new Razorpay(key, secret);\n+const client = new Razorpay({ key_id: key, key_secret: secret });",
+    timestamp: "45m ago",
+    status: "merged",
+    usagesPatched: 4,
   },
   {
     id: "5",
-    package: "next",
-    oldVersion: "13.5.0",
-    newVersion: "14.0.0",
-    diff: "-import { ImageResponse } from 'next/server';\n+import { ImageResponse } from 'next/og';",
-    timestamp: "6h ago",
-    status: "merged",
-    usagesPatched: 1,
+    package: "aura-drops / checkout",
+    oldVersion: "runtime_defect",
+    newVersion: "ci-verified",
+    diff: "-const res = await rzp.payments.capture(paymentId, amount);\n+const res = await rzp.payments.capture(paymentId, amount, \"INR\");",
+    timestamp: "2h ago",
+    status: "open",
+    usagesPatched: 2,
   },
 ];
 
@@ -155,8 +155,8 @@ function Ticket({ ticket, index }: { ticket: TicketData; index: number }) {
           {ticket.usagesPatched} call site{ticket.usagesPatched !== 1 ? "s" : ""} auto-patched
         </span>
 
-        <span className="font-mono text-[10px] text-[#888888] uppercase tracking-widest">
-          Verified AST
+        <span className="font-mono text-[10px] text-[#8E8E93] uppercase tracking-widest">
+          CI GATED // VERIFIED AST
         </span>
       </div>
     </div>

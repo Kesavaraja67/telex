@@ -8,9 +8,9 @@ import FreeStrip from "@/components/marketing/FreeStrip";
 import Marginalia from "@/components/marketing/Marginalia";
 
 export const metadata: Metadata = {
-  title: "Telex — Autonomous Dependency Healing",
+  title: "Telex — Autonomous Revenue Recovery & Self-Healing Agent for Razorpay",
   description:
-    "Autonomous dependency healing. When an npm package releases breaking changes, Telex finds every call site and opens a PR with the verified fix.",
+    "Built for the Razorpay Pay 2026 Buildathon. Autonomous AI revenue recovery & self-healing patch agent for live Razorpay payment failures, webhook mismatches, and SDK breaks.",
 };
 
 export default function LandingPage() {
@@ -34,21 +34,26 @@ export default function LandingPage() {
             <span className="font-display font-bold text-xs tracking-[0.25em]">
               TELEX
             </span>
-            <span className="text-[#666666]">©2026 // OPEN SOURCE</span>
+            <span className="text-[#666666]">©2026 // RAZORPAY BUILDATHON</span>
           </div>
 
           <p className="text-center">
-            AUTONOMOUS SDK & API MIGRATION DAEMON
+            RAZORPAY PAY 2026 BUILDATHON // AUTONOMOUS REVENUE RECOVERY & HEALING DAEMON
           </p>
 
           <div className="flex gap-6">
-            {["GITHUB", "DOCS", "ARCHITECTURE", "STATUS"].map((link) => (
+            {[
+              { label: "GITHUB", href: "https://github.com/Kesavaraja67/telex" },
+              { label: "STREAM", href: "/dashboard/recovery" },
+              { label: "DASHBOARD", href: "/dashboard" },
+              { label: "STATUS", href: "https://telex-api.onrender.com/health" },
+            ].map((link) => (
               <a
-                key={link}
-                href="#"
+                key={link.label}
+                href={link.href}
                 className="hover:text-white transition-colors"
               >
-                {link}
+                {link.label}
               </a>
             ))}
           </div>
