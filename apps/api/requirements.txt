@@ -12,7 +12,7 @@ PyGithub>=2.3.0
 # google-generativeai was archived Dec 2025; use the maintained google-genai SDK
 google-genai>=1.0.0
 anthropic>=0.36.0
-apscheduler>=3.10.4
+apscheduler>=3.11.3
 python-jose[cryptography]>=3.3.0
 httpx>=0.27.0
 # Pinned to scanner-safe versions
