@@ -113,9 +113,31 @@ def is_safe_redirect(url_str: str) -> bool:
             allowed_netloc = urlparse(allowed).netloc.lower()
             if allowed_netloc and netloc == allowed_netloc:
                 return True
+        if netloc.endswith(".vercel.app") or "telex" in netloc:
+            return True
         return False
     except Exception:
         return False
+
+
+def _resolve_web_base(request: Request | None = None) -> str:
+    """Resolve the web dashboard base URL, ensuring production never redirects to localhost."""
+    is_prod = bool(os.getenv("RENDER") or settings.environment.strip().lower() == "production")
+    env_web = os.getenv("WEB_APP_URL") or settings.web_app_url
+    if env_web and not (is_prod and "localhost" in env_web):
+        return env_web.rstrip("/")
+    if is_prod:
+        if request:
+            ref = request.headers.get("referer") or request.headers.get("origin")
+            if ref:
+                try:
+                    p = urlparse(ref)
+                    if p.netloc.endswith(".vercel.app") or "telex" in p.netloc:
+                        return f"{p.scheme}://{p.netloc}"
+                except Exception:
+                    pass
+        return "https://telex-web.vercel.app"
+    return "http://localhost:3000"
 
 
 @router.get("/github")
@@ -233,7 +255,7 @@ async def github_callback(code: str, request: Request, state: str | None = None)
         user_id_str = str(user.id)
 
     # ── Build redirect response with session cookie ──────────────────────────
-    web_base = os.getenv("WEB_APP_URL") or settings.web_app_url or "http://localhost:3000"
+    web_base = _resolve_web_base(request)
 
     session_token = create_session_token(user_id_str)
 
@@ -313,7 +335,7 @@ async def get_current_user(request: Request):
 @router.get("/logout")
 async def logout(request: Request):
     """Clear session cookie and redirect to home."""
-    web_base = os.getenv("WEB_APP_URL") or settings.web_app_url or "http://localhost:3000"
+    web_base = _resolve_web_base(request)
     response = RedirectResponse(url=f"{web_base}/")
     response.delete_cookie(key="telex_session")
     response.delete_cookie(key="telex_user")

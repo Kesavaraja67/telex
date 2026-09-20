@@ -34,6 +34,8 @@ services:
         value: gemini
       - key: NEXTAUTH_SECRET
         sync: false
+      - key: WEB_APP_URL
+        value: https://telex-web.vercel.app
 
   # ── Paid Dedicated Background Worker (Optional Scale-Up) ─────────────────────
   # When upgrading to a paid plan ($7/mo starter), uncomment this block and set
