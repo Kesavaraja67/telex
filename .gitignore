@@ -66,3 +66,13 @@ coverage.xml
 .vercel
 .turbo
 
+# Brag
+brag-output/
+brag-output-30s/
+
+# Agent skills (ignore heavy media/binaries and scripts, keep markdown/configs)
+.agents/**/assets/
+.agents/**/scripts/
+.agents/**/*.wav
+.agents/**/*.ogg
+.agents/**/*.mp3
