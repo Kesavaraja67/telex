@@ -86,9 +86,14 @@ async def test_atlas_graph_enqueue_on_miss():
                 mock_session = MagicMock()
                 mock_session.__aenter__.return_value = mock_session
                 mock_session.__aexit__.return_value = None
+                mock_nested = MagicMock()
+                mock_nested.__aenter__.return_value = mock_nested
+                mock_nested.__aexit__.return_value = None
+                mock_session.begin_nested.return_value = mock_nested
 
                 mock_result = MagicMock()
                 mock_result.scalar_one_or_none.return_value = None  # Cache miss
+                mock_result.scalars.return_value = []
                 mock_session.execute = AsyncMock(return_value=mock_result)
                 mock_session.commit = AsyncMock()
                 mock_ctx.return_value = mock_session
@@ -217,3 +222,94 @@ async def test_atlas_file_not_found():
                     headers={"X-Demo-Key": "telex_demo_secret_2026"},
                 )
                 assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_atlas_graph_concurrent_race_integrity_error():
+    from sqlalchemy.exc import IntegrityError
+
+    repo_id = uuid.uuid4()
+    inst_id = uuid.uuid4()
+    repo = Repo(id=repo_id, full_name="owner/repo", installation_id=inst_id, default_branch="main")
+    inst = Installation(id=inst_id, github_installation_id=123, account_login="owner")
+
+    with patch("routers.atlas.get_authorized_repo", AsyncMock(return_value=(repo, inst))):
+        with patch("routers.atlas.get_default_branch_head_sha", return_value="abc1234"):
+            with patch("routers.atlas.AsyncSessionLocal") as mock_ctx:
+                mock_session = MagicMock()
+                mock_session.__aenter__.return_value = mock_session
+                mock_session.__aexit__.return_value = None
+                mock_nested = MagicMock()
+                mock_nested.__aenter__.side_effect = IntegrityError(
+                    "duplicate key", {}, Exception("unique violation")
+                )
+                mock_session.begin_nested.return_value = mock_nested
+
+                mock_result = MagicMock()
+                mock_result.scalar_one_or_none.return_value = None  # Cache miss
+                mock_result.scalars.return_value = []
+                mock_session.execute = AsyncMock(return_value=mock_result)
+                mock_ctx.return_value = mock_session
+
+                transport = ASGITransport(app=app)
+                async with AsyncClient(transport=transport, base_url="http://test") as client:
+                    resp = await client.get(
+                        f"/api/repos/{repo_id}/atlas/graph",
+                        headers={"X-Demo-Key": "telex_demo_secret_2026"},
+                    )
+                    assert resp.status_code == 202
+                    data = resp.json()
+                    assert data["status"] == "computing"
+
+
+@pytest.mark.asyncio
+async def test_atlas_graph_inflight_job_deduplication():
+    from db.models import Job
+
+    repo_id = uuid.uuid4()
+    inst_id = uuid.uuid4()
+    repo = Repo(id=repo_id, full_name="owner/repo", installation_id=inst_id, default_branch="main")
+    inst = Installation(id=inst_id, github_installation_id=123, account_login="owner")
+    existing_job = Job(
+        id=uuid.uuid4(),
+        job_type="build_atlas_graph",
+        status="queued",
+        payload={"repo_id": str(repo_id), "commit_sha": "abc1234"},
+    )
+
+    with patch("routers.atlas.get_authorized_repo", AsyncMock(return_value=(repo, inst))):
+        with patch("routers.atlas.get_default_branch_head_sha", return_value="abc1234"):
+            with patch("routers.atlas.AsyncSessionLocal") as mock_ctx:
+                mock_session = MagicMock()
+                mock_session.__aenter__.return_value = mock_session
+                mock_session.__aexit__.return_value = None
+                mock_nested = MagicMock()
+                mock_nested.__aenter__.return_value = mock_nested
+                mock_nested.__aexit__.return_value = None
+                mock_session.begin_nested.return_value = mock_nested
+
+                call_count = 0
+
+                def fake_execute(stmt):
+                    nonlocal call_count
+                    call_count += 1
+                    r = MagicMock()
+                    if call_count == 1:
+                        r.scalar_one_or_none.return_value = None  # Cache miss
+                    else:
+                        r.scalars.return_value = [existing_job]
+                    return r
+
+                mock_session.execute = AsyncMock(side_effect=fake_execute)
+                mock_session.commit = AsyncMock()
+                mock_ctx.return_value = mock_session
+
+                with patch("jobs.queue.enqueue_job", AsyncMock()) as mock_enqueue:
+                    transport = ASGITransport(app=app)
+                    async with AsyncClient(transport=transport, base_url="http://test") as client:
+                        resp = await client.get(
+                            f"/api/repos/{repo_id}/atlas/graph",
+                            headers={"X-Demo-Key": "telex_demo_secret_2026"},
+                        )
+                        assert resp.status_code == 202
+                        assert not mock_enqueue.called

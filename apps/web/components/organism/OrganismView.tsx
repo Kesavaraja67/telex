@@ -136,6 +136,7 @@ function handleEvent(
   switch (event.event_type) {
     case "usage_found":
       if (!cu) break;
+      const isNew = !scene.nodes.has(cu);
       scene.addNode({
         code_usage_id: cu,
         file_path: (payload.file_path as string) ?? "",
@@ -143,7 +144,9 @@ function handleEvent(
         line_end: (payload.line_end as number) ?? 0,
         status: "pending",
       });
-      setActiveCount((n) => n + 1);
+      if (isNew) {
+        setActiveCount((n) => n + 1);
+      }
       break;
 
     case "patch_generated":

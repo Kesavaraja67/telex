@@ -297,10 +297,7 @@ async def get_incident_events(
                 or_(
                     and_(
                         IncidentEvent.detected_change_id == dc_uuid,
-                        or_(
-                            IncidentEvent.repo_id == db_repo.id,
-                            IncidentEvent.repo_id.is_(None),
-                        ),
+                        IncidentEvent.repo_id == db_repo.id,
                     ),
                     and_(
                         CodeUsage.detected_change_id == dc_uuid,

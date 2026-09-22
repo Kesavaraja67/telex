@@ -26,9 +26,11 @@ from pathlib import PurePosixPath
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
-from db.models import RepoAtlasGraph
+from db.models import Job, RepoAtlasGraph
 from db.session import AsyncSessionLocal
+from jobs.queue import enqueue_job
 from routers.auth import get_authorized_repo, require_auth
 from services.github_service import (
     fetch_file_content,
@@ -102,27 +104,45 @@ async def get_atlas_graph(
 
         # If missing, explicitly refreshed, or orphaned/stale computing
         if row is None or refresh or is_stale_computing:
-            if row is None:
-                row = RepoAtlasGraph(
-                    id=uuid.uuid4(),
-                    repo_id=repo.id,
-                    commit_sha=resolved_sha,
-                    status="computing",
+            # Deduplicate queued builds before enqueueing
+            job_check = await session.execute(
+                select(Job).where(
+                    Job.job_type == "build_atlas_graph",
+                    Job.status.in_(["queued", "running"]),
                 )
-                session.add(row)
-            else:
-                row.status = "computing"
-                row.error_message = None
+            )
+            has_inflight_job = False
+            for j in job_check.scalars():
+                p = j.payload or {}
+                if str(p.get("repo_id")) == str(repo.id) and p.get("commit_sha") == resolved_sha:
+                    has_inflight_job = True
+                    break
 
-            from jobs.queue import enqueue_job
+            try:
+                async with session.begin_nested():
+                    if row is None:
+                        row = RepoAtlasGraph(
+                            id=uuid.uuid4(),
+                            repo_id=repo.id,
+                            commit_sha=resolved_sha,
+                            status="computing",
+                        )
+                        session.add(row)
+                    else:
+                        row.status = "computing"
+                        row.error_message = None
 
-            job_payload = {
-                "repo_id": str(repo.id),
-                "commit_sha": resolved_sha,
-                "installation_id": str(installation.id),
-            }
-            await enqueue_job(session, "build_atlas_graph", job_payload)
-            await session.commit()
+                    if not has_inflight_job:
+                        job_payload = {
+                            "repo_id": str(repo.id),
+                            "commit_sha": resolved_sha,
+                            "installation_id": str(installation.id),
+                        }
+                        await enqueue_job(session, "build_atlas_graph", job_payload)
+                await session.commit()
+            except IntegrityError:
+                # Concurrent request already inserted the row or enqueued build
+                pass
 
         return JSONResponse(
             status_code=202,

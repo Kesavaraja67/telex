@@ -129,3 +129,33 @@ async def test_fetch_repo_snapshot_size_limit():
             with patch("services.repo_ingest.httpx.AsyncClient", return_value=MockAsyncClient()):
                 with pytest.raises(RuntimeError, match="exceeds 1000 bytes"):
                     await fetch_repo_snapshot("owner/repo", 12345, "main")
+
+
+@pytest.mark.asyncio
+async def test_fetch_repo_snapshot_corrupted_tarball_cleans_up():
+    class MockStreamResp:
+        status_code = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+        async def aiter_bytes(self):
+            yield b"corrupted bytes that are definitely not a valid gzip tarball"
+
+    class MockAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+        def stream(self, method, url, headers=None):
+            return MockStreamResp()
+
+    with patch("services.repo_ingest.get_installation_token", return_value="test_token"):
+        with patch("services.repo_ingest.httpx.AsyncClient", return_value=MockAsyncClient()):
+            with pytest.raises(Exception):
+                await fetch_repo_snapshot("owner/repo", 12345, "main")

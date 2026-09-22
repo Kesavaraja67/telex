@@ -129,4 +129,5 @@ async def run(payload_or_session, maybe_job=None) -> None:
         raise
     finally:
         if tmp_root is not None:
-            shutil.rmtree(tmp_root.parent, ignore_errors=True)
+            to_delete = tmp_root if tmp_root.name.startswith("telex_atlas_") else tmp_root.parent
+            shutil.rmtree(to_delete, ignore_errors=True)

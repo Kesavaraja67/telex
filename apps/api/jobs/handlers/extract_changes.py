@@ -107,30 +107,42 @@ async def run(payload: dict) -> None:
 
         pv.scanned_at = datetime.now(timezone.utc)
 
-        # Record incident events for each detected change (rides same transaction)
-        # repo_id is not directly available here — resolved from RepoPackage below
-        for dc, change in dc_rows:
-            await record_event(
-                session,
-                event_type="change_detected",
-                detected_change_id=dc.id,
-                payload={
-                    "symbol_old": change.get("symbol_old", ""),
-                    "symbol_new": change.get("symbol_new"),
-                    "change_type": change.get("change_type", "signature_change"),
-                    "confidence": float(change.get("confidence", 0.8)),
-                    "package": package_name,
-                    "version": pv_version,
-                },
-            )
-
-        await session.commit()
-
         # Enqueue scan_repo for every repo that tracks this package
         repo_pkgs = await session.execute(
             select(RepoPackage).where(RepoPackage.package_id == pv_package_id)
         )
-        tracking_repo_ids = [str(rp.repo_id) for rp in repo_pkgs.scalars()]
+        tracking_repos = list(repo_pkgs.scalars())
+        tracking_repo_ids = [str(rp.repo_id) for rp in tracking_repos]
+
+        # Record repository-scoped incident events for each tracking repository
+        for dc, change in dc_rows:
+            change_payload = {
+                "symbol_old": change.get("symbol_old", ""),
+                "symbol_new": change.get("symbol_new"),
+                "change_type": change.get("change_type", "signature_change"),
+                "confidence": float(change.get("confidence", 0.8)),
+                "package": package_name,
+                "version": pv_version,
+            }
+            if tracking_repos:
+                for rp in tracking_repos:
+                    await record_event(
+                        session,
+                        event_type="change_detected",
+                        detected_change_id=dc.id,
+                        repo_id=rp.repo_id,
+                        payload=change_payload,
+                    )
+            else:
+                await record_event(
+                    session,
+                    event_type="change_detected",
+                    detected_change_id=dc.id,
+                    repo_id=None,
+                    payload=change_payload,
+                )
+
+        await session.commit()
 
         # Publish to live bus after commit (bus never sees uncommitted rows)
         # Collect dc ids/payloads before they become detached

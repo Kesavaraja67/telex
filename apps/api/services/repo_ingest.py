@@ -10,6 +10,7 @@ installation token exactly like every other github_service.py call.
 
 import io
 import logging
+import shutil
 import tarfile
 import tempfile
 from pathlib import Path
@@ -63,25 +64,31 @@ async def fetch_repo_snapshot(
             content = buffer.getvalue()
 
     tmpdir = Path(tempfile.mkdtemp(prefix="telex_atlas_"))
-    with tarfile.open(fileobj=io.BytesIO(content), mode="r:gz") as tf:
-        # GitHub tarballs wrap everything in one top-level "<owner>-<repo>-<sha>/" dir.
-        # The tarball is third-party content: the "data" filter rejects absolute paths,
-        # ".." traversal, links that escape the destination, and special files.
-        try:
-            tf.extractall(path=tmpdir, filter="data")
-        except TypeError:
-            safe_members = []
-            resolved_tmp = tmpdir.resolve()
-            for member in tf.getmembers():
-                member_path = (tmpdir / member.name).resolve()
-                if not member_path.is_relative_to(resolved_tmp):
-                    logger.warning("Skipping unsafe tar member: %s", member.name)
-                    continue
-                safe_members.append(member)
-            tf.extractall(path=tmpdir, members=safe_members)
+    try:
+        with tarfile.open(fileobj=io.BytesIO(content), mode="r:gz") as tf:
+            # GitHub tarballs wrap everything in one top-level "<owner>-<repo>-<sha>/" dir.
+            # The tarball is third-party content: the "data" filter rejects absolute paths,
+            # ".." traversal, links that escape the destination, and special files.
+            try:
+                tf.extractall(path=tmpdir, filter="data")
+            except TypeError:
+                safe_members = []
+                resolved_tmp = tmpdir.resolve()
+                for member in tf.getmembers():
+                    member_path = (tmpdir / member.name).resolve()
+                    if not member_path.is_relative_to(resolved_tmp) or not (
+                        member.isfile() or member.isdir()
+                    ):
+                        logger.warning("Skipping unsafe tar member: %s", member.name)
+                        continue
+                    safe_members.append(member)
+                tf.extractall(path=tmpdir, members=safe_members)
 
-    # Descend into the single top-level directory GitHub always wraps content in
-    children = list(tmpdir.iterdir())
-    if len(children) == 1 and children[0].is_dir():
-        return children[0]
-    return tmpdir
+        # Descend into the single top-level directory GitHub always wraps content in
+        children = list(tmpdir.iterdir())
+        if len(children) == 1 and children[0].is_dir():
+            return children[0]
+        return tmpdir
+    except Exception:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        raise

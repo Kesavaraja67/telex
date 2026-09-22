@@ -153,11 +153,7 @@ export class AtlasScene {
     // 7. Orbit listeners on canvas
     this.setupOrbitControls();
 
-    // 8. Resize listener
-    this.onWindowResize = this.onWindowResize.bind(this);
-    window.addEventListener("resize", this.onWindowResize);
-
-    // 9. Start render loop
+    // 8. Start render loop
     this.animate();
   }
 
