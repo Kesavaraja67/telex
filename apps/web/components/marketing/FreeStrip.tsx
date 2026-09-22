@@ -6,6 +6,10 @@ import { getApiUrl } from "@/lib/api";
 export default function FreeStrip() {
   const handleInstall = () => {
     const apiUrl = getApiUrl();
+    if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+      window.location.href = `${apiUrl}/api/auth/dev-login`;
+      return;
+    }
     window.location.href = `${apiUrl}/api/auth/github?next=install`;
   };
 

@@ -32,8 +32,9 @@ export default function ReposPage() {
         setSyncNotice(`Synced ${connected.length} personal repositories from GitHub App`);
         setTimeout(() => setSyncNotice(null), 4000);
       }
-    } catch {
-      // Keep existing repos
+    } catch (err: any) {
+      setSyncNotice(`Sync failed: ${err?.message || "Could not connect to API"}`);
+      setTimeout(() => setSyncNotice(null), 5000);
     } finally {
       setIsSyncing(false);
     }
@@ -341,7 +342,7 @@ export default function ReposPage() {
                     <div className="flex items-center gap-2 self-start md:self-auto">
                       <Link
                         href={`/dashboard/repos/${repo.id}`}
-                        className="font-mono text-xs px-3 py-1.5 rounded-lg border border-white/15 bg-white/5 text-white hover:bg-white hover:text-black transition-all flex items-center gap-1.5"
+                        className="font-mono text-xs px-3.5 py-1.5 rounded-lg border border-white/15 bg-white/5 text-white hover:bg-white hover:text-black transition-all flex items-center gap-1.5"
                       >
                         <span>View Patches</span>
                         <span>→</span>

@@ -1,0 +1,209 @@
+/* ── Organism View Styles ──────────────────────────────────────────────────── */
+/* Uses Telex brand tokens: void black, pure white, amber #E5A93C, teal #5EEAD4 */
+
+.organism-loading {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.organism-loading-dot {
+  width: 6px;
+  height: 6px;
+  background: #888;
+  border-radius: 50%;
+  animation: organism-pulse 1.2s ease-in-out infinite;
+}
+
+.organism-loading-dot:nth-child(1) { animation-delay: 0s; }
+.organism-loading-dot:nth-child(2) { animation-delay: 0.2s; }
+.organism-loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes organism-pulse {
+  0%, 100% { opacity: 0.2; transform: scale(0.85); }
+  50%       { opacity: 1.0; transform: scale(1.15); }
+}
+
+.organism-error-text {
+  font-family: 'Geist Mono', 'Courier New', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  color: #555;
+}
+
+.organism-drag-hint {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Geist Mono', 'Courier New', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+
+/* ── HUD Panels ───────────────────────────────────────────────────────────── */
+
+.organism-hud-panel {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 6px;
+  padding: 12px 16px;
+  pointer-events: none;
+}
+
+.organism-hud-topleft {
+  top: 20px;
+  left: 20px;
+  min-width: 180px;
+}
+
+.organism-hud-topright {
+  top: 20px;
+  right: 20px;
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.organism-hud-bottomleft {
+  bottom: 40px;
+  left: 20px;
+}
+
+.organism-hud-label {
+  font-family: 'Geist Mono', 'Courier New', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  color: rgba(255, 255, 255, 0.35);
+  margin: 0 0 4px 0;
+}
+
+.organism-hud-title {
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 2px 0;
+}
+
+.organism-hud-sub {
+  font-family: 'Geist Mono', 'Courier New', monospace;
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.45);
+  margin: 0 0 6px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.organism-hud-badge {
+  font-family: 'Geist Mono', 'Courier New', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.3);
+  margin: 0;
+}
+
+/* ── Stat counters ────────────────────────────────────────────────────────── */
+
+.organism-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.organism-stat-num {
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
+
+.organism-stat-label {
+  font-family: 'Geist Mono', 'Courier New', monospace;
+  font-size: 0.55rem;
+  letter-spacing: 0.16em;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* ── Legend ───────────────────────────────────────────────────────────────── */
+
+.organism-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Geist Mono', 'Courier New', monospace;
+  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 5px;
+}
+
+.organism-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.organism-dot-amber  { background: #E5A93C; box-shadow: 0 0 6px #E5A93C88; }
+.organism-dot-teal   { background: #5EEAD4; box-shadow: 0 0 6px #5EEAD488; }
+.organism-dot-dim    { background: #555; }
+
+.organism-brand-note {
+  font-family: 'Geist Mono', 'Courier New', monospace;
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.18);
+  margin: 8px 0 0 0;
+  font-style: italic;
+}
+
+/* ── Color tokens ─────────────────────────────────────────────────────────── */
+
+.organism-amber { color: #E5A93C; }
+.organism-teal  { color: #5EEAD4; }
+
+/* ── Mobile adaptations ───────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .organism-hud-topleft {
+    top: 12px;
+    left: 12px;
+    padding: 8px 12px;
+  }
+
+  .organism-hud-topright {
+    top: 12px;
+    right: 12px;
+    padding: 8px 12px;
+    gap: 14px;
+  }
+
+  .organism-hud-bottomleft {
+    bottom: 28px;
+    left: 12px;
+    padding: 8px 12px;
+  }
+
+  .organism-hud-title { font-size: 0.85rem; }
+  .organism-stat-num  { font-size: 1.2rem; }
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .organism-loading-dot {
+    animation: none;
+    opacity: 0.5;
+  }
+}

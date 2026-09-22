@@ -287,6 +287,7 @@ async def test_get_core_repositories_with_db_repos():
                                 all=MagicMock(return_value=[mock_db_repo])
                             )
                         else:
+                            mock_res.all.return_value = [(mock_db_repo.id, 2)]
                             mock_res.scalar_one.return_value = 2  # PR count
                         return mock_res
 

@@ -15,6 +15,13 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     ...((options?.headers as Record<string, string>) ?? {}),
   };
 
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("telex_token");
+    if (token && !reqHeaders["Authorization"]) {
+      reqHeaders["Authorization"] = `Bearer ${token}`;
+    }
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: reqHeaders,

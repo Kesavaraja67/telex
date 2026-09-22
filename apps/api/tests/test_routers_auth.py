@@ -5,7 +5,7 @@ Unit tests for routers/auth.py — session tokens, safe redirects, and require_a
 import uuid
 import pytest
 from fastapi import HTTPException
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from routers.auth import (
     create_session_token,
@@ -276,3 +276,121 @@ async def test_github_callback_success(monkeypatch):
                 assert resp.status_code in (302, 303, 307)
                 assert "dashboard" in resp.headers["location"]
                 assert "telex_session" in resp.cookies
+
+
+@pytest.mark.asyncio
+async def test_get_authorized_repo_missing_user():
+    from routers.auth import get_authorized_repo
+
+    mock_session = AsyncMock()
+    with pytest.raises(HTTPException) as exc:
+        await get_authorized_repo(mock_session, "some/repo", {})
+    assert exc.value.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_get_authorized_repo_invalid_user_uuid():
+    from routers.auth import get_authorized_repo
+
+    mock_session = AsyncMock()
+    with pytest.raises(HTTPException) as exc:
+        await get_authorized_repo(mock_session, "some/repo", {"user_id": "not-a-uuid-and-not-dev"})
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_get_authorized_repo_user_not_found():
+    from routers.auth import get_authorized_repo
+
+    mock_session = AsyncMock()
+    user_res = MagicMock()
+    user_res.scalar_one_or_none.return_value = None
+    mock_session.execute = AsyncMock(return_value=user_res)
+
+    with pytest.raises(HTTPException) as exc:
+        await get_authorized_repo(mock_session, "some/repo", {"user_id": str(uuid.uuid4())})
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_get_authorized_repo_success():
+    from db.models import Installation, Repo, User
+    from routers.auth import get_authorized_repo
+
+    user_id = uuid.uuid4()
+    user = User(id=user_id, github_login="testowner")
+    repo = Repo(id=uuid.uuid4(), full_name="testowner/myrepo")
+    inst = Installation(id=uuid.uuid4(), github_installation_id=123)
+
+    mock_session = AsyncMock()
+    call_count = 0
+
+    def fake_execute(stmt):
+        nonlocal call_count
+        call_count += 1
+        mock_r = MagicMock()
+        if call_count == 1:
+            mock_r.scalar_one_or_none.return_value = user
+        else:
+            mock_r.first.return_value = (repo, inst)
+        return mock_r
+
+    mock_session.execute = AsyncMock(side_effect=fake_execute)
+
+    res_repo, res_inst = await get_authorized_repo(
+        mock_session, "testowner/myrepo", {"user_id": str(user_id)}
+    )
+    assert res_repo.id == repo.id
+    assert res_inst.id == inst.id
+
+
+@pytest.mark.asyncio
+async def test_get_authorized_repo_forbidden_vs_not_found():
+    from db.models import User
+    from routers.auth import get_authorized_repo
+
+    user_id = uuid.uuid4()
+    user = User(id=user_id, github_login="testowner")
+
+    mock_session = AsyncMock()
+    call_count = 0
+
+    def fake_execute(stmt):
+        nonlocal call_count
+        call_count += 1
+        mock_r = MagicMock()
+        if call_count == 1:
+            mock_r.scalar_one_or_none.return_value = user
+        elif call_count == 2:
+            mock_r.first.return_value = None  # unauthorized
+        else:
+            mock_r.scalar_one_or_none.return_value = uuid.uuid4()  # repo exists
+        return mock_r
+
+    mock_session.execute = AsyncMock(side_effect=fake_execute)
+
+    with pytest.raises(HTTPException) as exc:
+        await get_authorized_repo(mock_session, "other/repo", {"user_id": str(user_id)})
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_get_authorized_repo_demo_operator():
+    from db.models import Installation, Repo
+    from routers.auth import get_authorized_repo
+
+    repo = Repo(id=uuid.uuid4(), full_name="demo/repo")
+    inst = Installation(id=uuid.uuid4(), github_installation_id=999)
+
+    mock_session = AsyncMock()
+    mock_res = MagicMock()
+    mock_res.first.return_value = (repo, inst)
+    mock_session.execute = AsyncMock(return_value=mock_res)
+
+    r, i = await get_authorized_repo(mock_session, "demo/repo", {"user_id": "demo-operator"})
+    assert r.id == repo.id
+
+    mock_res.first.return_value = None
+    with pytest.raises(HTTPException) as exc:
+        await get_authorized_repo(mock_session, "demo/repo", {"user_id": "demo-operator"})
+    assert exc.value.status_code == 404

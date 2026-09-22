@@ -193,7 +193,71 @@ async def dequeue_job(session: AsyncSession, worker_id: str) -> Job | None:
     claimed_job.locked_by = worker_id
     claimed_job.locked_at = func.now()
     claimed_job.attempts += 1
+
+    # Resolve repo_id from payload or related entities so the event can be scoped correctly
+    repo_id_str: str | None = None
+    if isinstance(claimed_job.payload, dict):
+        repo_id_val = claimed_job.payload.get("repo_id")
+        if repo_id_val:
+            repo_id_str = str(repo_id_val)
+        elif claimed_job.payload.get("code_usage_id"):
+            import uuid
+
+            from db.models import CodeUsage
+
+            cu_id = claimed_job.payload.get("code_usage_id")
+            try:
+                cu = await session.get(CodeUsage, uuid.UUID(str(cu_id)))
+                if cu and cu.repo_id:
+                    repo_id_str = str(cu.repo_id)
+            except Exception:
+                pass
+        elif claimed_job.payload.get("patch_id"):
+            import uuid
+
+            from db.models import CodeUsage, Patch
+
+            p_id = claimed_job.payload.get("patch_id")
+            try:
+                p = await session.get(Patch, uuid.UUID(str(p_id)))
+                if p and p.code_usage_id:
+                    cu = await session.get(CodeUsage, p.code_usage_id)
+                    if cu and cu.repo_id:
+                        repo_id_str = str(cu.repo_id)
+            except Exception:
+                pass
+
+    claimed_job_id_str = str(claimed_job.id)
+    claimed_job_type = claimed_job.job_type
+
+    # Record job_running event (rides the running-status commit)
+    from services.incident_events import record_event as _record_event
+
+    await _record_event(
+        session,
+        event_type="job_running",
+        repo_id=repo_id_str,
+        job_id=claimed_job.id,
+        payload={"job_type": claimed_job_type},
+    )
+
     await session.commit()
+
+    # Publish to bus after commit — non-fatal, never blocks the queue engine
+    try:
+        from services.event_bus import event_bus as _event_bus
+
+        await _event_bus.publish(
+            {
+                "event_type": "job_running",
+                "repo_id": repo_id_str,
+                "job_id": claimed_job_id_str,
+                "job_type": claimed_job_type,
+            }
+        )
+    except Exception as _exc:
+        logger.warning("event_bus publish job_running failed (non-fatal): %s", _exc)
+
     return claimed_job
 
 

@@ -1,10 +1,10 @@
 <div align="center">
   <img src="apps/web/public/logo.svg" width="72" height="72" alt="Telex" />
   <h1>Telex</h1>
-  <p><b>Autonomous dependency self-healing for production codebases.</b></p>
+  <p><b>Autonomous dependency self-healing and 3D architectural cartography for production codebases.</b></p>
   <p>
-    Watches npm &amp; PyPI · AST-scans affected repos · Generates LLM patches ·<br>
-    Verifies in ephemeral CI sandboxes · Opens human-reviewed pull requests.
+    Watches npm &amp; PyPI · Maps 3D Repo Atlas · AST-scans affected repos ·<br>
+    Calls LLMs for verified patches · Verifies in ephemeral CI sandboxes · Opens human-reviewed pull requests.
   </p>
 
   [![CI](https://github.com/Kesavaraja67/telex/actions/workflows/ci.yml/badge.svg)](https://github.com/Kesavaraja67/telex/actions/workflows/ci.yml)
@@ -27,31 +27,59 @@ When `axios@1.8.0` drops a breaking API change at 3 AM, your CI breaks in the mo
 
 **Telex handles the 4-line change.** Before your engineers get to work.
 
+- **Telex watches the packages**: Continuously monitors npm & PyPI registries for new versions, changelogs, and breaking symbol releases.
+- **Repo Atlas maps the codebase & blast radius**: Renders a dedicated 3D force-directed architecture visualizer showing every internal AST import, module layer, and real-time failure propagation cascade when a package breaks.
+- **Telex calls the LLM for fixes**: Generates precision unified diffs targeting only the affected call sites.
+- **Telex verifies before merging**: Runs your repo's actual test suites in ephemeral CI sandboxes and opens transparent, human-reviewed pull requests.
+
 ---
 
 ## How it works
 
 ```
-npm / PyPI registry
-       │
-       ▼  poll_registry  (every 15 min)
-Detect new version  ──→  extract_changes  (LLM parses breaking symbols from changelog)
-                                │
-                                ▼  scan_repo  (Tree-Sitter AST)
-                         Find affected call sites  ──→  TypeScript · TSX · JS · Python
-                                │
-                                ▼  generate_patch  (Best-of-3 LLM candidates)
-                         Structural check + real git apply → smallest passing diff
-                                │
-                                ▼  validate_patch  (ephemeral GitHub Actions sandbox)
-                         Repo's own test suite + typecheck gate
-                                │
-                                ▼  open_pr  (GitHub Pull Request + Check Run)
-                         Verification receipt in body  ·  "Telex Validation" check
-                         Never auto-merges — a human reviews and merges
+                    npm / PyPI registry
+                             │
+                             ▼  poll_registry  (watches packages 24/7)
+Detect new versions  ──→  extract_changes  (LLM parses breaking symbols from changelog)
+                             │
+     ┌───────────────────────┴───────────────────────┐
+     ▼                                               ▼
+3D Repo Atlas (/dashboard/atlas)            scan_repo  (Tree-Sitter AST)
+Maps imports in 3D force layout             Find affected call sites
+Pinpoints & illuminates live breakage pulse TypeScript · TSX · JS · Python
+Visualizes blast radius in real time                 │
+                                                     ▼  generate_patch  (calls LLM for fix)
+                                            Best-of-3 candidates → smallest valid diff
+                                                     │
+                                                     ▼  validate_patch  (ephemeral CI sandbox)
+                                            Repo's own test suite + typecheck gate
+                                                     │
+                                                     ▼  open_pr  (GitHub Pull Request + Check Run)
+                                            Verification receipt in body  ·  "Telex Validation" check
+                                            Never auto-merges — a human reviews and merges
 ```
 
 Every stage is a Postgres-backed async job with `SELECT … FOR UPDATE SKIP LOCKED`, exponential backoff, heartbeat leases, and per-installation fairness caps.
+
+---
+
+## What Repo Atlas does
+
+Accessible directly from the dashboard sidebar at `/dashboard/atlas`, **Repo Atlas** is Telex's dedicated 3D architectural visualizer and blast radius intelligence engine:
+
+<br>
+<img src="apps/web/public/repo-atlas-overview.png" alt="Telex Repo Atlas - 3D Dependency Topology and Repo Switcher" width="100%" />
+<br><br>
+
+1. **3D Codebase Cartography**: Ingests your repository snapshot and resolves static AST import graphs across **TypeScript, JavaScript, Python, Go, Rust, Java, C/C++, Ruby, and PHP**. Nodes settle into layered horizontal depth planes with collision-free polar force simulation.
+2. **Visual Blast Radius Mapping**: When Telex detects that an upstream package has changed or broken an API, Repo Atlas shows you the exact downstream blast radius — which files import the caller, which internal modules depend on them, and where the failure will propagate.
+3. **Live Breakage Overlay (SSE)**: Subscribes to real-time incident streams (`/api/repos/{id}/incidents/stream`) to pulse broken files and severed import wires in high-visibility crimson (`#E11D48`) while Telex's patch generator works.
+4. **Interactive In-Canvas Code Inspection**: Click any 3D card to open a slide-in syntax-highlighted code viewer, inspect line-level call sites, check last-commit author/timestamp, and review connected callers before the LLM patch lands.
+5. **Universal Multi-Repository Switching**: Seamlessly jump between any connected repositories with an instant dropdown switcher in the top bar.
+
+<br>
+<img src="apps/web/public/repo-atlas-inspect.png" alt="Telex Repo Atlas - In-Canvas Card Inspection, Code Preview & Legend" width="100%" />
+<br>
 
 ---
 
@@ -59,10 +87,12 @@ Every stage is a Postgres-backed async job with `SELECT … FOR UPDATE SKIP LOCK
 
 | | Naive approach | Telex |
 |---|---|---|
-| **Change detection** | Grep changelogs | LLM-structured breaking symbol extraction |
+| **Package Watchdog** | Wait for CI to break or Dependabot noise | Proactive 24/7 registry polling with LLM breaking symbol extraction |
+| **Architecture & Atlas** | Flat file trees & blind grep | Dedicated 3D Tree-Sitter AST dependency visualizer + live incident breakage overlay |
+| **Blast Radius** | Guesswork across logs and git blame | Instant 3D visual propagation mapping showing affected callers across the stack |
 | **Usage search** | `grep -r 'symbol'` | Tree-Sitter AST — zero false positives from comments or strings |
-| **Patch quality** | Single LLM call | Best-of-3 candidates → `git apply` filter → smallest valid diff |
-| **Verification** | "runs locally" | Ephemeral sandbox running the **repo's own test suite** on the actual patch |
+| **Fix Generation (LLM)** | Single generic prompt | Best-of-3 candidates → structural filter → `git apply` verify → smallest valid diff |
+| **Verification** | "runs locally" or trust LLM | Ephemeral sandbox running the **repo's own test suite** on the actual patch |
 | **PR transparency** | Generic "AI fix" | Explicit `verification_mode` + gate evidence in every PR body |
 | **Multi-tenancy** | Global FIFO | Per-installation cap — one high-volume org can't starve others |
 | **LLM provider** | One hardcoded key | BYOK for 10 providers · Fernet-encrypted at rest · Gemini fallback |
@@ -103,7 +133,7 @@ Telex ships with 10 provider implementations. Bring your own key in Settings —
 
 **Backend** — FastAPI · SQLAlchemy 2 async · PostgreSQL 15 · Alembic · APScheduler · PyGithub · Tree-Sitter 0.21 · cryptography (Fernet) · python-jose
 
-**Frontend** — Next.js 16 (App Router) · TypeScript strict · Vanilla CSS
+**Frontend** — Next.js 16 (App Router) · TypeScript strict · Three.js · d3-force-3d · Vanilla CSS & Tailwind CSS
 
 ---
 
@@ -164,13 +194,14 @@ The backend test suite covers:
 
 ```
 apps/api/
-  alembic/versions/     9 migrations (schema history preserved)
-  db/models.py          User, Installation, Repo, Patch, ValidationRun, UserApiKey, …
-  jobs/handlers/        poll_registry · extract_changes · scan_repo · generate_patch · validate_patch · open_pr
+  alembic/versions/     10 migrations (schema history preserved, including repo_atlas_graphs)
+  db/models.py          User, Installation, Repo, Patch, ValidationRun, RepoAtlasGraph, …
+  jobs/handlers/        poll_registry · extract_changes · scan_repo · generate_patch · validate_patch · build_atlas_graph · open_pr
   jobs/queue.py         SKIP LOCKED + per-installation fairness cap
-  routers/              auth · repos · packages · webhooks · stats · settings (BYOK)
+  routers/              auth · repos · packages · webhooks · stats · settings · atlas
   services/
     code_scanner.py     Tree-Sitter AST (TS, TSX, JS, Python)
+    import_graph.py     Multi-language AST import graph engine (TS, JS, Py, Go, Rust, Java, C/C++, Ruby, PHP)
     crypto.py           Fernet BYOK key encryption (single swappable _get_master_key)
     github_service.py   GitHub App: branches · PRs · Check Runs · rate-limit backoff
     patch_providers/    10 LLM implementations + BYOK-aware factory
@@ -179,6 +210,7 @@ apps/api/
 apps/web/app/dashboard/
   page.tsx              Telemetry overview
   repos/                Repo list · policy toggles · per-repo change/patch/PR detail
+  atlas/                Dedicated 3D Repo Atlas · AST dependency visualizer · real-time incident mapping
   settings/             BYOK key management (10 providers, live status)
   activity/             Cross-repo reverse-chronological event feed
 ```

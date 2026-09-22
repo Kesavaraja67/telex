@@ -6,7 +6,7 @@
 
 ## Overview
 
-The `apps/api` service powers Telex's dependency change detection, multi-language Tree-Sitter AST repository scanning, sandboxed patch verification, and self-healing GitHub Pull Request delivery.
+The `apps/api` service powers Telex's 24/7 package registry surveillance, multi-language Tree-Sitter AST repository scanning, 3D Repo Atlas architectural cartography & blast radius mapping, sandboxed patch verification, and self-healing GitHub Pull Request delivery.
 
 It runs as an asynchronous FastAPI application paired with a PostgreSQL row-level locked job queue (`SELECT ... FOR UPDATE SKIP LOCKED`), ensuring robust, duplicate-free task processing.
 
@@ -19,12 +19,14 @@ It runs as an asynchronous FastAPI application paired with a PostgreSQL row-leve
 | `routers/auth.py` | GitHub OAuth callback, signed session token generation, and `/api/auth/me` cross-domain authentication. |
 | `routers/repos.py` | Connected repository listing, sync, and verification policy management (`requires_tests`, `requires_typecheck`). |
 | `routers/packages.py` | Package tracking, version history, and detected breaking changes catalog. |
+| `routers/atlas.py` | Repo Atlas graph generation, text file content previews, and last-edited commit metadata. |
 | `routers/webhooks.py` | Cryptographic HMAC-SHA256 validation for GitHub events (`X-Hub-Signature-256`). |
 | `routers/stats.py` | Aggregated dashboard telemetry (repositories, packages, patches, open PRs). |
 | `services/code_scanner.py` | Tree-Sitter AST parser supporting TypeScript, TSX, JavaScript, and Python (`LANGUAGE_CONFIG`). |
+| `services/import_graph.py` | Multi-language Tree-Sitter static import extraction across TS, JS, Python, Go, Rust, Java, C/C++, Ruby, PHP. |
 | `services/github_service.py` | GitHub App authentication, atomic Git tree commits, ephemeral CI workflow synthesis, and PR creation. |
 | `services/patch_providers/` | Gemini and Claude unified diff synthesis providers. |
-| `jobs/handlers/` | Asynchronous worker tasks: `poll_registry`, `extract_changes`, `scan_repo`, `generate_patch`, `open_pr`. |
+| `jobs/handlers/` | Asynchronous worker tasks: `poll_registry`, `extract_changes`, `scan_repo`, `generate_patch`, `build_atlas_graph`, `open_pr`. |
 
 ---
 
@@ -39,6 +41,12 @@ It runs as an asynchronous FastAPI application paired with a PostgreSQL row-leve
 ### Repositories (`/api/repos`)
 - `GET /api/repos`: Lists connected repositories for the authenticated user.
 - `GET /api/repos/{id}`: Detailed view of a repository with its detected changes and patches.
+
+### Repo Atlas (`/api/repos/{id}/atlas`)
+- `GET /api/repos/{id}/atlas/graph`: Computes and retrieves cached 3D import graph (nodes, edges, folder hierarchy, commit SHA).
+- `GET /api/repos/{id}/atlas/file`: On-demand single file content preview for 3D card inspection.
+- `GET /api/repos/{id}/atlas/last-edited`: Returns last commit author and timestamp for a selected file.
+- `GET /api/repos/{id}/incidents/stream`: Server-Sent Events (SSE) stream for real-time incident breakage and blast radius pulses.
 
 ### Packages (`/api/packages`)
 - `GET /api/packages`: Monitored package listing across npm and PyPI.

@@ -10,10 +10,39 @@ Payload shape:
     }
 """
 
+import asyncio
 import logging
 import uuid
 
 logger = logging.getLogger(__name__)
+
+_BACKGROUND_TASKS: set[asyncio.Task] = set()
+
+
+def _publish_change_detected(repo_id_str, dc_id_str, payload_dict):
+    """Fire-and-forget coroutine helper called after commit."""
+    from services.event_bus import event_bus
+
+    async def _do():
+        try:
+            await event_bus.publish(
+                {
+                    "event_type": "change_detected",
+                    "repo_id": repo_id_str,
+                    "detected_change_id": dc_id_str,
+                    **payload_dict,
+                }
+            )
+        except Exception as exc:
+            logger.warning("event_bus publish change_detected failed (non-fatal): %s", exc)
+
+    try:
+        loop = asyncio.get_running_loop()
+        task = loop.create_task(_do())
+        _BACKGROUND_TASKS.add(task)
+        task.add_done_callback(_BACKGROUND_TASKS.discard)
+    except RuntimeError:
+        pass
 
 
 async def run(payload: dict) -> None:
@@ -55,6 +84,9 @@ async def run(payload: dict) -> None:
             await session.commit()
             return
 
+        from services.incident_events import record_event
+
+        dc_rows = []
         for change in changes:
             dc = DetectedChange(
                 package_version_id=package_version_id,
@@ -65,6 +97,7 @@ async def run(payload: dict) -> None:
                 confidence=float(change.get("confidence", 0.8)),
             )
             session.add(dc)
+            dc_rows.append((dc, change))
 
         # Capture scalar values before commit to avoid DetachedInstanceError
         pv_package_id = pv.package_id
@@ -73,18 +106,73 @@ async def run(payload: dict) -> None:
         from datetime import datetime, timezone
 
         pv.scanned_at = datetime.now(timezone.utc)
-        await session.commit()
 
         # Enqueue scan_repo for every repo that tracks this package
         repo_pkgs = await session.execute(
             select(RepoPackage).where(RepoPackage.package_id == pv_package_id)
         )
-        for rp in repo_pkgs.scalars():
+        tracking_repos = list(repo_pkgs.scalars())
+        tracking_repo_ids = [str(rp.repo_id) for rp in tracking_repos]
+
+        # Record repository-scoped incident events for each tracking repository
+        for dc, change in dc_rows:
+            change_payload = {
+                "symbol_old": change.get("symbol_old", ""),
+                "symbol_new": change.get("symbol_new"),
+                "change_type": change.get("change_type", "signature_change"),
+                "confidence": float(change.get("confidence", 0.8)),
+                "package": package_name,
+                "version": pv_version,
+            }
+            if tracking_repos:
+                for rp in tracking_repos:
+                    await record_event(
+                        session,
+                        event_type="change_detected",
+                        detected_change_id=dc.id,
+                        repo_id=rp.repo_id,
+                        payload=change_payload,
+                    )
+            else:
+                await record_event(
+                    session,
+                    event_type="change_detected",
+                    detected_change_id=dc.id,
+                    repo_id=None,
+                    payload=change_payload,
+                )
+
+        await session.commit()
+
+        # Publish to live bus after commit (bus never sees uncommitted rows)
+        # Collect dc ids/payloads before they become detached
+        dc_publish_list = [
+            (
+                str(dc.id),
+                {
+                    "symbol_old": ch.get("symbol_old", ""),
+                    "symbol_new": ch.get("symbol_new"),
+                    "change_type": ch.get("change_type", "signature_change"),
+                    "confidence": float(ch.get("confidence", 0.8)),
+                    "package": package_name,
+                    "version": pv_version,
+                },
+            )
+            for dc, ch in dc_rows
+        ]
+        for dc_id_str, ev_payload in dc_publish_list:
+            if tracking_repo_ids:
+                for r_id in tracking_repo_ids:
+                    _publish_change_detected(r_id, dc_id_str, ev_payload)
+            else:
+                _publish_change_detected(None, dc_id_str, ev_payload)
+
+        for r_id in tracking_repo_ids:
             await enqueue_job(
                 session,
                 "scan_repo",
                 {
-                    "repo_id": str(rp.repo_id),
+                    "repo_id": r_id,
                     "package_version_id": str(package_version_id),
                 },
             )

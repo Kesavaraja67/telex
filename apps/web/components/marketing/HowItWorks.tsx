@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+
 const STEPS = [
   {
     tag: "01 // DETECT",
