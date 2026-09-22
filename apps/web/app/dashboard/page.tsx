@@ -42,8 +42,9 @@ export default function DashboardOverview() {
       if (statsRes.status === "fulfilled") {
         setStats(statsRes.value);
       }
-    } catch {
-      // Keep existing data
+    } catch (err: any) {
+      setSyncNotice(`Sync failed: ${err?.message || "Could not connect to API"}`);
+      setTimeout(() => setSyncNotice(null), 5000);
     } finally {
       setIsSyncing(false);
     }

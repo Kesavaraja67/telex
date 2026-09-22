@@ -11,6 +11,7 @@ import os
 import subprocess
 import time
 import urllib.request
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -54,7 +55,7 @@ def _parse_github_datetime(iso_str: str | None) -> str:
         return iso_str[:10]
 
 
-def fetch_live_github_commits(repo_full_name: str, limit: int = 5) -> list[dict]:
+def fetch_live_github_commits(repo_full_name: str, limit: int = 5, token: str | None = None) -> list[dict]:
     """Fetch live recent commits for a repository from GitHub API."""
     cache_key = f"{repo_full_name}-{limit}"
     cached = _CACHE["commits_by_repo"].get(cache_key)
@@ -62,7 +63,13 @@ def fetch_live_github_commits(repo_full_name: str, limit: int = 5) -> list[dict]
         return cached["data"]
 
     url = f"https://api.github.com/repos/{repo_full_name}/commits?per_page={limit}"
-    req = urllib.request.Request(url, headers={"User-Agent": "Telex-Autonomous-Agent"})
+    headers = {
+        "User-Agent": "Telex-Autonomous-Agent",
+        "Accept": "application/vnd.github+json",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=6) as response:
             commits_raw = json.loads(response.read().decode())
@@ -191,7 +198,7 @@ BENCHMARK_REPOS: list[dict[str, Any]] = [
 
 
 def fetch_repo_metadata_from_github(
-    repo_full_name: str, default_branch: str = "main"
+    repo_full_name: str, default_branch: str = "main", token: str | None = None
 ) -> dict[str, Any]:
     """Dynamically fetches real repository description, languages, and dependencies from GitHub API."""
     metadata: dict[str, Any] = {
@@ -199,11 +206,19 @@ def fetch_repo_metadata_from_github(
         "languages": ["TypeScript"],
         "dependencies": ["typescript"],
     }
+    api_headers = {
+        "User-Agent": "Telex-Autonomous-Agent",
+        "Accept": "application/vnd.github+json",
+    }
+    raw_headers = {"User-Agent": "Telex-Autonomous-Agent"}
+    if token:
+        api_headers["Authorization"] = f"Bearer {token}"
+        raw_headers["Authorization"] = f"token {token}"
 
     # 1. Fetch repo description & primary language from GitHub API
     try:
         url = f"https://api.github.com/repos/{repo_full_name}"
-        req = urllib.request.Request(url, headers={"User-Agent": "Telex-Autonomous-Agent"})
+        req = urllib.request.Request(url, headers=api_headers)
         with urllib.request.urlopen(req, timeout=4) as resp:
             data = json.loads(resp.read().decode())
             if data.get("description"):
@@ -216,7 +231,7 @@ def fetch_repo_metadata_from_github(
     # 2. Fetch full languages breakdown
     try:
         lang_url = f"https://api.github.com/repos/{repo_full_name}/languages"
-        req = urllib.request.Request(lang_url, headers={"User-Agent": "Telex-Autonomous-Agent"})
+        req = urllib.request.Request(lang_url, headers=api_headers)
         with urllib.request.urlopen(req, timeout=4) as resp:
             lang_data = json.loads(resp.read().decode())
             if lang_data:
@@ -229,7 +244,7 @@ def fetch_repo_metadata_from_github(
     try:
         # Check raw package.json on default branch
         pkg_url = f"https://raw.githubusercontent.com/{repo_full_name}/{branch_to_use}/package.json"
-        req = urllib.request.Request(pkg_url, headers={"User-Agent": "Telex-Autonomous-Agent"})
+        req = urllib.request.Request(pkg_url, headers=raw_headers)
         with urllib.request.urlopen(req, timeout=4) as resp:
             pkg = json.loads(resp.read().decode())
             deps = list(pkg.get("dependencies", {}).keys())
@@ -239,7 +254,7 @@ def fetch_repo_metadata_from_github(
         try:
             # Fallback for Python repos: requirements.txt on default branch
             req_url = f"https://raw.githubusercontent.com/{repo_full_name}/{branch_to_use}/requirements.txt"
-            req = urllib.request.Request(req_url, headers={"User-Agent": "Telex-Autonomous-Agent"})
+            req = urllib.request.Request(req_url, headers=raw_headers)
             with urllib.request.urlopen(req, timeout=4) as resp:
                 lines = [
                     line.strip().split("==")[0].split(">=")[0]
@@ -257,7 +272,7 @@ def fetch_repo_metadata_from_github(
 _LAST_SYNC_TIME: float = 0.0
 
 
-async def sync_github_app_repositories_async() -> None:
+async def sync_github_app_repositories_async(user_id: str | None = None) -> None:
     """
     Directly queries GitHub App installations and syncs accessible repositories
     into the database so newly connected repositories are immediately available
@@ -300,6 +315,12 @@ async def sync_github_app_repositories_async() -> None:
                     session.add(db_inst)
                     await session.flush()
 
+                if user_id and not db_inst.installed_by:
+                    try:
+                        db_inst.installed_by = uuid.UUID(str(user_id))
+                    except Exception:
+                        pass
+
                 async with httpx.AsyncClient(timeout=15.0) as client:
                     gh_repos = []
                     page = 1
@@ -314,13 +335,11 @@ async def sync_github_app_repositories_async() -> None:
                             },
                         )
                         if resp.status_code != 200:
-                            # If the first page succeeded, we still process gathered repos
                             break
                         data = resp.json()
                         page_repos = data.get("repositories", [])
                         gh_repos.extend(page_repos)
                         total_count = data.get("total_count", len(gh_repos))
-                        # Stop fetching when all repositories are retrieved or no more returned
                         if not page_repos or len(gh_repos) >= total_count:
                             break
                         page += 1
@@ -375,67 +394,113 @@ async def sync_github_app_repositories_async() -> None:
 
 
 async def get_core_repositories_async(
-    force_sync: bool = False, include_benchmarks: bool = False
+    force_sync: bool = False,
+    include_benchmarks: bool = False,
+    user_id: str | None = None,
 ) -> list[dict]:
-    """Dynamically loads connected repositories from the database and hydrates live GitHub commit telemetry."""
+    """Dynamically loads connected repositories from the database and hydrates live GitHub commit telemetry in parallel."""
     global _LAST_SYNC_TIME
     if force_sync or (time.time() - _LAST_SYNC_TIME) > 30:
-        await sync_github_app_repositories_async()
+        await sync_github_app_repositories_async(user_id=user_id)
 
     from sqlalchemy import func, select
 
-    from db.models import PullRequest, Repo
+    from db.models import Installation, PullRequest, Repo
     from db.session import AsyncSessionLocal
 
     personal_repos: list[dict] = []
     try:
         async with AsyncSessionLocal() as session:
-            result = await session.execute(select(Repo).where(Repo.is_active == True))
+            stmt = select(Repo).where(Repo.is_active == True)
+            if user_id:
+                try:
+                    user_uuid = uuid.UUID(str(user_id))
+                    user_inst_res = await session.execute(
+                        select(Installation.id).where(Installation.installed_by == user_uuid)
+                    )
+                    user_inst_ids = [row[0] for row in user_inst_res.all()]
+                    if user_inst_ids:
+                        stmt = stmt.where(Repo.installation_id.in_(user_inst_ids))
+                except Exception:
+                    pass
+
+            result = await session.execute(stmt)
             db_repos = result.scalars().all()
 
             if not db_repos:
-                # No repos connected — dashboard shows empty personal section with connect prompt
                 personal_repos = []
             else:
-                for r in db_repos:
-                    commits = await asyncio.to_thread(fetch_live_github_commits, r.full_name, 5)
-                    meta = await asyncio.to_thread(
+                # Cache installation access tokens to avoid rate limits
+                inst_token_map: dict[Any, str] = {}
+                inst_ids = {r.installation_id for r in db_repos if r.installation_id}
+                if inst_ids:
+                    inst_records = (
+                        await session.execute(
+                            select(Installation).where(Installation.id.in_(inst_ids))
+                        )
+                    ).scalars().all()
+                    for inst_record in inst_records:
+                        try:
+                            from services.github_service import get_installation_token
+
+                            token = await asyncio.to_thread(
+                                get_installation_token, inst_record.github_installation_id
+                            )
+                            if token:
+                                inst_token_map[inst_record.id] = token
+                        except Exception:
+                            pass
+
+                async def hydrate_repo(r: Repo) -> dict:
+                    token = inst_token_map.get(r.installation_id)
+                    commits_task = asyncio.to_thread(
+                        fetch_live_github_commits, r.full_name, 5, token
+                    )
+                    meta_task = asyncio.to_thread(
                         fetch_repo_metadata_from_github,
                         r.full_name,
                         r.default_branch or "main",
+                        token,
                     )
+                    pr_task = session.execute(
+                        select(func.count(PullRequest.id)).where(PullRequest.repo_id == r.id)
+                    )
+
+                    commits, meta, pr_res = await asyncio.gather(
+                        commits_task, meta_task, pr_task, return_exceptions=True
+                    )
+                    commits = commits if isinstance(commits, list) else []
+                    meta = meta if isinstance(meta, dict) else {}
+                    pr_count: int = pr_res.scalar_one() if hasattr(pr_res, "scalar_one") else 0
+
                     parts = r.full_name.split("/")
                     owner = parts[0] if len(parts) > 1 else "User"
                     name = parts[1] if len(parts) > 1 else r.full_name
 
-                    pr_res = await session.execute(
-                        select(func.count(PullRequest.id)).where(PullRequest.repo_id == r.id)
-                    )
-                    pr_count: int = pr_res.scalar_one() or 0
+                    return {
+                        "id": str(r.id),
+                        "full_name": r.full_name,
+                        "name": name,
+                        "owner": owner,
+                        "description": meta.get("description")
+                        or f"Autonomous codebase tracked by Telex Engine ({', '.join(meta.get('languages', ['TypeScript']))}).",
+                        "default_branch": r.default_branch or "main",
+                        "is_active": r.is_active,
+                        "requires_tests": r.requires_tests,
+                        "requires_typecheck": r.requires_typecheck,
+                        "created_at": r.created_at,
+                        "github_url": f"https://github.com/{r.full_name}",
+                        "languages": meta.get("languages") or ["TypeScript"],
+                        "patch_count": pr_count,
+                        "status": "healthy",
+                        "category": "personal",
+                        "commits": commits,
+                        "last_commit": commits[0] if commits else None,
+                        "dependencies": meta.get("dependencies") or ["typescript"],
+                    }
 
-                    personal_repos.append(
-                        {
-                            "id": str(r.id),
-                            "full_name": r.full_name,
-                            "name": name,
-                            "owner": owner,
-                            "description": meta.get("description")
-                            or f"Autonomous codebase tracked by Telex Engine ({', '.join(meta['languages'])}).",
-                            "default_branch": r.default_branch or "main",
-                            "is_active": r.is_active,
-                            "requires_tests": r.requires_tests,
-                            "requires_typecheck": r.requires_typecheck,
-                            "created_at": r.created_at,
-                            "github_url": f"https://github.com/{r.full_name}",
-                            "languages": meta.get("languages") or ["TypeScript"],
-                            "patch_count": pr_count,
-                            "status": "healthy",
-                            "category": "personal",
-                            "commits": commits,
-                            "last_commit": commits[0] if commits else None,
-                            "dependencies": meta.get("dependencies") or ["typescript"],
-                        }
-                    )
+                hydrated = await asyncio.gather(*(hydrate_repo(r) for r in db_repos))
+                personal_repos = [h for h in hydrated if isinstance(h, dict)]
     except Exception as exc:
         logger.exception("get_core_repositories_async failed to load repositories: %s", exc)
         personal_repos = []

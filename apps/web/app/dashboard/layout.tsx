@@ -72,17 +72,38 @@ export default function DashboardLayout({
       window.location.hostname === "127.0.0.1"
     );
 
-    // Clean query parameters from address bar if any were provided
-    if (window.location.search) {
+    // Extract token from URL hash (#token=...) or query string (?token=...)
+    let tokenFromUrl: string | null = null;
+    if (window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      tokenFromUrl = hashParams.get("token");
+    }
+    if (!tokenFromUrl && window.location.search) {
+      const searchParams = new URLSearchParams(window.location.search);
+      tokenFromUrl = searchParams.get("token");
+    }
+
+    if (tokenFromUrl) {
+      localStorage.setItem("telex_token", tokenFromUrl);
+    }
+
+    // Clean query parameters and hash from address bar if any were provided
+    if (window.location.search || window.location.hash) {
       const cleanUrl = window.location.pathname;
       window.history.replaceState({}, document.title, cleanUrl);
     }
 
     const apiUrl = getApiUrl();
+    const token = localStorage.getItem("telex_token");
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
 
-    // Validate session against backend /api/auth/me via HttpOnly cookie
+    // Validate session against backend /api/auth/me via Bearer header and HttpOnly cookie
     fetch(`${apiUrl}/api/auth/me`, {
       credentials: "include",
+      headers,
     })
       .then((res) => {
         if (!res.ok) throw new Error("Auth request failed");
@@ -91,9 +112,14 @@ export default function DashboardLayout({
       .then((data) => {
         if (data.authenticated && data.user) {
           setUser(data.user);
+          if (data.user.github_login) {
+            localStorage.setItem("telex_user", data.user.github_login);
+          }
           setAuthStatus("authenticated");
         } else {
           setUser(null);
+          localStorage.removeItem("telex_token");
+          localStorage.removeItem("telex_user");
           setAuthStatus("unauthenticated");
         }
       })
@@ -108,7 +134,11 @@ export default function DashboardLayout({
     localStorage.removeItem("telex_user");
     const apiUrl = getApiUrl();
     try {
-      await fetch(`${apiUrl}/api/auth/logout`, { credentials: "include" });
+      await fetch(`${apiUrl}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
     } catch {
       // Ignore network errors on logout
     }
@@ -175,7 +205,8 @@ export default function DashboardLayout({
             <button
               id="auth-guard-signin-btn"
               onClick={() => {
-                window.location.href = `${apiUrl}/api/auth/github`;
+                const origin = encodeURIComponent(window.location.origin);
+                window.location.href = `${apiUrl}/api/auth/github?origin=${origin}`;
               }}
               className="w-full py-2.5 px-4 rounded-xl border border-white/20 text-white hover:bg-white/[0.08] font-mono text-xs tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer"
             >

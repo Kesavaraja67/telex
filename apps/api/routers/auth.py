@@ -11,7 +11,7 @@ from urllib.parse import urlencode, urlparse
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from jose import JWTError, jwt
 from sqlalchemy import select
 
@@ -141,15 +141,35 @@ def _resolve_web_base(request: Request | None = None) -> str:
 
 
 @router.get("/github")
-async def github_login(request: Request, next_url: str | None = Query(None, alias="next")):
+async def github_login(
+    request: Request,
+    next_url: str | None = Query(None, alias="next"),
+    origin: str | None = Query(None),
+):
     """Redirect the user to GitHub OAuth with optional post-login redirect state."""
-    # Generate a CSRF nonce; store in cookie and embed in state
+    client_origin = origin
+    if not client_origin:
+        ref = request.headers.get("referer")
+        if ref:
+            try:
+                p = urlparse(ref)
+                if p.scheme and p.netloc:
+                    candidate = f"{p.scheme}://{p.netloc}"
+                    if is_safe_redirect(candidate):
+                        client_origin = candidate
+            except Exception:
+                pass
+    elif not is_safe_redirect(client_origin):
+        client_origin = ""
+
+    # Generate a CSRF nonce; store in cookie and embed in state: nonce:next_url:client_origin
     nonce = secrets.token_urlsafe(24)
+    state_payload = f"{nonce}:{next_url or ''}:{client_origin or ''}"
     query = urlencode(
         {
             "client_id": settings.github_oauth_client_id,
             "scope": "read:user,user:email",
-            "state": f"{nonce}:{next_url or ''}",
+            "state": state_payload,
         }
     )
     response = RedirectResponse(f"https://github.com/login/oauth/authorize?{query}")
@@ -178,8 +198,10 @@ async def github_callback(code: str, request: Request, state: str | None = None)
     """
     # ── CSRF validation ─────────────────────────────────────────────────────
     stored_nonce = request.cookies.get("telex_oauth_state", "")
-    nonce_from_state = state.split(":", 1)[0] if state else ""
-    next_url = state.split(":", 1)[1] if state and ":" in state else ""
+    parts = state.split(":", 2) if state else []
+    nonce_from_state = parts[0] if len(parts) > 0 else ""
+    next_url = parts[1] if len(parts) > 1 else ""
+    origin_from_state = parts[2] if len(parts) > 2 else ""
 
     if stored_nonce and nonce_from_state:
         if not secrets.compare_digest(stored_nonce, nonce_from_state):
@@ -254,17 +276,22 @@ async def github_callback(code: str, request: Request, state: str | None = None)
         await session.commit()
         user_id_str = str(user.id)
 
-    # ── Build redirect response with session cookie ──────────────────────────
-    web_base = _resolve_web_base(request)
+    # ── Build redirect response with session cookie & token fragment ─────────
+    web_base = (
+        origin_from_state
+        if (origin_from_state and is_safe_redirect(origin_from_state))
+        else _resolve_web_base(request)
+    )
 
     session_token = create_session_token(user_id_str)
 
     if next_url == "install":
         redirect_url = f"https://github.com/apps/{settings.github_app_slug}/installations/new"
     elif next_url and is_safe_redirect(next_url):
-        redirect_url = f"{web_base}{next_url}" if next_url.startswith("/") else next_url
+        base_dest = f"{web_base}{next_url}" if next_url.startswith("/") else next_url
+        redirect_url = f"{base_dest}#token={session_token}"
     else:
-        redirect_url = f"{web_base}/dashboard"
+        redirect_url = f"{web_base}/dashboard#token={session_token}"
 
     response = RedirectResponse(url=redirect_url)
     # Clear the CSRF nonce — single-use
@@ -333,12 +360,34 @@ async def get_current_user(request: Request):
 
 
 @router.get("/logout")
+@router.post("/logout")
 async def logout(request: Request):
-    """Clear session cookie and redirect to home."""
+    """Clear session cookie and redirect to home or return JSON status."""
+    is_prod = bool(os.getenv("RENDER") or settings.environment == "production")
+    is_secure = request.url.scheme == "https" or is_prod
+    same_site_val = "none" if is_secure else "lax"
+
+    accept = request.headers.get("accept", "")
+    wants_json = request.method == "POST" or "application/json" in accept
+
     web_base = _resolve_web_base(request)
-    response = RedirectResponse(url=f"{web_base}/")
-    response.delete_cookie(key="telex_session")
-    response.delete_cookie(key="telex_user")
+    if wants_json:
+        response = JSONResponse(content={"ok": True, "status": "logged_out"})
+    else:
+        response = RedirectResponse(url=f"{web_base}/", status_code=303)
+
+    response.delete_cookie(
+        key="telex_session",
+        path="/",
+        secure=is_secure,
+        samesite=same_site_val,
+    )
+    response.delete_cookie(
+        key="telex_user",
+        path="/",
+        secure=is_secure,
+        samesite=same_site_val,
+    )
     return response
 
 
@@ -370,7 +419,7 @@ async def dev_login(request: Request, login: str = "kesavaraja67"):
 
     session_token = create_session_token(user_id_str)
     web_base = os.getenv("WEB_APP_URL", "http://localhost:3000")
-    redirect_url = f"{web_base}/dashboard"
+    redirect_url = f"{web_base}/dashboard#token={session_token}"
     response = RedirectResponse(url=redirect_url, status_code=303)
     response.set_cookie(
         key="telex_session",

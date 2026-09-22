@@ -32,8 +32,9 @@ export default function ReposPage() {
         setSyncNotice(`Synced ${connected.length} personal repositories from GitHub App`);
         setTimeout(() => setSyncNotice(null), 4000);
       }
-    } catch {
-      // Keep existing repos
+    } catch (err: any) {
+      setSyncNotice(`Sync failed: ${err?.message || "Could not connect to API"}`);
+      setTimeout(() => setSyncNotice(null), 5000);
     } finally {
       setIsSyncing(false);
     }

@@ -4,7 +4,7 @@ Repos API — list live repositories, commit history, and Gemini 2.5 Flash archi
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import Text, cast, or_, select
 
 from db.models import CodeUsage, DetectedChange, Patch, PullRequest, Repo, ValidationRun
@@ -29,20 +29,39 @@ from services.repo_service import (
 router = APIRouter(prefix="/api/repos", tags=["repos"])
 
 
-@router.post("/sync", response_model=list[RepoOut], dependencies=[Depends(require_auth)])
-@router.get("/sync", response_model=list[RepoOut], dependencies=[Depends(require_auth)])
-async def sync_repos(include_benchmarks: bool = False):
+@router.post("/sync", response_model=list[RepoOut])
+@router.get("/sync", response_model=list[RepoOut])
+async def sync_repos(
+    request: Request,
+    include_benchmarks: bool = False,
+    auth_data: dict = Depends(require_auth),
+):
     """Immediately syncs repositories from GitHub App installations and returns the active repos."""
-    await sync_github_app_repositories_async()
-    repos = await get_core_repositories_async(include_benchmarks=include_benchmarks)
+    user_id = auth_data.get("user_id") if isinstance(auth_data, dict) else None
+    await sync_github_app_repositories_async(user_id=user_id)
+    repos = await get_core_repositories_async(
+        force_sync=True, include_benchmarks=include_benchmarks, user_id=user_id
+    )
     return repos
 
 
 @router.get("", response_model=list[RepoOut])
-async def list_repos(sync: bool = False, include_benchmarks: bool = False):
+async def list_repos(
+    request: Request,
+    sync: bool = False,
+    include_benchmarks: bool = False,
+):
     """Return all active monitored repositories with live git commit metadata."""
+    user_id = None
+    try:
+        auth_data = await require_auth(request)
+        if isinstance(auth_data, dict):
+            user_id = auth_data.get("user_id")
+    except Exception:
+        pass
+
     repos = await get_core_repositories_async(
-        force_sync=sync, include_benchmarks=include_benchmarks
+        force_sync=sync, include_benchmarks=include_benchmarks, user_id=user_id
     )
     return repos
 

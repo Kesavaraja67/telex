@@ -16,7 +16,13 @@ export default function Nav() {
 
   useEffect(() => {
     const apiUrl = getApiUrl();
-    fetch(`${apiUrl}/api/auth/me`, { credentials: "include" })
+    const token = typeof window !== "undefined" ? localStorage.getItem("telex_token") : null;
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    fetch(`${apiUrl}/api/auth/me`, { credentials: "include", headers })
       .then((res) => {
         if (!res.ok) throw new Error("Auth check failed");
         return res.json();
@@ -24,12 +30,14 @@ export default function Nav() {
       .then((data) => {
         if (data.authenticated && data.user?.github_login) {
           setUser(data.user.github_login);
+          localStorage.setItem("telex_user", data.user.github_login);
         } else {
           setUser(null);
         }
       })
       .catch(() => {
-        setUser(null);
+        const cached = typeof window !== "undefined" ? localStorage.getItem("telex_user") : null;
+        setUser(cached);
       });
   }, []);
 
@@ -38,8 +46,27 @@ export default function Nav() {
     if (user) {
       window.location.href = "/dashboard";
     } else {
-      window.location.href = `${apiUrl}/api/auth/github`;
+      const origin = typeof window !== "undefined" ? encodeURIComponent(window.location.origin) : "";
+      window.location.href = `${apiUrl}/api/auth/github?origin=${origin}`;
     }
+  };
+
+  const handleSignOut = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    localStorage.removeItem("telex_token");
+    localStorage.removeItem("telex_user");
+    setUser(null);
+    const apiUrl = getApiUrl();
+    try {
+      await fetch(`${apiUrl}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+    } catch {
+      // Ignore network errors
+    }
+    window.location.reload();
   };
 
   return (
@@ -86,20 +113,36 @@ export default function Nav() {
         </div>
 
         {/* Sign In / User Dashboard CTA */}
-        <button
-          id="nav-signin-btn"
-          onClick={handleAuthAction}
-          className="font-mono text-[10px] uppercase tracking-[0.18em] px-4 sm:px-5 py-2 rounded-full border border-white/20 hover:border-white text-white hover:bg-white/[0.08] backdrop-blur-md transition-all active:scale-95 cursor-pointer shadow-sm flex items-center gap-2 shrink-0 whitespace-nowrap"
-        >
-          {user ? (
-            <>
+        {user ? (
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              id="nav-signin-btn"
+              onClick={handleAuthAction}
+              className="font-mono text-[10px] uppercase tracking-[0.18em] px-3.5 sm:px-4 py-2 rounded-full border border-white/20 hover:border-white text-white hover:bg-white/[0.08] backdrop-blur-md transition-all active:scale-95 cursor-pointer shadow-sm flex items-center gap-2 whitespace-nowrap"
+            >
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-              <span>{user} // Dashboard →</span>
-            </>
-          ) : (
+              <span>{`${user} // Deck →`}</span>
+            </button>
+            <button
+              onClick={handleSignOut}
+              title="Sign Out"
+              aria-label="Sign Out"
+              className="p-2 rounded-full border border-white/15 text-[#71717A] hover:text-white hover:border-white/30 hover:bg-white/[0.08] transition-all cursor-pointer"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          </div>
+        ) : (
+          <button
+            id="nav-signin-btn"
+            onClick={handleAuthAction}
+            className="font-mono text-[10px] uppercase tracking-[0.18em] px-4 sm:px-5 py-2 rounded-full border border-white/20 hover:border-white text-white hover:bg-white/[0.08] backdrop-blur-md transition-all active:scale-95 cursor-pointer shadow-sm flex items-center gap-2 shrink-0 whitespace-nowrap"
+          >
             <span>Sign in →</span>
-          )}
-        </button>
+          </button>
+        )}
       </div>
     </header>
   );
