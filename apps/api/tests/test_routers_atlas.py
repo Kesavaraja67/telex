@@ -96,9 +96,10 @@ async def test_atlas_graph_enqueue_on_miss():
                 mock_result.scalars.return_value = []
                 mock_session.execute = AsyncMock(return_value=mock_result)
                 mock_session.commit = AsyncMock()
+                mock_session.refresh = AsyncMock()
                 mock_ctx.return_value = mock_session
 
-                with patch("jobs.queue.enqueue_job", AsyncMock()):
+                with patch("routers.atlas.enqueue_job", AsyncMock()) as mock_enqueue:
                     transport = ASGITransport(app=app)
                     async with AsyncClient(transport=transport, base_url="http://test") as client:
                         resp = await client.get(
@@ -109,6 +110,7 @@ async def test_atlas_graph_enqueue_on_miss():
                         data = resp.json()
                         assert data["status"] == "computing"
                         assert data["commit_sha"] == "abc1234"
+                        assert mock_enqueue.called
 
 
 @pytest.mark.asyncio
@@ -304,7 +306,7 @@ async def test_atlas_graph_inflight_job_deduplication():
                 mock_session.commit = AsyncMock()
                 mock_ctx.return_value = mock_session
 
-                with patch("jobs.queue.enqueue_job", AsyncMock()) as mock_enqueue:
+                with patch("routers.atlas.enqueue_job", AsyncMock()) as mock_enqueue:
                     transport = ASGITransport(app=app)
                     async with AsyncClient(transport=transport, base_url="http://test") as client:
                         resp = await client.get(
