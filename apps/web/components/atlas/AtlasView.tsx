@@ -22,7 +22,13 @@ function getAuthHeaders(): Record<string, string> {
   return headers;
 }
 
-export default function AtlasView({ repoId }: { repoId: string }) {
+export default function AtlasView({
+  repoId,
+  showBackButton = true,
+}: {
+  repoId: string;
+  showBackButton?: boolean;
+}) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<AtlasScene | null>(null);
@@ -234,13 +240,15 @@ export default function AtlasView({ repoId }: { repoId: string }) {
       {/* Top HUD Bar */}
       <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-5 py-4 pointer-events-none z-40">
         <div className="pointer-events-auto flex items-center gap-2.5">
-          <button
-            onClick={() => router.back()}
-            className="font-mono text-xs px-3.5 py-1.5 rounded-lg border border-white/15 bg-black/70 backdrop-blur text-[#A1A1AA] hover:text-white hover:border-white/30 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
-          >
-            <span>←</span>
-            <span>Close Atlas</span>
-          </button>
+          {showBackButton && (
+            <button
+              onClick={() => router.push("/dashboard/repos")}
+              className="font-mono text-xs px-3.5 py-1.5 rounded-lg border border-white/15 bg-black/70 backdrop-blur text-[#A1A1AA] hover:text-white hover:border-white/30 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+            >
+              <span>←</span>
+              <span>Repositories</span>
+            </button>
+          )}
 
           {repoName && (
             <div className="flex items-center gap-2 font-mono text-xs text-[#E4E4E7] bg-black/70 backdrop-blur px-3 py-1.5 rounded-lg border border-white/10 shadow-sm">

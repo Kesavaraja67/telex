@@ -65,6 +65,7 @@ Every stage is a Postgres-backed async job with `SELECT … FOR UPDATE SKIP LOCK
 | **Verification** | "runs locally" | Ephemeral sandbox running the **repo's own test suite** on the actual patch |
 | **PR transparency** | Generic "AI fix" | Explicit `verification_mode` + gate evidence in every PR body |
 | **Multi-tenancy** | Global FIFO | Per-installation cap — one high-volume org can't starve others |
+| **Architecture Atlas** | Flat file lists | Dedicated 3D Tree-Sitter AST dependency visualizer + live incident breakage overlay |
 | **LLM provider** | One hardcoded key | BYOK for 10 providers · Fernet-encrypted at rest · Gemini fallback |
 
 ---
@@ -103,7 +104,7 @@ Telex ships with 10 provider implementations. Bring your own key in Settings —
 
 **Backend** — FastAPI · SQLAlchemy 2 async · PostgreSQL 15 · Alembic · APScheduler · PyGithub · Tree-Sitter 0.21 · cryptography (Fernet) · python-jose
 
-**Frontend** — Next.js 16 (App Router) · TypeScript strict · Vanilla CSS
+**Frontend** — Next.js 16 (App Router) · TypeScript strict · Three.js · d3-force-3d · Vanilla CSS & Tailwind CSS
 
 ---
 
@@ -164,13 +165,14 @@ The backend test suite covers:
 
 ```
 apps/api/
-  alembic/versions/     9 migrations (schema history preserved)
-  db/models.py          User, Installation, Repo, Patch, ValidationRun, UserApiKey, …
-  jobs/handlers/        poll_registry · extract_changes · scan_repo · generate_patch · validate_patch · open_pr
+  alembic/versions/     10 migrations (schema history preserved, including repo_atlas_graphs)
+  db/models.py          User, Installation, Repo, Patch, ValidationRun, RepoAtlasGraph, …
+  jobs/handlers/        poll_registry · extract_changes · scan_repo · generate_patch · validate_patch · build_atlas_graph · open_pr
   jobs/queue.py         SKIP LOCKED + per-installation fairness cap
-  routers/              auth · repos · packages · webhooks · stats · settings (BYOK)
+  routers/              auth · repos · packages · webhooks · stats · settings · atlas
   services/
     code_scanner.py     Tree-Sitter AST (TS, TSX, JS, Python)
+    import_graph.py     Multi-language AST import graph engine (TS, JS, Py, Go, Rust, Java, C/C++, Ruby, PHP)
     crypto.py           Fernet BYOK key encryption (single swappable _get_master_key)
     github_service.py   GitHub App: branches · PRs · Check Runs · rate-limit backoff
     patch_providers/    10 LLM implementations + BYOK-aware factory
@@ -179,6 +181,7 @@ apps/api/
 apps/web/app/dashboard/
   page.tsx              Telemetry overview
   repos/                Repo list · policy toggles · per-repo change/patch/PR detail
+  atlas/                Dedicated 3D Repo Atlas · AST dependency visualizer · real-time incident mapping
   settings/             BYOK key management (10 providers, live status)
   activity/             Cross-repo reverse-chronological event feed
 ```

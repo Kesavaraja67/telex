@@ -193,27 +193,6 @@ export default function RepoDetailPage({
 
         {/* GitHub Link & Policy Badge */}
         <div className="flex items-center gap-2.5 self-start sm:self-center">
-          <button
-            onClick={() => router.push(`/dashboard/repos/${repoId}/atlas`)}
-            className="group relative font-mono text-xs px-4 py-2 rounded-lg border border-white/20 bg-gradient-to-b from-white/[0.08] to-white/[0.02] text-white hover:border-white/40 transition-all flex items-center gap-2 overflow-hidden cursor-pointer"
-          >
-            <span
-              className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-              style={{
-                background:
-                  "radial-gradient(circle at 30% 30%, rgba(94,234,212,0.15), transparent 60%)",
-              }}
-              aria-hidden="true"
-            />
-            <svg className="w-3.5 h-3.5 relative" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <circle cx="12" cy="5" r="1.75" />
-              <circle cx="5" cy="19" r="1.75" />
-              <circle cx="19" cy="19" r="1.75" />
-              <path strokeLinecap="round" d="M12 6.75V13M12 13L6 17.5M12 13l6 4.5" />
-            </svg>
-            <span className="relative font-semibold tracking-tight">Open Repo Atlas</span>
-          </button>
-
           <Link
             href="/dashboard/repos"
             className="font-mono text-xs px-3 py-1.5 rounded-lg border border-white/15 bg-white/[0.04] text-[#A1A1AA] hover:text-white hover:border-white/30 transition-all"

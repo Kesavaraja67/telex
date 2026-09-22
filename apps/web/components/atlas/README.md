@@ -7,9 +7,9 @@ Repo Atlas renders a persistent, whole-repository 3D structural map of any conne
 ## 1. Architecture Overview
 
 ```
-apps/web/app/dashboard/repos/[id]/atlas/page.tsx
-  └─ AtlasView.tsx (HUD, polling, SSE event handling)
-       ├─ AtlasScene.ts (Three.js scene, lighting, camera orbit)
+apps/web/app/dashboard/atlas/page.tsx (Dedicated operator page with repo switcher dropdown)
+  └─ AtlasView.tsx (HUD, polling, SSE event handling, keyboard shortcuts)
+       ├─ AtlasScene.ts (Three.js scene, lighting, camera orbit, camera reset & focus)
        │    ├─ LayeredLayout.ts (hierarchical folder depth Y + 2D X/Z force simulation)
        │    ├─ CardTextureAtlas.ts (512x320 canvas card textures & language badges)
        │    ├─ WireRenderer2.ts (hierarchy lines + bezier import wires + breakage pulses)
@@ -57,9 +57,11 @@ Each file card is a 16:10 world plane (`1.6 × 1.0` units) backed by a 512×320 
 
 - Extracted via tree-sitter AST queries without running untrusted code.
 - Resolves:
-  - Relative imports (`./`, `../`)
-  - Path aliases from `tsconfig.json` (`compilerOptions.paths`)
-  - Python module imports
+  - TypeScript, TSX, JavaScript (`import`, `require`, dynamic `import()`, `tsconfig.json` paths)
+  - Python (`from . import ...`, absolute package imports)
+  - Go (`import "package"`, internal module directories)
+  - Rust (`use crate::...`, internal submodules)
+  - Java, C/C++, Ruby, PHP, and web configuration files
 - **Honesty Guarantees**:
   - Dynamic imports `import(expr)` and unresolvable internal specifiers are recorded as `unresolved_specifiers` on the card and never drawn as dangling edges to nowhere.
   - External 3rd-party packages are deliberately omitted so the graph represents the repository itself.

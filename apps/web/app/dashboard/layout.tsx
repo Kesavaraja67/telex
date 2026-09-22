@@ -35,6 +35,18 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: "/dashboard/atlas",
+    label: "Repo Atlas",
+    icon: (
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75}>
+        <circle cx="12" cy="5" r="2" />
+        <circle cx="5" cy="19" r="2" />
+        <circle cx="19" cy="19" r="2" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5m0 0l-5.5 5m5.5-5l5.5 5" />
+      </svg>
+    ),
+  },
+  {
     href: "/dashboard/activity",
     label: "Activity Feed",
     icon: (
@@ -356,8 +368,20 @@ export default function DashboardLayout({
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto bg-black relative">
-        <div className="max-w-6xl mx-auto px-8 py-10 relative z-10">{children}</div>
+      <main
+        className={`flex-1 ${
+          pathname.startsWith("/dashboard/atlas") ? "overflow-hidden h-screen" : "overflow-auto"
+        } bg-black relative`}
+      >
+        <div
+          className={
+            pathname.startsWith("/dashboard/atlas")
+              ? "w-full h-full relative"
+              : "max-w-6xl mx-auto px-8 py-10 relative z-10"
+          }
+        >
+          {children}
+        </div>
       </main>
     </div>
   );

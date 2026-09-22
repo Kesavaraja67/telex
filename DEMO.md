@@ -49,6 +49,23 @@ When an upstream package (such as `openai` or `stripe`) publishes a breaking rel
 
 ---
 
+## Scenario 3: 3D Repo Atlas & Real-Time Incident Architecture Mapping
+
+### Step 1: Navigating to Dedicated Repo Atlas
+1. Open the **Telex Dashboard** at `http://localhost:3000/dashboard`.
+2. Click **Repo Atlas** in the sidebar navigation (or browse directly to `/dashboard/atlas`).
+
+### Step 2: Multi-Repository Switching
+1. In the top navigation bar, use the **REPO:** dropdown to switch between any connected repositories (e.g. `Kesavaraja67/telex`, `Token-Print`, `aura-drops`).
+2. The 3D layered scene initializes immediately, fetching the AST import graph, computing spatial coordinates, and caching the ready state.
+
+### Step 3: Interactive Exploration & Breakage Inspection
+1. **Camera Navigation**: Left-click and drag to orbit in 3D; mouse wheel to zoom; press <kbd>F</kbd> to re-center the panoramic perspective.
+2. **Card Inspection**: Click on any file card to smoothly focus the camera and slide open the live Code Preview panel with syntax highlighting and last-edited commit metadata.
+3. **Live Incident Overlays**: When a dependency incident breaks symbol usages, implicated files pulse in vivid rose (`#E11D48`), highlighting exactly which modules are impacted.
+
+---
+
 ## Running Local Verification Tests
 
 Telex includes 18 automated unit and integration tests across AST scanning and patch validation:

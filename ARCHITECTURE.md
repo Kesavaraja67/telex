@@ -128,3 +128,55 @@ Telex never assumes that an LLM-generated patch is bug-free. Instead of relying 
 - **Absolute Non-Negotiable: Never Auto-Merge**: Telex opens pull requests. A human engineer merges them. Under no condition, at any confidence threshold, does Telex merge code automatically.
 - **Cross-Origin Authenticated Sessions**: Authentication between the Next.js frontend (Vercel) and FastAPI backend (Render) uses HttpOnly session tokens with `/api/auth/me` verification and strict origin whitelisting.
 - **Production Secret Guard**: In `ENVIRONMENT=production`, the API process fails loudly at boot if required credentials (`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `NEXTAUTH_SECRET`) are missing or using development defaults.
+
+---
+
+## 5. Repo Atlas: 3D Layered Architecture & AST Dependency Visualizer
+
+Telex features a real-time, interactive 3D architecture visualizer accessible via the dedicated operator page `/dashboard/atlas`.
+
+```text
+ ┌────────────────────────────────────────────────────────────────────────────────────────┐
+ │                              REPO SNAPSHOT & INGESTION                                 │
+ │           GitHub tarball download · Zero per-file API rate-limit exhaustion            │
+ └────────────────────────────────────────────────────────────────────────────────────────┘
+                                             │
+                                             ▼
+ ┌────────────────────────────────────────────────────────────────────────────────────────┐
+ │                         MULTI-LANGUAGE AST GRAPH PARSER                                │
+ │       Tree-Sitter: TS, JS, Python, Go, Rust, Java, C/C++, Ruby, PHP + tsconfig paths   │
+ └────────────────────────────────────────────────────────────────────────────────────────┘
+                                             │
+                                             ▼
+ ┌────────────────────────────────────────────────────────────────────────────────────────┐
+ │                       LAYERED 3D FORCE-DIRECTED LAYOUT                                 │
+ │         Folder hierarchy on Y-axis · d3-force-3d polar collision layout on X/Z         │
+ └────────────────────────────────────────────────────────────────────────────────────────┘
+                                             │
+                                             ▼
+ ┌────────────────────────────────────────────────────────────────────────────────────────┐
+ │                         DYNAMIC THREE.JS CANVAS HUD                                    │
+ │        512x320 Canvas Card Textures · Glowing Wire Conduits · SSE Breakage Overlay    │
+ └────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 5.1 Architecture Pipeline
+1. **Durable Ingestion & Snapshotting**:
+   - Downloads GitHub's codeload tarball for the target branch in one authenticated request scoped to the installation token (`services/repo_ingest.py`).
+   - Extracts directory trees safely with path traversal guards.
+2. **Multi-Language AST Import Graph Extraction**:
+   - `services/import_graph.py` traverses the codebase and invokes Tree-Sitter parsers for:
+     - **TypeScript, TSX, JavaScript**: `import`, `require`, dynamic `import()`, and `tsconfig.json` path aliases (`@/*`).
+     - **Python**: `from . import ...`, package-root absolute imports, and `__init__.py` modules.
+     - **Go, Rust, Java, C, C++, Ruby, PHP**: native import syntax queries.
+   - De-duplicates edges and logs unresolved imports transparently.
+3. **Layered 3D Spatial Layout Engine**:
+   - Folder hierarchy is projected deterministically along polar coordinates on the Y-axis (`LayeredLayout.ts`).
+   - File cards settle into non-overlapping concentric positions using constrained 3D force simulation (`d3-force-3d`).
+4. **Dynamic High-Fidelity Rendering**:
+   - Card textures are dynamically rasterized onto crisp 512x320 canvas textures (`CardTextureAtlas.ts`) with custom language badges and live last-edited commit metadata.
+   - Animated glowing wire conduits render static import dependencies (`WireRenderer2.ts`).
+5. **Real-Time Breakage Overlay**:
+   - Subscribes to Server-Sent Events (`/api/repos/{id}/incidents/stream`) to immediately pulse broken files and dependencies in vivid rose (`#E11D48`) when an upstream dependency change breaks code usages.
+6. **Dedicated Operator Surface**:
+   - Centralized on `/dashboard/atlas` with repository switching dropdown, camera reset (`F`), live refresh (`R`), legend toggle (`L`), and direct drilldown to patch generation.

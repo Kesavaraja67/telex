@@ -22,7 +22,9 @@ The `apps/web` application is the unified operator dashboard and marketing porta
 | `/dashboard` | Operator analytics, patch counts, recent detected changes | `StatCounter.tsx`, `RepoCard.tsx`, `DiffViewer.tsx` |
 | `/dashboard/repos` | Connected repositories, GitHub App installation status | `RepoCard.tsx`, `Badge.tsx` |
 | `/dashboard/repos/[id]` | Repository detail view with active patches and verification status | `PatchTicket.tsx`, `DiffViewer.tsx` |
+| `/dashboard/atlas` | Dedicated 3D Repo Atlas · AST dependency visualizer · real-time incident mapping | `AtlasView.tsx`, `AtlasScene.ts`, `LayeredLayout.ts`, `CardTextureAtlas.ts`, `CodePreviewPanel.tsx` |
 | `/dashboard/settings` | Verification gate policies and provider key management | Policy toggles, provider status |
+| `/dashboard/activity` | Live reverse-chronological event and audit feed | `ActivityFeed.tsx` |
 
 ---
 
@@ -31,7 +33,7 @@ The `apps/web` application is the unified operator dashboard and marketing porta
 - **Framework**: Next.js 16.3.1 (App Router)
 - **Styling**: Tailwind CSS, Vanilla CSS design tokens, Glassmorphism
 - **Animations**: Motion React (`motion/react`), Anime.js
-- **3D Graphics**: Three.js WebGL Canvas
+- **3D Graphics & Physics**: Three.js WebGL Canvas, d3-force-3d layered spatial layout
 - **Typography**: Space Grotesk, Plus Jakarta Sans, Geist Mono
 - **Deployment**: Vercel
 
