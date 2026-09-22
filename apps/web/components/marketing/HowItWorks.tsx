@@ -1,6 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import dynamic from "next/dynamic";
+import { FixtureDataSource } from "@/components/organism/FixtureDataSource";
+
+// Lazy-load OrganismView so Three.js doesn't block the marketing page parse
+const OrganismView = dynamic(
+  () => import("@/components/organism/OrganismView"),
+  { ssr: false, loading: () => <div style={{ height: 520, background: "#000" }} /> }
+);
+
 
 const STEPS = [
   {
@@ -44,6 +53,8 @@ steps:
 
 export default function HowItWorks() {
   const [activeStep, setActiveStep] = useState<number | null>(null);
+  // Stable data source — useMemo so it isn't recreated on re-render
+  const fixtureSource = useMemo(() => new FixtureDataSource(), []);
 
   return (
     <section id="how-it-works" className="py-28 px-6 sm:px-10 bg-black border-t border-white/[0.08]">
@@ -119,6 +130,36 @@ export default function HowItWorks() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* ── Organism View ──────────────────────────────────────────────── */}
+        <div className="mt-16">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <span className="font-mono text-[10px] tracking-[0.25em] text-[#8E8E93] uppercase block mb-1">
+                [ LIVE INCIDENT GRAPH ]
+              </span>
+              <h3 className="font-header font-bold text-xl text-white tracking-tight">
+                Watch Telex heal a codebase — live.
+              </h3>
+            </div>
+            <p className="font-mono text-[10px] text-[#555] hidden sm:block">
+              Telex never auto-merges.
+            </p>
+          </div>
+
+          <div
+            className="relative rounded-3xl overflow-hidden border border-white/[0.08] bg-black"
+            style={{ height: 520 }}
+          >
+            <OrganismView dataSource={fixtureSource} showHUD={false} className="w-full h-full" />
+
+            {/* Bottom fade for section blending */}
+            <div
+              className="absolute bottom-0 left-0 right-0 h-24 pointer-events-none"
+              style={{ background: "linear-gradient(to bottom, transparent, #000)" }}
+            />
+          </div>
         </div>
       </div>
     </section>
