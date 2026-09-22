@@ -151,3 +151,53 @@ class RescanIn(BaseModel):
     old_version: str
     new_version: str
     changelog: str | None = None
+
+
+# ── Organism View / Incident Graphs ───────────────────────────────────────────
+
+
+class IncidentNodeOut(BaseModel):
+    """One call-site node in an incident graph (one CodeUsage row)."""
+
+    code_usage_id: str
+    file_path: str
+    line_start: int
+    line_end: int
+    status: str  # pending | patched | skipped | failed
+    patch_verified: bool | None = None
+    validation: dict | None = None  # {applies_cleanly, typechecks, tests_pass, scope_ok}
+    pr_url: str | None = None
+    pr_merged: bool | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class IncidentGraphOut(BaseModel):
+    """Full snapshot of one incident — root DetectedChange + all CodeUsage nodes."""
+
+    detected_change_id: str
+    repo_id: str
+    package: str
+    symbol_old: str
+    symbol_new: str | None
+    change_type: str
+    confidence: float
+    created_at: str
+    nodes: list[IncidentNodeOut]
+
+    model_config = {"from_attributes": True}
+
+
+class IncidentEventOut(BaseModel):
+    """One row from incident_events — used for the events history endpoint (replay)."""
+
+    id: str
+    event_type: str
+    repo_id: str | None
+    detected_change_id: str | None
+    code_usage_id: str | None
+    job_id: str | None
+    payload: dict
+    created_at: str
+
+    model_config = {"from_attributes": True}

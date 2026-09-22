@@ -16,6 +16,26 @@ import uuid
 logger = logging.getLogger(__name__)
 
 
+def _publish_change_detected(repo_id_str, dc_id_str, payload_dict):
+    """Fire-and-forget coroutine helper called after commit."""
+    import asyncio
+    from services.event_bus import event_bus
+
+    async def _do():
+        try:
+            await event_bus.publish({
+                "event_type": "change_detected",
+                "repo_id": repo_id_str,
+                "detected_change_id": dc_id_str,
+                **payload_dict,
+            })
+        except Exception as exc:
+            logger.warning("event_bus publish change_detected failed (non-fatal): %s", exc)
+
+    loop = asyncio.get_event_loop()
+    loop.create_task(_do())
+
+
 async def run(payload: dict) -> None:
     from sqlalchemy import select
 
@@ -55,6 +75,9 @@ async def run(payload: dict) -> None:
             await session.commit()
             return
 
+        from services.incident_events import record_event
+
+        dc_rows = []
         for change in changes:
             dc = DetectedChange(
                 package_version_id=package_version_id,
@@ -65,6 +88,7 @@ async def run(payload: dict) -> None:
                 confidence=float(change.get("confidence", 0.8)),
             )
             session.add(dc)
+            dc_rows.append((dc, change))
 
         # Capture scalar values before commit to avoid DetachedInstanceError
         pv_package_id = pv.package_id
@@ -73,7 +97,41 @@ async def run(payload: dict) -> None:
         from datetime import datetime, timezone
 
         pv.scanned_at = datetime.now(timezone.utc)
+
+        # Record incident events for each detected change (rides same transaction)
+        # repo_id is not directly available here — resolved from RepoPackage below
+        for dc, change in dc_rows:
+            await record_event(
+                session,
+                event_type="change_detected",
+                detected_change_id=dc.id,
+                payload={
+                    "symbol_old": change.get("symbol_old", ""),
+                    "symbol_new": change.get("symbol_new"),
+                    "change_type": change.get("change_type", "signature_change"),
+                    "confidence": float(change.get("confidence", 0.8)),
+                    "package": package_name,
+                    "version": pv_version,
+                },
+            )
+
         await session.commit()
+
+        # Publish to live bus after commit (bus never sees uncommitted rows)
+        # Collect dc ids/payloads before they become detached
+        dc_publish_list = [
+            (str(dc.id), {
+                "symbol_old": ch.get("symbol_old", ""),
+                "symbol_new": ch.get("symbol_new"),
+                "change_type": ch.get("change_type", "signature_change"),
+                "confidence": float(ch.get("confidence", 0.8)),
+                "package": package_name,
+                "version": pv_version,
+            })
+            for dc, ch in dc_rows
+        ]
+        for dc_id_str, ev_payload in dc_publish_list:
+            _publish_change_detected(None, dc_id_str, ev_payload)
 
         # Enqueue scan_repo for every repo that tracks this package
         repo_pkgs = await session.execute(

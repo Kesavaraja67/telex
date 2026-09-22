@@ -1,0 +1,292 @@
+"""
+Incidents router — SSE live stream, graph snapshot, and event history.
+
+Three endpoints:
+  GET /api/repos/{repo_id}/incidents/stream
+      Server-Sent Events stream for live incident events for this repo.
+      Auth: require_auth (cookie or Bearer — EventSource sends the httpOnly
+      cookie automatically with withCredentials: true, and our CORSMiddleware
+      already has allow_credentials=True).
+
+  GET /api/repos/{repo_id}/incidents/{detected_change_id}/graph
+      Full current-state snapshot of one incident. Used on mount (before
+      subscribing to the stream) and for mid-incident catch-up after a
+      dropped-frame.
+
+  GET /api/repos/{repo_id}/incidents/{detected_change_id}/events
+      Historical incident_event rows, ordered by created_at, with optional
+      ?since=<ISO timestamp> for incremental fetch. Used by the replay feature.
+"""
+
+import asyncio
+import json
+import logging
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import StreamingResponse
+from sqlalchemy import select
+
+from db.models import (
+    CodeUsage,
+    DetectedChange,
+    IncidentEvent,
+    Package,
+    PackageVersion,
+    Patch,
+    PullRequest,
+    Repo,
+    ValidationRun,
+)
+from db.session import AsyncSessionLocal
+from routers.auth import require_auth
+from schemas import IncidentEventOut, IncidentGraphOut, IncidentNodeOut
+from services.event_bus import event_bus
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/repos/{repo_id}/incidents", tags=["incidents"])
+
+
+# ── SSE live stream ───────────────────────────────────────────────────────────
+
+
+@router.get("/stream")
+async def stream_incidents(
+    repo_id: str,
+    request: Request,
+    auth_data: dict = Depends(require_auth),
+):
+    """Server-Sent Events stream of incident_events for this repo, live.
+
+    The browser uses EventSource with withCredentials:true which sends the
+    httpOnly telex_session cookie automatically — no bearer token in URL
+    (that would leak to server logs and browser history).
+
+    Heartbeat every 15s keeps intermediary proxies (Render, Vercel edge,
+    corporate proxies) from killing idle connections.
+    """
+    queue = event_bus.subscribe(repo_id=repo_id)
+
+    async def generate():
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    yield f"data: {json.dumps(event)}\n\n"
+                except asyncio.TimeoutError:
+                    # SSE keepalive comment — proxies see traffic, connection stays open
+                    yield ": heartbeat\n\n"
+        finally:
+            event_bus.unsubscribe(queue)
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # disable nginx/proxy response buffering
+            "Connection": "keep-alive",
+        },
+    )
+
+
+# ── Snapshot endpoint ─────────────────────────────────────────────────────────
+
+
+@router.get("/{detected_change_id}/graph", response_model=IncidentGraphOut)
+async def get_incident_graph(
+    repo_id: str,
+    detected_change_id: str,
+    auth_data: dict = Depends(require_auth),
+):
+    """Full current-state snapshot of one incident's graph.
+
+    Mirrors the query shape in routers/repos.py list_patches():
+    join Patch+CodeUsage, batch-map PullRequest by patch_ids array,
+    batch-map latest ValidationRun by patch_id.
+    """
+    async with AsyncSessionLocal() as session:
+        # Resolve repo by id (UUID) or full_name string
+        repo_stmt = select(Repo).where(Repo.id == _try_uuid(repo_id)).limit(1)
+        if not _try_uuid(repo_id):
+            repo_stmt = select(Repo).where(Repo.full_name == repo_id).limit(1)
+        repo_result = await session.execute(repo_stmt)
+        db_repo = repo_result.scalar_one_or_none()
+        if db_repo is None:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Repo not found")
+
+        # Resolve detected_change
+        dc = await session.get(DetectedChange, _try_uuid(detected_change_id))
+        if dc is None:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Incident not found")
+
+        # Resolve package/version info for root node label
+        pv = await session.get(PackageVersion, dc.package_version_id)
+        package_name = "unknown"
+        if pv:
+            pkg = await session.get(Package, pv.package_id)
+            if pkg:
+                package_name = pkg.name
+
+        # Fetch all CodeUsages for this change
+        cu_stmt = select(CodeUsage).where(CodeUsage.detected_change_id == dc.id)
+        cu_result = await session.execute(cu_stmt)
+        code_usages = list(cu_result.scalars())
+
+        if not code_usages:
+            return IncidentGraphOut(
+                detected_change_id=str(dc.id),
+                repo_id=str(db_repo.id),
+                package=package_name,
+                symbol_old=dc.symbol_old or "",
+                symbol_new=dc.symbol_new,
+                change_type=dc.change_type or "signature_change",
+                confidence=float(dc.confidence or 0.0),
+                created_at=dc.created_at.isoformat() if dc.created_at else "",
+                nodes=[],
+            )
+
+        cu_ids = [cu.id for cu in code_usages]
+
+        # Batch-load all Patches for these usages
+        patch_stmt = select(Patch).where(Patch.code_usage_id.in_(cu_ids))
+        patch_result = await session.execute(patch_stmt)
+        patches = list(patch_result.scalars())
+        patch_by_cu: dict = {}
+        for p in patches:
+            patch_by_cu.setdefault(p.code_usage_id, []).append(p)
+
+        # Batch-load all ValidationRuns for those patches
+        patch_ids = [p.id for p in patches]
+        vr_map: dict = {}
+        if patch_ids:
+            vr_stmt = select(ValidationRun).where(ValidationRun.patch_id.in_(patch_ids)).order_by(
+                ValidationRun.created_at.desc()
+            )
+            vr_result = await session.execute(vr_stmt)
+            for vr in vr_result.scalars():
+                if vr.patch_id not in vr_map:
+                    vr_map[vr.patch_id] = vr
+
+        # Batch-load PullRequests for this repo
+        pr_stmt = select(PullRequest).where(PullRequest.repo_id == db_repo.id)
+        pr_result = await session.execute(pr_stmt)
+        pr_rows = list(pr_result.scalars())
+        pr_by_patch: dict = {}
+        for pr in pr_rows:
+            for pid in pr.patch_ids or []:
+                pr_by_patch[pid] = pr
+
+        # Assemble nodes
+        nodes: list[IncidentNodeOut] = []
+        for cu in code_usages:
+            cu_patches = patch_by_cu.get(cu.id, [])
+            best_patch = next((p for p in cu_patches if p.verified), None) or (
+                cu_patches[0] if cu_patches else None
+            )
+            best_vr = vr_map.get(best_patch.id) if best_patch else None
+            best_pr = pr_by_patch.get(best_patch.id) if best_patch else None
+
+            nodes.append(
+                IncidentNodeOut(
+                    code_usage_id=str(cu.id),
+                    file_path=cu.file_path,
+                    line_start=cu.line_start,
+                    line_end=cu.line_end,
+                    status=cu.status or "pending",
+                    patch_verified=best_patch.verified if best_patch else None,
+                    validation={
+                        "applies_cleanly": best_vr.applies_cleanly,
+                        "typechecks": best_vr.typechecks,
+                        "tests_pass": best_vr.tests_pass,
+                        "scope_ok": best_vr.scope_ok,
+                        "verification_mode": best_vr.verification_mode,
+                    } if best_vr else None,
+                    pr_url=best_pr.github_pr_url if best_pr else None,
+                    pr_merged=best_pr.merged if best_pr else None,
+                )
+            )
+
+        return IncidentGraphOut(
+            detected_change_id=str(dc.id),
+            repo_id=str(db_repo.id),
+            package=package_name,
+            symbol_old=dc.symbol_old or "",
+            symbol_new=dc.symbol_new,
+            change_type=dc.change_type or "signature_change",
+            confidence=float(dc.confidence or 0.0),
+            created_at=dc.created_at.isoformat() if dc.created_at else "",
+            nodes=nodes,
+        )
+
+
+# ── Event history endpoint (for replay and catch-up) ─────────────────────────
+
+
+@router.get("/{detected_change_id}/events", response_model=list[IncidentEventOut])
+async def get_incident_events(
+    repo_id: str,
+    detected_change_id: str,
+    since: str | None = None,
+    limit: int = 500,
+    auth_data: dict = Depends(require_auth),
+):
+    """Return ordered incident_event rows for one incident.
+
+    Optional ?since=<ISO-8601 timestamp> for incremental fetching.
+    Used by the replay scrubber (Phase 3) and client catch-up logic.
+    """
+    dc_uuid = _try_uuid(detected_change_id)
+    if dc_uuid is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Invalid detected_change_id")
+
+    async with AsyncSessionLocal() as session:
+        stmt = (
+            select(IncidentEvent)
+            .where(IncidentEvent.detected_change_id == dc_uuid)
+            .order_by(IncidentEvent.created_at.asc())
+            .limit(min(limit, 2000))
+        )
+        if since:
+            try:
+                since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+                stmt = stmt.where(IncidentEvent.created_at > since_dt)
+            except ValueError:
+                pass
+
+        result = await session.execute(stmt)
+        events = list(result.scalars())
+
+        return [
+            IncidentEventOut(
+                id=str(ev.id),
+                event_type=ev.event_type,
+                repo_id=str(ev.repo_id) if ev.repo_id else None,
+                detected_change_id=str(ev.detected_change_id) if ev.detected_change_id else None,
+                code_usage_id=str(ev.code_usage_id) if ev.code_usage_id else None,
+                job_id=str(ev.job_id) if ev.job_id else None,
+                payload=ev.payload or {},
+                created_at=ev.created_at.isoformat() if ev.created_at else "",
+            )
+            for ev in events
+        ]
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+
+def _try_uuid(value: str | None):
+    """Return a uuid.UUID if value is a valid UUID string, else None."""
+    if not value:
+        return None
+    import uuid
+    try:
+        return uuid.UUID(value)
+    except (ValueError, AttributeError):
+        return None

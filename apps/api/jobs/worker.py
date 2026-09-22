@@ -138,6 +138,17 @@ async def worker_loop(worker_id: str) -> None:
                 await handler(job.payload)
                 job.status = "done"
                 logger.info("Job %s completed", job.id)
+                # Publish job_done after handler succeeds (commit happens in finally)
+                try:
+                    from services.event_bus import event_bus
+                    await event_bus.publish({
+                        "event_type": "job_done",
+                        "job_id": str(job.id),
+                        "job_type": job.job_type,
+                        "attempts": job.attempts,
+                    })
+                except Exception as _bus_exc:
+                    logger.warning("event_bus publish job_done failed (non-fatal): %s", _bus_exc)
             except Exception as exc:
                 # Rollback any aborted DB state before writing job status
                 await session.rollback()
@@ -160,6 +171,20 @@ async def worker_loop(worker_id: str) -> None:
                         delay,
                         exc,
                     )
+                # Publish job_failed after status update (commit happens in finally)
+                try:
+                    from services.event_bus import event_bus
+                    final_status = job.status  # "failed" or "queued" (retry)
+                    await event_bus.publish({
+                        "event_type": "job_failed",
+                        "job_id": str(job.id),
+                        "job_type": job.job_type,
+                        "attempts": job.attempts,
+                        "final_status": final_status,
+                        "error": str(exc)[:200],
+                    })
+                except Exception as _bus_exc:
+                    logger.warning("event_bus publish job_failed failed (non-fatal): %s", _bus_exc)
             finally:
                 heartbeat_task.cancel()
                 try:

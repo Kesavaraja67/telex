@@ -193,8 +193,41 @@ async def dequeue_job(session: AsyncSession, worker_id: str) -> Job | None:
     claimed_job.locked_by = worker_id
     claimed_job.locked_at = func.now()
     claimed_job.attempts += 1
+
+    # Resolve repo_id from payload so the event can be scoped correctly
+    repo_id_str: str | None = None
+    if isinstance(claimed_job.payload, dict):
+        repo_id_val = claimed_job.payload.get("repo_id")
+        if repo_id_val:
+            repo_id_str = str(repo_id_val)
+
+    # Record job_running event (rides the running-status commit)
+    from services.incident_events import record_event as _record_event
+    from db.models import IncidentEvent as _  # noqa: ensure model is loaded
+    await _record_event(
+        session,
+        event_type="job_running",
+        repo_id=repo_id_str,
+        job_id=claimed_job.id,
+        payload={"job_type": claimed_job.job_type},
+    )
+
     await session.commit()
+
+    # Publish to bus after commit — non-fatal, never blocks the queue engine
+    try:
+        from services.event_bus import event_bus as _event_bus
+        await _event_bus.publish({
+            "event_type": "job_running",
+            "repo_id": repo_id_str,
+            "job_id": str(claimed_job.id),
+            "job_type": claimed_job.job_type,
+        })
+    except Exception as _exc:
+        logger.warning("event_bus publish job_running failed (non-fatal): %s", _exc)
+
     return claimed_job
+
 
 
 async def enqueue_job(

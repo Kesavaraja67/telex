@@ -12,6 +12,21 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
+
+async def _publish_usage_found(repo_id_str, dc_id_str, cu_id_str, payload_dict):
+    """Publish usage_found to the event bus (called after commit, exception-safe)."""
+    from services.event_bus import event_bus
+    try:
+        await event_bus.publish({
+            "event_type": "usage_found",
+            "repo_id": repo_id_str,
+            "detected_change_id": dc_id_str,
+            "code_usage_id": cu_id_str,
+            **payload_dict,
+        })
+    except Exception as exc:
+        logger.warning("event_bus publish usage_found failed (non-fatal): %s", exc)
+
 # Max file size to scan (bytes) — skip huge generated/vendored files
 MAX_FILE_BYTES = 500_000
 
@@ -137,7 +152,41 @@ async def run(payload: dict) -> None:
         # Flush so new_usages get their generated IDs assigned
         await session.flush()
         new_usage_ids = [str(cu.id) for cu in new_usages]
+
+        # Record usage_found events for all new usages (rides same transaction)
+        from services.incident_events import record_event
+
+        for cu in new_usages:
+            await record_event(
+                session,
+                event_type="usage_found",
+                repo_id=repo_id,
+                detected_change_id=cu.detected_change_id,
+                code_usage_id=cu.id,
+                payload={
+                    "file_path": cu.file_path,
+                    "line_start": cu.line_start,
+                    "line_end": cu.line_end,
+                },
+            )
+
         await session.commit()
+
+        # Publish to live bus after commit — one event per usage so the frontend
+        # can animate nodes appearing one-at-a-time during the scan
+        for cu in new_usages:
+            asyncio.get_event_loop().create_task(
+                _publish_usage_found(
+                    str(repo_id),
+                    str(cu.detected_change_id),
+                    str(cu.id),
+                    {
+                        "file_path": cu.file_path,
+                        "line_start": cu.line_start,
+                        "line_end": cu.line_end,
+                    },
+                )
+            )
 
         # Enqueue generate_patch only for newly created usages (avoids duplicates on rescan)
         for usage_id in new_usage_ids:

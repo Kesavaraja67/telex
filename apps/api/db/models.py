@@ -334,6 +334,64 @@ class PullRequest(Base):
     package_version: Mapped["PackageVersion"] = relationship(back_populates="pull_requests")
 
 
+# ─── IncidentEvents ───────────────────────────────────────────────────────────
+
+
+class IncidentEvent(Base):
+    """Append-only log of every state transition across all pipeline entities.
+
+    Required for two things:
+    1. Live SSE streaming to already-connected clients — the in-process
+       event_bus carries these to open SSE connections in the same process.
+    2. Catch-up & replay — a client that joins mid-incident can call
+       GET /incidents/{id}/graph for a full snapshot, then GET
+       /incidents/{id}/events?since=<ts> to replay or stream from there.
+
+    Additive only — no ALTER or UPDATE, zero risk to existing functionality.
+    """
+
+    __tablename__ = "incident_events"
+    __table_args__ = (
+        CheckConstraint(
+            "event_type IN ("
+            "'change_detected','scan_started','usage_found',"
+            "'patch_generating','patch_generated','patch_failed',"
+            "'validating','validation_passed','validation_failed',"
+            "'pr_opened','pr_merged','pr_closed',"
+            "'usage_skipped','usage_failed',"
+            "'job_queued','job_running','job_done','job_failed'"
+            ")",
+            name="ck_incident_events_type",
+        ),
+        Index("idx_incident_events_repo_created", "repo_id", "created_at"),
+        Index(
+            "idx_incident_events_change_created", "detected_change_id", "created_at"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    repo_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("repos.id", ondelete="CASCADE"), nullable=True
+    )
+    detected_change_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("detected_changes.id", ondelete="CASCADE"), nullable=True
+    )
+    code_usage_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("code_usages.id", ondelete="CASCADE"), nullable=True
+    )
+    job_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True
+    )
+    event_type: Mapped[str] = mapped_column(Text, nullable=False)
+    # Small denormalized payload so the frontend doesn't need extra joins to
+    # render a single event: file_path, confidence, pr_url, test outcome, etc.
+    # Keep this small — it is not a replacement for the real rows.
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 # ─── Jobs ─────────────────────────────────────────────────────────────────────
 
 

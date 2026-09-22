@@ -45,6 +45,23 @@ async def run(payload: dict) -> None:
 
     patch_id = uuid.UUID(patch_id_raw)
 
+    # Import event helpers — used across all branches below
+    from services.event_bus import event_bus
+    from services.incident_events import record_event
+
+    async def _publish_validation_event(event_type: str, cu_id, dc_id, repo_id_val, extra: dict):
+        """Publish a validation event after commit — exception-safe."""
+        try:
+            await event_bus.publish({
+                "event_type": event_type,
+                "code_usage_id": str(cu_id) if cu_id else None,
+                "detected_change_id": str(dc_id) if dc_id else None,
+                "repo_id": str(repo_id_val) if repo_id_val else None,
+                **extra,
+            })
+        except Exception as exc:
+            logger.warning("event_bus publish %s failed (non-fatal): %s", event_type, exc)
+
     async with AsyncSessionLocal() as session:
         patch = await session.get(Patch, patch_id)
         if patch is None:
@@ -82,6 +99,18 @@ async def run(payload: dict) -> None:
 
         # 1. Structural check
         applies_cleanly, parses, scope_ok = validate_patch(diff, code_snippet)
+
+        # Emit validating event on entry (before any gate checks)
+        # Publish direct — no DB row needed for this in-flight signal
+        try:
+            await event_bus.publish({
+                "event_type": "validating",
+                "code_usage_id": str(code_usage.id),
+                "repo_id": str(repo_id),
+            })
+        except Exception as exc:
+            logger.warning("event_bus publish validating failed (non-fatal): %s", exc)
+
         if not (applies_cleanly and parses and scope_ok):
             logger.info("validate_patch: patch %s failed structural check", patch_id)
             vr = ValidationRun(
@@ -97,7 +126,28 @@ async def run(payload: dict) -> None:
             session.add(vr)
             patch.verified = False
             code_usage.status = "failed"
+            await record_event(
+                session,
+                event_type="validation_failed",
+                code_usage_id=code_usage.id,
+                repo_id=repo_id,
+                payload={
+                    "applies_cleanly": applies_cleanly,
+                    "parses": parses,
+                    "scope_ok": scope_ok,
+                    "typechecks": None,
+                    "tests_pass": None,
+                    "verification_mode": "structural_only",
+                    "reason": "structural_check_failed",
+                },
+            )
             await session.commit()
+            await _publish_validation_event(
+                "validation_failed", code_usage.id, None, repo_id,
+                {"applies_cleanly": applies_cleanly, "parses": parses,
+                 "scope_ok": scope_ok, "typechecks": None, "tests_pass": None,
+                 "verification_mode": "structural_only"},
+            )
             return
 
         # 2. Check GitHub App installation token
@@ -116,7 +166,28 @@ async def run(payload: dict) -> None:
             session.add(vr)
             patch.verified = False
             code_usage.status = "failed"
+            await record_event(
+                session,
+                event_type="validation_failed",
+                code_usage_id=code_usage.id,
+                repo_id=repo_id,
+                payload={
+                    "applies_cleanly": applies_cleanly,
+                    "parses": parses,
+                    "scope_ok": scope_ok,
+                    "typechecks": None,
+                    "tests_pass": None,
+                    "verification_mode": "structural_only",
+                    "reason": "no_installation_token",
+                },
+            )
             await session.commit()
+            await _publish_validation_event(
+                "validation_failed", code_usage.id, None, repo_id,
+                {"applies_cleanly": applies_cleanly, "parses": parses,
+                 "scope_ok": scope_ok, "typechecks": None, "tests_pass": None,
+                 "verification_mode": "structural_only"},
+            )
             return
 
         # 3. Micro git apply check on single file
@@ -150,7 +221,27 @@ async def run(payload: dict) -> None:
                 session.add(vr)
                 patch.verified = False
                 code_usage.status = "failed"
+                await record_event(
+                    session,
+                    event_type="validation_failed",
+                    code_usage_id=code_usage.id,
+                    repo_id=repo_id,
+                    payload={
+                        "applies_cleanly": False,
+                        "parses": parses,
+                        "scope_ok": scope_ok,
+                        "typechecks": None,
+                        "tests_pass": None,
+                        "verification_mode": "structural_only",
+                        "reason": "git_apply_failed",
+                    },
+                )
                 await session.commit()
+                await _publish_validation_event(
+                    "validation_failed", code_usage.id, None, repo_id,
+                    {"applies_cleanly": False, "parses": parses, "scope_ok": scope_ok,
+                     "typechecks": None, "tests_pass": None, "verification_mode": "structural_only"},
+                )
                 return
 
             # 4. Detect repository ecosystem and generate dynamic verification workflow
@@ -194,7 +285,27 @@ async def run(payload: dict) -> None:
                 session.add(vr)
                 patch.verified = False
                 code_usage.status = "failed"
+                await record_event(
+                    session,
+                    event_type="validation_failed",
+                    code_usage_id=code_usage.id,
+                    repo_id=repo_id,
+                    payload={
+                        "applies_cleanly": True,
+                        "parses": True,
+                        "scope_ok": scope_ok,
+                        "typechecks": False,
+                        "tests_pass": False,
+                        "verification_mode": "structural_only",
+                        "reason": "branch_creation_failed",
+                    },
+                )
                 await session.commit()
+                await _publish_validation_event(
+                    "validation_failed", code_usage.id, None, repo_id,
+                    {"applies_cleanly": True, "parses": True, "scope_ok": scope_ok,
+                     "typechecks": False, "tests_pass": False, "verification_mode": "structural_only"},
+                )
                 return
 
             # 6. Commit candidate patch and verification workflow bundle atomically
@@ -225,7 +336,27 @@ async def run(payload: dict) -> None:
                 session.add(vr)
                 patch.verified = False
                 code_usage.status = "failed"
+                await record_event(
+                    session,
+                    event_type="validation_failed",
+                    code_usage_id=code_usage.id,
+                    repo_id=repo_id,
+                    payload={
+                        "applies_cleanly": False,
+                        "parses": True,
+                        "scope_ok": scope_ok,
+                        "typechecks": False,
+                        "tests_pass": False,
+                        "verification_mode": "structural_only",
+                        "reason": "commit_bundle_failed",
+                    },
+                )
                 await session.commit()
+                await _publish_validation_event(
+                    "validation_failed", code_usage.id, None, repo_id,
+                    {"applies_cleanly": False, "parses": True, "scope_ok": scope_ok,
+                     "typechecks": False, "tests_pass": False, "verification_mode": "structural_only"},
+                )
                 return
 
             # 7. Poll GitHub Actions verification gate
@@ -280,9 +411,36 @@ async def run(payload: dict) -> None:
                 patch.verified = False
                 code_usage.status = "failed"
                 logger.info("validate_patch: patch %s failed repo gate requirements", patch_id)
+                await record_event(
+                    session,
+                    event_type="validation_failed",
+                    code_usage_id=code_usage.id,
+                    repo_id=repo_id,
+                    payload={
+                        "applies_cleanly": True,
+                        "typechecks": typechecks,
+                        "tests_pass": tests_pass,
+                        "scope_ok": scope_ok,
+                        "verification_mode": verification_mode,
+                        "reason": "gate_requirements_failed",
+                    },
+                )
             else:
                 patch.verified = True
                 code_usage.status = "patched"
+                await record_event(
+                    session,
+                    event_type="validation_passed",
+                    code_usage_id=code_usage.id,
+                    repo_id=repo_id,
+                    payload={
+                        "applies_cleanly": True,
+                        "typechecks": typechecks,
+                        "tests_pass": tests_pass,
+                        "scope_ok": scope_ok,
+                        "verification_mode": verification_mode,
+                    },
+                )
                 await enqueue_job(
                     session,
                     job_type="open_pr",
@@ -296,6 +454,15 @@ async def run(payload: dict) -> None:
                 )
 
             await session.commit()
+
+            # Publish final outcome after commit
+            outcome_event = "validation_failed" if (fails_test_req or fails_typecheck_req or run_failed) else "validation_passed"
+            await _publish_validation_event(
+                outcome_event, code_usage.id, None, repo_id,
+                {"applies_cleanly": True, "typechecks": typechecks,
+                 "tests_pass": tests_pass, "scope_ok": scope_ok,
+                 "verification_mode": verification_mode},
+            )
 
         except Exception as exc:
             logger.exception("validate_patch error for patch %s: %s", patch_id, exc)
@@ -319,4 +486,24 @@ async def run(payload: dict) -> None:
             session.add(vr)
             patch.verified = False
             code_usage.status = "failed"
+            await record_event(
+                session,
+                event_type="validation_failed",
+                code_usage_id=code_usage.id,
+                repo_id=repo_id,
+                payload={
+                    "applies_cleanly": False,
+                    "parses": False,
+                    "scope_ok": False,
+                    "typechecks": False,
+                    "tests_pass": False,
+                    "verification_mode": "structural_only",
+                    "reason": f"exception: {type(exc).__name__}",
+                },
+            )
             await session.commit()
+            await _publish_validation_event(
+                "validation_failed", code_usage.id, None, repo_id,
+                {"applies_cleanly": False, "parses": False, "scope_ok": False,
+                 "typechecks": False, "tests_pass": False, "verification_mode": "structural_only"},
+            )
