@@ -111,94 +111,101 @@ async def _heartbeat_loop(job_id: uuid.UUID, worker_id: str, interval: float = 1
 async def worker_loop(worker_id: str) -> None:
     logger.info("Worker %s starting", worker_id)
     last_reap = 0.0
-    async with AsyncSessionLocal() as session:
-        while True:
-            # Periodically reap stale orphaned jobs (every 30s)
-            now_ts = asyncio.get_running_loop().time()
-            if now_ts - last_reap > 30.0:
+    while True:
+        try:
+            async with AsyncSessionLocal() as session:
+                # Periodically reap stale orphaned jobs (every 30s)
+                now_ts = asyncio.get_running_loop().time()
+                if now_ts - last_reap > 30.0:
+                    try:
+                        reaped = await reap_stale_jobs(session)
+                        if reaped > 0:
+                            logger.info("Reaper processed %d stale job(s)", reaped)
+                        last_reap = now_ts
+                    except Exception as reap_exc:
+                        logger.warning("Reaper check failed: %s", reap_exc)
+                        await session.rollback()
+
+                job = await dequeue_job(session, worker_id)
+                if job is None:
+                    await asyncio.sleep(2)
+                    continue
+
+                logger.info("Worker %s picked up job %s (type=%s)", worker_id, job.id, job.job_type)
+
+                # Start heartbeat while handler executes
+                heartbeat_task = asyncio.create_task(_heartbeat_loop(job.id, worker_id))
                 try:
-                    reaped = await reap_stale_jobs(session)
-                    if reaped > 0:
-                        logger.info("Reaper processed %d stale job(s)", reaped)
-                    last_reap = now_ts
-                except Exception as reap_exc:
-                    logger.warning("Reaper check failed: %s", reap_exc)
+                    handler = JOB_HANDLERS.get(job.job_type)
+                    if handler is None:
+                        raise ValueError(f"Unknown job type: {job.job_type}")
+                    await handler(job.payload)
+                    job.status = "done"
+                    logger.info("Job %s completed", job.id)
+                    # Publish job_done after handler succeeds (commit happens in finally)
+                    try:
+                        from services.event_bus import event_bus
+                        await event_bus.publish({
+                            "event_type": "job_done",
+                            "job_id": str(job.id),
+                            "job_type": job.job_type,
+                            "attempts": job.attempts,
+                        })
+                    except Exception as _bus_exc:
+                        logger.warning("event_bus publish job_done failed (non-fatal): %s", _bus_exc)
+                except Exception as exc:
+                    # Rollback any aborted DB state before writing job status
                     await session.rollback()
-
-            job = await dequeue_job(session, worker_id)
-            if job is None:
-                await asyncio.sleep(2)
-                continue
-
-            logger.info("Worker %s picked up job %s (type=%s)", worker_id, job.id, job.job_type)
-
-            # Start heartbeat while handler executes
-            heartbeat_task = asyncio.create_task(_heartbeat_loop(job.id, worker_id))
-            try:
-                handler = JOB_HANDLERS.get(job.job_type)
-                if handler is None:
-                    raise ValueError(f"Unknown job type: {job.job_type}")
-                await handler(job.payload)
-                job.status = "done"
-                logger.info("Job %s completed", job.id)
-                # Publish job_done after handler succeeds (commit happens in finally)
-                try:
-                    from services.event_bus import event_bus
-                    await event_bus.publish({
-                        "event_type": "job_done",
-                        "job_id": str(job.id),
-                        "job_type": job.job_type,
-                        "attempts": job.attempts,
-                    })
-                except Exception as _bus_exc:
-                    logger.warning("event_bus publish job_done failed (non-fatal): %s", _bus_exc)
-            except Exception as exc:
-                # Rollback any aborted DB state before writing job status
-                await session.rollback()
-                job = await session.merge(job)
-                if job.attempts >= job.max_attempts:
-                    job.status = "failed"
-                    logger.error(
-                        "Job %s permanently failed after %d attempts: %s", job.id, job.attempts, exc
-                    )
-                else:
-                    job.status = "queued"
-                    # Exponential backoff: 30s, 60s, 90s …
-                    delay = 30 * job.attempts
-                    job.run_after = func.now() + timedelta(seconds=delay)  # type: ignore[assignment]
-                    logger.warning(
-                        "Job %s failed (attempt %d/%d), retrying in %ds: %s",
-                        job.id,
-                        job.attempts,
-                        job.max_attempts,
-                        delay,
-                        exc,
-                    )
-                # Publish job_failed after status update (commit happens in finally)
-                try:
-                    from services.event_bus import event_bus
-                    final_status = job.status  # "failed" or "queued" (retry)
-                    await event_bus.publish({
-                        "event_type": "job_failed",
-                        "job_id": str(job.id),
-                        "job_type": job.job_type,
-                        "attempts": job.attempts,
-                        "final_status": final_status,
-                        "error": str(exc)[:200],
-                    })
-                except Exception as _bus_exc:
-                    logger.warning("event_bus publish job_failed failed (non-fatal): %s", _bus_exc)
-            finally:
-                heartbeat_task.cancel()
-                try:
-                    await heartbeat_task
-                except asyncio.CancelledError:
-                    pass
-                try:
-                    await session.commit()
-                except Exception:
-                    logger.exception("Job %s: could not persist final state", job.id)
-                    await session.rollback()
+                    job = await session.merge(job)
+                    if job.attempts >= job.max_attempts:
+                        job.status = "failed"
+                        logger.error(
+                            "Job %s permanently failed after %d attempts: %s", job.id, job.attempts, exc
+                        )
+                    else:
+                        job.status = "queued"
+                        # Exponential backoff: 30s, 60s, 90s …
+                        delay = 30 * job.attempts
+                        job.run_after = func.now() + timedelta(seconds=delay)  # type: ignore[assignment]
+                        logger.warning(
+                            "Job %s failed (attempt %d/%d), retrying in %ds: %s",
+                            job.id,
+                            job.attempts,
+                            job.max_attempts,
+                            delay,
+                            exc,
+                        )
+                    # Publish job_failed after status update (commit happens in finally)
+                    try:
+                        from services.event_bus import event_bus
+                        final_status = job.status  # "failed" or "queued" (retry)
+                        await event_bus.publish({
+                            "event_type": "job_failed",
+                            "job_id": str(job.id),
+                            "job_type": job.job_type,
+                            "attempts": job.attempts,
+                            "final_status": final_status,
+                            "error": str(exc)[:200],
+                        })
+                    except Exception as _bus_exc:
+                        logger.warning("event_bus publish job_failed failed (non-fatal): %s", _bus_exc)
+                finally:
+                    heartbeat_task.cancel()
+                    try:
+                        await heartbeat_task
+                    except asyncio.CancelledError:
+                        pass
+                    try:
+                        await session.commit()
+                    except Exception:
+                        logger.exception("Job %s: could not persist final state", job.id)
+                        await session.rollback()
+        except asyncio.CancelledError:
+            logger.info("Worker %s received cancellation; exiting loop", worker_id)
+            break
+        except Exception as loop_exc:
+            logger.warning("Worker %s loop error: %s", worker_id, loop_exc)
+            await asyncio.sleep(2)
 
 
 async def schedule_package_polling() -> None:

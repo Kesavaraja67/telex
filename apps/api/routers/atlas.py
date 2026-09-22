@@ -99,8 +99,15 @@ async def get_atlas_graph(
                     "error": row.error_message or "Graph computation failed",
                 }
 
-        # If missing or if re-triggering on refresh
-        if row is None or refresh:
+        # Check for stale computing rows (e.g. server restarted or crashed during build)
+        is_stale_computing = False
+        if row is not None and row.status == "computing" and row.created_at:
+            from datetime import datetime, timezone, timedelta
+            if (datetime.now(timezone.utc) - row.created_at) > timedelta(seconds=120):
+                is_stale_computing = True
+
+        # If missing, explicitly refreshed, or orphaned/stale computing
+        if row is None or refresh or is_stale_computing:
             if row is None:
                 row = RepoAtlasGraph(
                     id=uuid.uuid4(),
@@ -114,17 +121,17 @@ async def get_atlas_graph(
                 row.error_message = None
 
             from jobs.queue import enqueue_job
-
-            await enqueue_job(
-                session,
-                "build_atlas_graph",
-                {
-                    "repo_id": str(repo.id),
-                    "commit_sha": resolved_sha,
-                    "installation_id": str(installation.id),
-                },
-            )
+            job_payload = {
+                "repo_id": str(repo.id),
+                "commit_sha": resolved_sha,
+                "installation_id": str(installation.id),
+            }
+            await enqueue_job(session, "build_atlas_graph", job_payload)
             await session.commit()
+
+            # Immediate background execution for instant first-try response
+            from jobs.handlers import build_atlas_graph
+            asyncio.create_task(build_atlas_graph.run(job_payload))
 
         return JSONResponse(
             status_code=202,
