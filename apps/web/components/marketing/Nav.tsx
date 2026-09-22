@@ -46,6 +46,11 @@ export default function Nav() {
     if (user) {
       window.location.href = "/dashboard";
     } else {
+      // In local development, use dev-login directly so developer isn't sent to production OAuth
+      if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+        window.location.href = `${apiUrl}/api/auth/dev-login`;
+        return;
+      }
       const origin = typeof window !== "undefined" ? encodeURIComponent(window.location.origin) : "";
       window.location.href = `${apiUrl}/api/auth/github?origin=${origin}`;
     }

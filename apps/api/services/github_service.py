@@ -58,13 +58,19 @@ def check_rate_limit_and_wait(gh) -> None:
 
     try:
         rl = gh.get_rate_limit()
-        core = rl.core
+        core = (
+            getattr(rl, "rate", None)
+            or getattr(getattr(rl, "resources", None), "core", None)
+            or getattr(rl, "core", None)
+        )
+        if core is None:
+            logger.warning("Could not determine core rate limit from PyGithub; skipping check")
+            return
         remaining = core.remaining
         reset_at = core.reset  # datetime UTC
     except Exception as exc:
-        # Fail open on rate-limit read errors is dangerous; treat as transient
-        # and raise so the worker re-queues the job with exponential backoff.
-        raise RuntimeError("GitHub rate limit information unavailable") from exc
+        logger.warning("GitHub rate limit check failed: %s; proceeding without rate limit gate", exc)
+        return
 
     if remaining < 50:
         now_ts = time.time()
@@ -78,7 +84,12 @@ def check_rate_limit_and_wait(gh) -> None:
         time.sleep(min(wait_secs, 70))  # cap at 70s so the worker heartbeat stays alive
         # Re-check; if still 0 raise so the job is re-queued via the retry mechanism
         rl2 = gh.get_rate_limit()
-        if rl2.core.remaining == 0:
+        core2 = (
+            getattr(rl2, "rate", None)
+            or getattr(getattr(rl2, "resources", None), "core", None)
+            or getattr(rl2, "core", None)
+        )
+        if core2 and core2.remaining == 0:
             raise RuntimeError(
                 f"GitHub core rate limit exhausted — resets at {reset_at.isoformat()}"
             )

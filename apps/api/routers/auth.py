@@ -162,6 +162,13 @@ async def github_login(
     elif not is_safe_redirect(client_origin):
         client_origin = ""
 
+    # If running locally (not in production) and the client is on localhost, redirect to dev-login
+    is_prod = bool(os.getenv("RENDER") or settings.environment.strip().lower() == "production")
+    client_host = request.url.hostname or ""
+    if not is_prod and (client_host in ("localhost", "127.0.0.1") or (client_origin and "localhost" in client_origin)):
+        if request.query_params.get("force_oauth") != "1":
+            return RedirectResponse(f"{request.base_url}api/auth/dev-login", status_code=307)
+
     # Generate a CSRF nonce; store in cookie and embed in state: nonce:next_url:client_origin
     nonce = secrets.token_urlsafe(24)
     state_payload = f"{nonce}:{next_url or ''}:{client_origin or ''}"
@@ -173,7 +180,6 @@ async def github_login(
         }
     )
     response = RedirectResponse(f"https://github.com/login/oauth/authorize?{query}")
-    import os
 
     is_secure = request.url.scheme == "https" or bool(
         os.getenv("RENDER") or settings.environment == "production"
@@ -395,8 +401,6 @@ async def logout(request: Request):
 @router.post("/dev-login")
 async def dev_login(request: Request, login: str = "kesavaraja67"):
     """Development-only bypass to quickly sign in locally without GitHub roundtrip."""
-    import os
-
     is_prod = bool(os.getenv("RENDER") or settings.environment == "production")
     if is_prod:
         raise HTTPException(status_code=403, detail="Dev login is disabled in production")

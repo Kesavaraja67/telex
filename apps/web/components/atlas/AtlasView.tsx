@@ -178,25 +178,40 @@ export default function AtlasView({ repoId }: { repoId: string }) {
           <span>Close Atlas</span>
         </button>
 
-        {state.kind === "ready" && (
-          <div className="pointer-events-auto flex items-center gap-3 font-mono text-xs text-[#71717A] bg-black/60 backdrop-blur px-3.5 py-1.5 rounded-lg border border-white/10">
-            <span className="text-white font-medium">{state.data.node_count} files</span>
-            <span className="text-[#3F3F46]">·</span>
-            <span>{state.data.edge_count} imports</span>
-            {state.data.truncated && (
-              <span className="text-[#E5A93C]">· showing first {state.data.node_count}</span>
-            )}
-            <button
-              onClick={() => {
-                pollStartedAt.current = 0;
-                load({ refresh: true });
-              }}
-              className="ml-1 px-2.5 py-0.5 rounded border border-white/15 hover:border-white/30 hover:text-white transition-all cursor-pointer text-[11px]"
-            >
-              ⟳ Refresh
-            </button>
-          </div>
-        )}
+        <div className="pointer-events-auto flex items-center gap-2">
+          {state.kind === "ready" && (
+            <div className="flex items-center gap-3 font-mono text-xs text-[#71717A] bg-black/70 backdrop-blur px-3.5 py-1.5 rounded-lg border border-white/10">
+              <span className="text-white font-medium">{state.data.node_count} files</span>
+              <span className="text-[#3F3F46]">·</span>
+              <span>{state.data.edge_count} imports</span>
+              {state.data.truncated && (
+                <span className="text-[#E5A93C]">· first {state.data.node_count}</span>
+              )}
+            </div>
+          )}
+
+          {state.kind === "computing" && (
+            <div className="flex items-center gap-2 font-mono text-xs text-[#A1A1AA] bg-black/70 backdrop-blur px-3 py-1.5 rounded-lg border border-white/10">
+              <div className="w-2.5 h-2.5 rounded-full bg-teal-400 animate-pulse" />
+              <span>Analyzing AST…</span>
+            </div>
+          )}
+
+          {/* Always Visible Refresh / Re-scan Button */}
+          <button
+            onClick={() => {
+              pollStartedAt.current = 0;
+              load({ refresh: true });
+            }}
+            title="Force re-scan and rebuild import graph"
+            className="font-mono text-xs px-3 py-1.5 rounded-lg border border-white/15 bg-black/70 backdrop-blur text-[#E4E4E7] hover:text-white hover:border-white/35 hover:bg-white/[0.08] transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
       {/* Center states */}

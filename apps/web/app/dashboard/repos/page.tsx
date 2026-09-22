@@ -341,6 +341,19 @@ export default function ReposPage() {
 
                     <div className="flex items-center gap-2 self-start md:self-auto">
                       <Link
+                        href={`/dashboard/repos/${repo.id}/atlas`}
+                        className="group font-mono text-xs px-3 py-1.5 rounded-lg border border-white/15 bg-white/[0.04] text-[#E4E4E7] hover:text-white hover:border-white/35 hover:bg-white/[0.08] transition-all flex items-center gap-1.5"
+                      >
+                        <svg className="w-3.5 h-3.5 text-[#A1A1AA] group-hover:text-white transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <circle cx="12" cy="5" r="1.75" />
+                          <circle cx="5" cy="19" r="1.75" />
+                          <circle cx="19" cy="19" r="1.75" />
+                          <path strokeLinecap="round" d="M12 6.75V13M12 13L6 17.5M12 13l6 4.5" />
+                        </svg>
+                        <span>Repo Atlas</span>
+                      </Link>
+
+                      <Link
                         href={`/dashboard/repos/${repo.id}`}
                         className="font-mono text-xs px-3 py-1.5 rounded-lg border border-white/15 bg-white/5 text-white hover:bg-white hover:text-black transition-all flex items-center gap-1.5"
                       >

@@ -17,6 +17,7 @@ Repo Atlas router.
        On-demand single-file commit metadata fetch for card last-edited timestamps.
 """
 
+import asyncio
 import logging
 import uuid
 from pathlib import PurePosixPath
@@ -62,8 +63,10 @@ async def get_atlas_graph(
         resolved_sha = commit_sha
         if resolved_sha is None or refresh:
             try:
-                resolved_sha = get_default_branch_head_sha(
-                    repo.full_name, installation.github_installation_id
+                resolved_sha = await asyncio.to_thread(
+                    get_default_branch_head_sha,
+                    repo.full_name,
+                    installation.github_installation_id,
                 )
             except Exception as exc:
                 raise HTTPException(
@@ -110,12 +113,17 @@ async def get_atlas_graph(
                 row.status = "computing"
                 row.error_message = None
 
-            job = Job(
-                id=uuid.uuid4(),
-                job_type="build_atlas_graph",
-                payload={"repo_id": str(repo.id), "commit_sha": resolved_sha},
+            from jobs.queue import enqueue_job
+
+            await enqueue_job(
+                session,
+                "build_atlas_graph",
+                {
+                    "repo_id": str(repo.id),
+                    "commit_sha": resolved_sha,
+                    "installation_id": str(installation.id),
+                },
             )
-            session.add(job)
             await session.commit()
 
         return JSONResponse(
@@ -150,8 +158,12 @@ async def get_atlas_file(
         if installation is None:
             raise HTTPException(status_code=404, detail="Installation not found")
 
-    content = fetch_file_content(
-        repo.full_name, installation.github_installation_id, path, ref=ref
+    content = await asyncio.to_thread(
+        fetch_file_content,
+        repo.full_name,
+        installation.github_installation_id,
+        path,
+        ref=ref,
     )
     if content is None:
         raise HTTPException(status_code=404, detail="File not found at this ref")
@@ -183,7 +195,11 @@ async def get_atlas_last_edited(
         if installation is None:
             raise HTTPException(status_code=404, detail="Installation not found")
 
-    info = get_file_last_commit_info(
-        repo.full_name, installation.github_installation_id, path, ref
+    info = await asyncio.to_thread(
+        get_file_last_commit_info,
+        repo.full_name,
+        installation.github_installation_id,
+        path,
+        ref,
     )
     return {"path": path, "ref": ref, "last_edited": info}

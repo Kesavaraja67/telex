@@ -26,6 +26,11 @@ export default function Hero() {
     if (hasUser) {
       window.location.href = `https://github.com/apps/${appName}/installations/new`;
     } else {
+      // In local development, avoid redirecting to production OAuth
+      if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+        window.location.href = `${apiUrl}/api/auth/dev-login`;
+        return;
+      }
       // Not signed in: redirect to login first, then automatically forward to installation
       window.location.href = `${apiUrl}/api/auth/github?next=install`;
     }
