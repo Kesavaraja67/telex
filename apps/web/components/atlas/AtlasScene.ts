@@ -57,6 +57,7 @@ export class AtlasScene {
   private targetPhi = 1.05;
   private cameraRadius = 24;
   private targetRadius = 24;
+  private defaultRadius = 24;
   private cameraLookAt = new THREE.Vector3(0, -3, 0);
   private targetLookAt = new THREE.Vector3(0, -3, 0);
 
@@ -156,7 +157,22 @@ export class AtlasScene {
     const nodeCount = data.graph.nodes.length;
     this.cameraRadius = Math.max(18, Math.min(65, 16 + Math.sqrt(nodeCount) * 1.3));
     this.targetRadius = this.cameraRadius;
+    this.defaultRadius = this.cameraRadius;
     this.updateCameraPosition();
+  }
+
+  resetView() {
+    this.targetTheta = 0.4;
+    this.targetPhi = 1.05;
+    this.targetRadius = this.defaultRadius;
+    this.targetLookAt.set(0, -3, 0);
+  }
+
+  focusNode(nodeId: string) {
+    const card = this.cards.get(nodeId);
+    if (!card) return;
+    this.targetLookAt.set(card.currentX, card.currentY, card.currentZ);
+    this.targetRadius = Math.max(8, Math.min(20, this.defaultRadius * 0.5));
   }
 
   setBreakage(brokenNodeIds: Set<string>) {
@@ -423,6 +439,7 @@ export class AtlasScene {
     this.orbitTheta += (this.targetTheta - this.orbitTheta) * 0.1;
     this.orbitPhi += (this.targetPhi - this.orbitPhi) * 0.1;
     this.cameraRadius += (this.targetRadius - this.cameraRadius) * 0.1;
+    this.cameraLookAt.lerp(this.targetLookAt, 0.1);
     this.updateCameraPosition();
 
     // Wire pulse animation

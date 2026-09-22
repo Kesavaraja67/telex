@@ -68,6 +68,8 @@ async def get_atlas_graph(
                     repo.full_name,
                     installation.github_installation_id,
                 )
+            except ValueError as val_exc:
+                raise HTTPException(status_code=400, detail=str(val_exc))
             except Exception as exc:
                 raise HTTPException(
                     status_code=502, detail=f"Could not read HEAD from GitHub: {exc}"
@@ -84,6 +86,7 @@ async def get_atlas_graph(
         if row is not None and row.status == "ready":
             return {
                 "status": "ready",
+                "repo_full_name": repo.full_name,
                 "commit_sha": resolved_sha,
                 "node_count": row.node_count,
                 "edge_count": row.edge_count,
@@ -95,6 +98,7 @@ async def get_atlas_graph(
             if not refresh:
                 return {
                     "status": "failed",
+                    "repo_full_name": repo.full_name,
                     "commit_sha": resolved_sha,
                     "error": row.error_message or "Graph computation failed",
                 }
@@ -135,7 +139,11 @@ async def get_atlas_graph(
 
         return JSONResponse(
             status_code=202,
-            content={"status": "computing", "commit_sha": resolved_sha},
+            content={
+                "status": "computing",
+                "repo_full_name": repo.full_name,
+                "commit_sha": resolved_sha,
+            },
         )
 
 

@@ -287,7 +287,7 @@ async def sync_github_app_repositories_async(user_id: str | None = None) -> None
     from github import GithubIntegration
     from sqlalchemy import select
 
-    from db.models import Installation, Repo
+    from db.models import Installation, Repo, User
     from db.session import AsyncSessionLocal
 
     try:
@@ -296,6 +296,16 @@ async def sync_github_app_repositories_async(user_id: str | None = None) -> None
         installations = await asyncio.to_thread(lambda: list(integration.get_installations()))
 
         async with AsyncSessionLocal() as session:
+            current_user = None
+            if user_id:
+                try:
+                    user_res = await session.execute(
+                        select(User).where(User.id == uuid.UUID(str(user_id)))
+                    )
+                    current_user = user_res.scalar_one_or_none()
+                except Exception:
+                    pass
+
             for inst in installations:
                 account_login = inst.raw_data.get("account", {}).get("login", "unknown")
                 token = await asyncio.to_thread(
@@ -315,7 +325,13 @@ async def sync_github_app_repositories_async(user_id: str | None = None) -> None
                     session.add(db_inst)
                     await session.flush()
 
-                if user_id and not db_inst.installed_by:
+                if current_user:
+                    if (
+                        account_login.lower() == current_user.github_login.lower()
+                        or not db_inst.installed_by
+                    ):
+                        db_inst.installed_by = current_user.id
+                elif user_id and not db_inst.installed_by:
                     try:
                         db_inst.installed_by = uuid.UUID(str(user_id))
                     except Exception:
@@ -403,9 +419,9 @@ async def get_core_repositories_async(
     if force_sync or (time.time() - _LAST_SYNC_TIME) > 30:
         await sync_github_app_repositories_async(user_id=user_id)
 
-    from sqlalchemy import func, select
+    from sqlalchemy import func, or_, select
 
-    from db.models import Installation, PullRequest, Repo
+    from db.models import Installation, PullRequest, Repo, User
     from db.session import AsyncSessionLocal
 
     personal_repos: list[dict] = []
@@ -415,8 +431,18 @@ async def get_core_repositories_async(
             if user_id:
                 try:
                     user_uuid = uuid.UUID(str(user_id))
+                    user_res = await session.execute(
+                        select(User).where(User.id == user_uuid)
+                    )
+                    cur_user = user_res.scalar_one_or_none()
+                    user_login = cur_user.github_login.lower() if cur_user else None
+
+                    conditions = [Installation.installed_by == user_uuid]
+                    if user_login:
+                        conditions.append(func.lower(Installation.account_login) == user_login)
+
                     user_inst_res = await session.execute(
-                        select(Installation.id).where(Installation.installed_by == user_uuid)
+                        select(Installation.id).where(or_(*conditions))
                     )
                     user_inst_ids = [row[0] for row in user_inst_res.all()]
                     if user_inst_ids:

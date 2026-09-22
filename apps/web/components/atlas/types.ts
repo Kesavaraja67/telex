@@ -26,6 +26,7 @@ export interface AtlasFolder {
 
 export interface AtlasGraphPayload {
   status: "ready";
+  repo_full_name?: string;
   commit_sha: string;
   node_count: number;
   edge_count: number;

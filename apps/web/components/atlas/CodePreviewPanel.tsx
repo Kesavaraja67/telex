@@ -49,8 +49,15 @@ export function CodePreviewPanel({
       ref: commitSha,
     });
 
+    const headers: Record<string, string> = {};
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("telex_token");
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    }
+
     fetch(`${API_BASE}/api/repos/${repoId}/atlas/file?${params}`, {
       credentials: "include",
+      headers,
     })
       .then(async (res) => {
         if (!res.ok) {

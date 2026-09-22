@@ -878,8 +878,21 @@ def get_default_branch_head_sha(repo_full_name: str, installation_id: int) -> st
     """Return the current commit SHA of the repo's default branch."""
     gh = get_installation_client(installation_id)
     repo = gh.get_repo(repo_full_name)
-    branch = repo.get_branch(repo.default_branch)
-    return branch.commit.sha
+    branch_name = repo.default_branch or "main"
+    try:
+        branch = repo.get_branch(branch_name)
+        if not branch.commit or not branch.commit.sha:
+            raise ValueError(
+                f"Repository {repo_full_name} default branch '{branch_name}' has no commits yet."
+            )
+        return branch.commit.sha
+    except Exception as exc:
+        err_msg = str(exc).lower()
+        if "404" in err_msg or "not found" in err_msg or "empty" in err_msg:
+            raise ValueError(
+                f"Repository {repo_full_name} is empty or branch '{branch_name}' has no commits yet."
+            ) from exc
+        raise
 
 
 def get_file_last_commit_info(

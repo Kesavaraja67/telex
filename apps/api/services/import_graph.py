@@ -85,6 +85,25 @@ LANGUAGE_BY_EXT = {
     ".cjs": "javascript",
     ".jsx": "javascript",
     ".py": "python",
+    ".go": "go",
+    ".rs": "rust",
+    ".java": "java",
+    ".c": "c",
+    ".h": "c",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".hpp": "cpp",
+    ".rb": "ruby",
+    ".php": "php",
+    ".cs": "c_sharp",
+    ".sh": "bash",
+    ".bash": "bash",
+    ".html": "html",
+    ".css": "css",
+    ".json": "json",
+    ".yaml": "yaml",
+    ".yml": "yaml",
 }
 
 # tree-sitter queries for import-style statements, per language.
@@ -130,6 +149,35 @@ IMPORT_QUERIES: dict[str, list[tuple[str, str]]] = {
         ('(import_from_statement module_name: (dotted_name) @spec)', "spec"),
         ('(import_from_statement module_name: (relative_import) @spec)', "spec"),
         ('(import_statement name: (dotted_name) @spec)', "spec"),
+    ],
+    "go": [
+        ('(import_spec path: (interpreted_string_literal) @spec)', "spec"),
+    ],
+    "rust": [
+        ('(use_declaration argument: (_) @spec)', "spec"),
+    ],
+    "java": [
+        ('(import_declaration (scoped_identifier) @spec)', "spec"),
+    ],
+    "c": [
+        ('(preproc_include path: (string_literal) @spec)', "spec"),
+        ('(preproc_include path: (system_lib_string) @spec)', "spec"),
+    ],
+    "cpp": [
+        ('(preproc_include path: (string_literal) @spec)', "spec"),
+        ('(preproc_include path: (system_lib_string) @spec)', "spec"),
+    ],
+    "ruby": [
+        (
+            '(call method: (identifier) @fn arguments: (argument_list (string) @spec) (#match? @fn "^(require|require_relative)$"))',
+            "spec",
+        ),
+    ],
+    "php": [
+        ('(include_expression (string) @spec)', "spec"),
+        ('(include_once_expression (string) @spec)', "spec"),
+        ('(require_expression (string) @spec)', "spec"),
+        ('(require_once_expression (string) @spec)', "spec"),
     ],
 }
 
@@ -334,6 +382,10 @@ def _extract_specifiers(language, tree, lang_name: str) -> list[tuple[str, bool]
 def _looks_internal(spec: str, lang: str) -> bool:
     if lang == "python":
         return spec.startswith(".")
+    if lang == "rust":
+        return spec.startswith("crate::") or spec.startswith("super::")
+    if lang in ("c", "cpp"):
+        return not spec.startswith("<")
     return spec.startswith(".") or spec.startswith("@/") or spec.startswith("~/")
 
 
@@ -347,7 +399,55 @@ def _resolve_specifier(
 ) -> str | None:
     if lang == "python":
         return _resolve_python_specifier(spec, from_file_rel, repo_root, nodes)
+    if lang in ("go", "rust", "java", "c", "cpp", "ruby", "php"):
+        return _resolve_generic_specifier(spec, from_file_rel, repo_root, nodes, lang)
     return _resolve_js_specifier(spec, from_file_rel, repo_root, nodes, alias_cache)
+
+
+def _resolve_generic_specifier(
+    spec: str,
+    from_file_rel: str,
+    repo_root: Path,
+    nodes: dict[str, AtlasNode],
+    lang: str,
+) -> str | None:
+    from_dir = Path(from_file_rel).parent
+
+    clean_spec = spec.strip("<>\"'")
+    if clean_spec.startswith("."):
+        candidate = (from_dir / clean_spec).as_posix().lstrip("/")
+        norm = os.path.normpath(candidate).replace("\\", "/")
+        if norm in nodes:
+            return norm
+        for ext in (".go", ".rs", ".java", ".c", ".h", ".cpp", ".hpp", ".rb", ".php"):
+            if f"{norm}{ext}" in nodes:
+                return f"{norm}{ext}"
+        return None
+
+    if lang == "rust" and clean_spec.startswith("crate::"):
+        sub = clean_spec.replace("crate::", "").replace("::", "/")
+        for prefix in ("src", ""):
+            cand = f"{prefix}/{sub}".strip("/")
+            for ext in (".rs", "/mod.rs"):
+                key = f"{cand}{ext}"
+                if key in nodes:
+                    return key
+
+    if lang in ("c", "cpp", "ruby", "php"):
+        candidate = (from_dir / clean_spec).as_posix().lstrip("/")
+        norm = os.path.normpath(candidate).replace("\\", "/")
+        if norm in nodes:
+            return norm
+        for ext in (".c", ".h", ".cpp", ".hpp", ".rb", ".php"):
+            if f"{norm}{ext}" in nodes:
+                return f"{norm}{ext}"
+
+    if lang == "go":
+        for node_key in nodes:
+            if clean_spec in node_key and node_key.endswith(".go"):
+                return node_key
+
+    return None
 
 
 JS_TRY_EXTS = [
