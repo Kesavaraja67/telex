@@ -399,7 +399,7 @@ class Job(Base):
     __tablename__ = "jobs"
     __table_args__ = (
         CheckConstraint(
-            "job_type IN ('poll_registry', 'extract_changes', 'scan_repo', 'generate_patch', 'validate_patch', 'open_pr')",
+            "job_type IN ('poll_registry', 'extract_changes', 'scan_repo', 'generate_patch', 'validate_patch', 'open_pr', 'build_atlas_graph')",
             name="ck_jobs_type",
         ),
         CheckConstraint(
@@ -428,3 +428,39 @@ class Job(Base):
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+
+# ─── RepoAtlasGraph ───────────────────────────────────────────────────────────
+
+
+class RepoAtlasGraph(Base):
+    __tablename__ = "repo_atlas_graphs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('computing','ready','failed')",
+            name="ck_repo_atlas_graphs_status",
+        ),
+        UniqueConstraint(
+            "repo_id", "commit_sha", name="uq_repo_atlas_graphs_repo_commit"
+        ),
+        Index("idx_repo_atlas_graphs_repo_status", "repo_id", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    repo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("repos.id", ondelete="CASCADE"), nullable=False
+    )
+    commit_sha: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="computing")
+    node_count: Mapped[int | None] = mapped_column(Integer)
+    edge_count: Mapped[int | None] = mapped_column(Integer)
+    truncated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    graph_json: Mapped[dict | None] = mapped_column(JSONB)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+

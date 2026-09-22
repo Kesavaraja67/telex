@@ -861,3 +861,36 @@ async def create_check_run(
     except Exception as exc:
         logger.warning("create_check_run: thread error: %s", exc)
         return False
+
+
+def get_default_branch_head_sha(repo_full_name: str, installation_id: int) -> str:
+    """Return the current commit SHA of the repo's default branch."""
+    gh = get_installation_client(installation_id)
+    repo = gh.get_repo(repo_full_name)
+    branch = repo.get_branch(repo.default_branch)
+    return branch.commit.sha
+
+
+def get_file_last_commit_info(
+    repo_full_name: str, installation_id: int, file_path: str, ref: str
+) -> dict | None:
+    """
+    Return {"sha": str, "committed_at": iso str, "author": str} for the most
+    recent commit touching file_path as of ref. Used for the "last edited"
+    label on each Atlas card. Best-effort: returns None on any failure
+    (card falls back to showing no timestamp rather than a wrong one).
+    """
+    try:
+        gh = get_installation_client(installation_id)
+        repo = gh.get_repo(repo_full_name)
+        commits = repo.get_commits(path=file_path, sha=ref)
+        latest = commits[0]
+        return {
+            "sha": latest.sha,
+            "committed_at": latest.commit.author.date.isoformat(),
+            "author": latest.commit.author.name,
+        }
+    except Exception as exc:
+        logger.debug("get_file_last_commit_info failed for %s: %s", file_path, exc)
+        return None
+

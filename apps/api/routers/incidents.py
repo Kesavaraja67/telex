@@ -23,7 +23,7 @@ import json
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
@@ -46,6 +46,47 @@ from services.event_bus import event_bus
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/repos/{repo_id}/incidents", tags=["incidents"])
+
+
+@router.get("/active")
+async def get_active_incidents(
+    repo_id: str,
+    auth_data: dict = Depends(require_auth),
+):
+    """Return all currently-open incidents for the repo.
+
+    Returns [{detected_change_id, package, symbol_old, symbol_new}] for every
+    DetectedChange with at least one non-'patched' CodeUsage.
+    """
+    repo_uuid = _try_uuid(repo_id)
+    if repo_uuid is None:
+        raise HTTPException(status_code=400, detail="Invalid repo_id")
+
+    async with AsyncSessionLocal() as session:
+        stmt = (
+            select(DetectedChange, Package.name.label("package_name"))
+            .join(PackageVersion, DetectedChange.package_version_id == PackageVersion.id)
+            .join(Package, PackageVersion.package_id == Package.id)
+            .join(CodeUsage, CodeUsage.detected_change_id == DetectedChange.id)
+            .where(
+                CodeUsage.repo_id == repo_uuid,
+                CodeUsage.status != "patched",
+            )
+            .distinct()
+        )
+        result = await session.execute(stmt)
+        rows = result.all()
+
+        return [
+            {
+                "detected_change_id": str(dc.id),
+                "package": pkg_name,
+                "symbol_old": dc.symbol_old or "",
+                "symbol_new": dc.symbol_new or "",
+                "change_type": dc.change_type or "signature_change",
+            }
+            for dc, pkg_name in rows
+        ]
 
 
 # ── SSE live stream ───────────────────────────────────────────────────────────

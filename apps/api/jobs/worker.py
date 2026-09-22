@@ -14,6 +14,7 @@ from sqlalchemy import func, update
 from db.models import Job
 from db.session import AsyncSessionLocal
 from jobs.handlers import (
+    build_atlas_graph,
     extract_changes,
     generate_patch,
     open_pr,
@@ -40,6 +41,8 @@ JOB_HANDLERS = {
     "generate_patch": generate_patch.run,
     "validate_patch": validate_patch.run,
     "open_pr": open_pr.run,
+    # Engine C — Repo Atlas
+    "build_atlas_graph": build_atlas_graph.run,
 }
 
 

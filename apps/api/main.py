@@ -18,6 +18,7 @@ from config import settings
 from routers import auth, packages, repos, stats, webhooks
 from routers.incidents import router as incidents_router
 from routers import settings as settings_router
+from routers import atlas as atlas_router
 from services.logging_utils import install_redacting_formatters
 
 _API_DIR = Path(__file__).resolve().parent
@@ -94,6 +95,7 @@ app.include_router(webhooks.router)
 app.include_router(stats.router)
 app.include_router(incidents_router)
 app.include_router(settings_router.router)
+app.include_router(atlas_router.router)
 
 
 @app.get("/health")
