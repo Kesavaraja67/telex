@@ -19,7 +19,7 @@
 import * as THREE from "three";
 import type { IncidentGraph, IncidentNode } from "./types";
 import { OrganismSimulation } from "./OrganismSimulation";
-import { NodeRenderer, NODE_STATUS } from "./NodeRenderer";
+import { NodeRenderer, NODE_STATUS, type NodeStatusValue } from "./NodeRenderer";
 import { WireRenderer } from "./WireRenderer";
 
 export interface SceneNode {
@@ -235,7 +235,7 @@ export class OrganismScene {
     this.wireRenderer.add(node.code_usage_id);
   }
 
-  private _statusToViz(status: string): number {
+  private _statusToViz(status: string): NodeStatusValue {
     switch (status) {
       case "patched":     return NODE_STATUS.VERIFIED;
       case "failed":      return NODE_STATUS.FAILED;

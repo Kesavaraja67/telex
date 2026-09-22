@@ -89,7 +89,11 @@ export class WireRenderer {
       // Remove oldest
       const oldest = this.pulses.shift()!;
       this.scene.remove(oldest.mesh);
-      oldest.mesh.material.dispose();
+      if (Array.isArray(oldest.mesh.material)) {
+        oldest.mesh.material.forEach((m) => m.dispose());
+      } else {
+        (oldest.mesh.material as THREE.Material).dispose();
+      }
     }
 
     const pulseMesh = new THREE.Mesh(PULSE_GEO, makePulseMat(direction === "out"));
