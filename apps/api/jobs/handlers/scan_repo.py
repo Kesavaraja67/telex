@@ -16,16 +16,20 @@ logger = logging.getLogger(__name__)
 async def _publish_usage_found(repo_id_str, dc_id_str, cu_id_str, payload_dict):
     """Publish usage_found to the event bus (called after commit, exception-safe)."""
     from services.event_bus import event_bus
+
     try:
-        await event_bus.publish({
-            "event_type": "usage_found",
-            "repo_id": repo_id_str,
-            "detected_change_id": dc_id_str,
-            "code_usage_id": cu_id_str,
-            **payload_dict,
-        })
+        await event_bus.publish(
+            {
+                "event_type": "usage_found",
+                "repo_id": repo_id_str,
+                "detected_change_id": dc_id_str,
+                "code_usage_id": cu_id_str,
+                **payload_dict,
+            }
+        )
     except Exception as exc:
         logger.warning("event_bus publish usage_found failed (non-fatal): %s", exc)
+
 
 # Max file size to scan (bytes) — skip huge generated/vendored files
 MAX_FILE_BYTES = 500_000

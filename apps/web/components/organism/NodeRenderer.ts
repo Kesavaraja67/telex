@@ -172,7 +172,5 @@ export class NodeRenderer {
       (entry.glow.material as THREE.Material).dispose();
     }
     this.entries.clear();
-    for (const [, geo] of GEO_CACHE) geo.dispose();
-    GEO_CACHE.clear();
   }
 }

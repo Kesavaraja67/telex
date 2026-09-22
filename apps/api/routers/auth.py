@@ -60,15 +60,90 @@ async def require_auth(request: Request) -> dict:
         return {"user_id": "demo-operator", "role": "operator"}
 
     if not token:
-        # Development fallback so local dev and testing never halt on unauthenticated API calls
-        if settings.environment != "production" and not os.getenv("RENDER"):
-            return {"user_id": "dev-user", "role": "developer"}
         raise HTTPException(status_code=401, detail="Authentication required")
 
     user_id_str = decode_session_token(token)
     if not user_id_str:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
     return {"user_id": user_id_str}
+
+
+async def get_authorized_repo(
+    session,
+    repo_identifier: str,
+    auth_data: dict,
+) -> tuple:
+    """
+    Authorize that the requested repository belongs to an installation accessible
+    to the authenticated user.
+    Raises HTTPException(403) if access is denied, or HTTPException(404) if repo not found.
+    Returns tuple (Repo, Installation).
+    """
+    from sqlalchemy import func, or_
+
+    from db.models import Installation, Repo, User
+
+    user_id_raw = auth_data.get("user_id") if isinstance(auth_data, dict) else None
+    if not user_id_raw:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    repo_uuid = None
+    try:
+        repo_uuid = uuid.UUID(repo_identifier)
+    except (ValueError, TypeError):
+        pass
+
+    repo_filters = [Repo.full_name == repo_identifier]
+    if repo_uuid is not None:
+        repo_filters.append(Repo.id == repo_uuid)
+
+    # In dev/demo environment fallback
+    if user_id_raw in ("dev-user", "demo-operator"):
+        res = await session.execute(
+            select(Repo, Installation)
+            .join(Installation, Repo.installation_id == Installation.id)
+            .where(or_(*repo_filters))
+            .limit(1)
+        )
+        row = res.first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Repo not found")
+        return row[0], row[1]
+
+    try:
+        user_uuid = uuid.UUID(str(user_id_raw))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=403, detail="Repository access denied")
+
+    user_res = await session.execute(select(User).where(User.id == user_uuid))
+    user = user_res.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=403, detail="Repository access denied")
+
+    user_login = user.github_login.lower() if user.github_login else None
+
+    inst_conditions = [Installation.installed_by == user_uuid]
+    if user_login:
+        inst_conditions.append(func.lower(Installation.account_login) == user_login)
+
+    result = await session.execute(
+        select(Repo, Installation)
+        .join(Installation, Repo.installation_id == Installation.id)
+        .where(
+            or_(*repo_filters),
+            or_(*inst_conditions),
+        )
+        .limit(1)
+    )
+    row = result.first()
+    if row is None:
+        # Check if repo exists to distinguish 403 Forbidden vs 404 Not Found
+        exists = await session.execute(select(Repo.id).where(or_(*repo_filters)).limit(1))
+        if exists.scalar_one_or_none() is not None:
+            raise HTTPException(status_code=403, detail="Repository access denied")
+        raise HTTPException(status_code=404, detail="Repo not found")
+
+    return row[0], row[1]
 
 
 def _get_jwt_secret() -> str:
@@ -110,14 +185,17 @@ def is_safe_redirect(url_str: str) -> bool:
             netloc.startswith("localhost:")
             or netloc == "localhost"
             or netloc.startswith("127.0.0.1:")
+            or netloc == "127.0.0.1"
         ):
             return True
         for allowed in settings.cors_origins:
             allowed_netloc = urlparse(allowed).netloc.lower()
             if allowed_netloc and netloc == allowed_netloc:
                 return True
-        if netloc.endswith(".vercel.app") or "telex" in netloc:
-            return True
+        if settings.web_app_url:
+            web_netloc = urlparse(settings.web_app_url).netloc.lower()
+            if web_netloc and netloc == web_netloc:
+                return True
         return False
     except Exception:
         return False
@@ -168,7 +246,10 @@ async def github_login(
     # If running locally (not in production) and the client is on localhost, redirect to dev-login
     is_prod = bool(os.getenv("RENDER") or settings.environment.strip().lower() == "production")
     client_host = request.url.hostname or ""
-    if not is_prod and (client_host in ("localhost", "127.0.0.1") or (client_origin and "localhost" in client_origin)):
+    if not is_prod and (
+        client_host in ("localhost", "127.0.0.1")
+        or (client_origin and "localhost" in client_origin)
+    ):
         if request.query_params.get("force_oauth") != "1":
             return RedirectResponse(f"{request.base_url}api/auth/dev-login", status_code=307)
 

@@ -69,7 +69,9 @@ def check_rate_limit_and_wait(gh) -> None:
         remaining = core.remaining
         reset_at = core.reset  # datetime UTC
     except Exception as exc:
-        logger.warning("GitHub rate limit check failed: %s; proceeding without rate limit gate", exc)
+        logger.warning(
+            "GitHub rate limit check failed: %s; proceeding without rate limit gate", exc
+        )
         return
 
     if remaining < 50:
@@ -917,4 +919,3 @@ def get_file_last_commit_info(
     except Exception as exc:
         logger.debug("get_file_last_commit_info failed for %s: %s", file_path, exc)
         return None
-

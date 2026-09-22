@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getRepos, type Repo } from "@/lib/api";
 import SpotlightCard from "@/components/ui/SpotlightCard";
+import { useSidebar } from "@/components/dashboard/SidebarContext";
 
 const AtlasView = dynamic(() => import("@/components/atlas/AtlasView"), {
   ssr: false,
@@ -21,6 +22,7 @@ function AtlasContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const paramRepoId = searchParams.get("repo");
+  const { isSidebarCollapsed } = useSidebar();
 
   const [repos, setRepos] = useState<Repo[]>([]);
   const [selectedRepoId, setSelectedRepoId] = useState<string>(paramRepoId || "");
@@ -119,7 +121,11 @@ function AtlasContent() {
   return (
     <div className="w-full h-full flex flex-col bg-black overflow-hidden relative">
       {/* Top Header Bar: Repository Switcher & Meta */}
-      <header className="h-14 border-b border-white/[0.08] bg-black/85 backdrop-blur-xl px-5 flex items-center justify-between z-50 flex-shrink-0">
+      <header
+        className={`h-14 border-b border-white/[0.08] bg-black/85 backdrop-blur-xl ${
+          isSidebarCollapsed ? "pl-36 pr-5" : "px-5"
+        } flex items-center justify-between z-40 flex-shrink-0 transition-all duration-300`}
+      >
         <div className="flex items-center gap-3">
           {/* Target Repo Dropdown */}
           <div className="relative">

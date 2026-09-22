@@ -431,13 +431,19 @@ async def run(payload: dict) -> None:
         if cu is None:
             return
 
+        cu_repo_id = cu.repo_id
+        cu_detected_change_id = cu.detected_change_id
+
         if diff == "UNABLE_TO_PATCH":
             cu.status = "failed"
             # Record patch_failed before commit so it rides the same transaction
             from services.incident_events import record_event
+
             await record_event(
                 session,
                 event_type="patch_failed",
+                repo_id=cu_repo_id,
+                detected_change_id=cu_detected_change_id,
                 code_usage_id=code_usage_id,
                 payload={
                     "reason": "all_candidates_rejected",
@@ -448,12 +454,19 @@ async def run(payload: dict) -> None:
             # Publish after commit — non-fatal if bus is unavailable
             try:
                 from services.event_bus import event_bus
-                await event_bus.publish({
-                    "event_type": "patch_failed",
-                    "code_usage_id": str(code_usage_id),
-                    "reason": "all_candidates_rejected",
-                    "candidates_tried": len(candidates),
-                })
+
+                await event_bus.publish(
+                    {
+                        "event_type": "patch_failed",
+                        "repo_id": str(cu_repo_id) if cu_repo_id else None,
+                        "code_usage_id": str(code_usage_id),
+                        "detected_change_id": (
+                            str(cu_detected_change_id) if cu_detected_change_id else None
+                        ),
+                        "reason": "all_candidates_rejected",
+                        "candidates_tried": len(candidates),
+                    }
+                )
             except Exception as exc:
                 logger.warning("event_bus publish patch_failed failed (non-fatal): %s", exc)
             logger.warning(
@@ -484,9 +497,12 @@ async def run(payload: dict) -> None:
 
         # Record patch_generated before the commit so it rides the same transaction
         from services.incident_events import record_event
+
         await record_event(
             session,
             event_type="patch_generated",
+            repo_id=cu_repo_id,
+            detected_change_id=cu_detected_change_id,
             code_usage_id=code_usage_id,
             job_id=None,
             payload={
@@ -506,13 +522,20 @@ async def run(payload: dict) -> None:
         # Publish patch_generated after commit — non-fatal
         try:
             from services.event_bus import event_bus
-            await event_bus.publish({
-                "event_type": "patch_generated",
-                "code_usage_id": str(code_usage_id),
-                "llm_provider": provider_name,
-                "llm_model": model_name,
-                "verified": False,
-            })
+
+            await event_bus.publish(
+                {
+                    "event_type": "patch_generated",
+                    "repo_id": str(cu_repo_id) if cu_repo_id else None,
+                    "code_usage_id": str(code_usage_id),
+                    "detected_change_id": (
+                        str(cu_detected_change_id) if cu_detected_change_id else None
+                    ),
+                    "llm_provider": provider_name,
+                    "llm_model": model_name,
+                    "verified": False,
+                }
+            )
         except Exception as exc:
             logger.warning("event_bus publish patch_generated failed (non-fatal): %s", exc)
 

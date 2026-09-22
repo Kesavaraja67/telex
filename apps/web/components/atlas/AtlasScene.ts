@@ -42,6 +42,7 @@ export class AtlasScene {
 
   private isMobile = false;
   private brokenNodeIds = new Set<string>();
+  private breakageMap = new Map<string, string[]>();
 
   private cards = new Map<string, CardMeshEntry>();
   private folderObjects: THREE.Object3D[] = [];
@@ -63,6 +64,7 @@ export class AtlasScene {
 
   private selectedNodeId: string | null = null;
   private unsubscribers: Array<() => void> = [];
+  private onWindowResize: () => void;
 
   constructor(container: HTMLElement, opts: AtlasSceneOptions) {
     this.container = container;
@@ -74,6 +76,24 @@ export class AtlasScene {
 
     const width = container.clientWidth || window.innerWidth;
     const height = container.clientHeight || window.innerHeight;
+
+    this.onWindowResize = () => {
+      const w = this.container.clientWidth || window.innerWidth;
+      const h = this.container.clientHeight || window.innerHeight;
+      if (w === 0 || h === 0) return;
+      this.camera.aspect = w / h;
+      this.camera.updateProjectionMatrix();
+      this.renderer.setSize(w, h);
+    };
+    window.addEventListener("resize", this.onWindowResize);
+
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(() => {
+        this.onWindowResize();
+      });
+      ro.observe(this.container);
+      this.unsubscribers.push(() => ro.disconnect());
+    }
 
     // 1. Scene
     this.scene = new THREE.Scene();
@@ -175,9 +195,15 @@ export class AtlasScene {
     this.targetRadius = Math.max(8, Math.min(20, this.defaultRadius * 0.5));
   }
 
-  setBreakage(brokenNodeIds: Set<string>) {
-    this.brokenNodeIds = brokenNodeIds;
-    this.wireRenderer.setBreakage(brokenNodeIds);
+  setBreakage(breakage: Map<string, string[]> | Set<string>) {
+    if (breakage instanceof Map) {
+      this.breakageMap = breakage;
+      this.brokenNodeIds = new Set(breakage.keys());
+    } else {
+      this.brokenNodeIds = breakage;
+      this.breakageMap = new Map(Array.from(breakage).map((id) => [id, []]));
+    }
+    this.wireRenderer.setBreakage(this.brokenNodeIds);
 
     this.cards.forEach((card, id) => {
       const isBroken = this.brokenNodeIds.has(id);
@@ -329,7 +355,7 @@ export class AtlasScene {
     });
 
     const brokenBy = card.isBroken
-      ? Array.from(this.brokenNodeIds).filter((id) => id === nodeId)
+      ? this.breakageMap.get(nodeId) || []
       : [];
 
     this.opts.onSelect({
@@ -421,14 +447,6 @@ export class AtlasScene {
       this.cameraLookAt.z + r * Math.sin(this.orbitPhi) * Math.cos(this.orbitTheta)
     );
     this.camera.lookAt(this.cameraLookAt);
-  }
-
-  private onWindowResize() {
-    const width = this.container.clientWidth || window.innerWidth;
-    const height = this.container.clientHeight || window.innerHeight;
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(width, height);
   }
 
   private animate() {

@@ -113,9 +113,7 @@ async def run(payload_or_session, maybe_job=None) -> None:
                     row.truncated,
                 )
     except Exception as exc:
-        logger.exception(
-            "build_atlas_graph failed for repo=%s sha=%s", repo_id_str, commit_sha
-        )
+        logger.exception("build_atlas_graph failed for repo=%s sha=%s", repo_id_str, commit_sha)
         async with AsyncSessionLocal() as err_session:
             result = await err_session.execute(
                 select(RepoAtlasGraph).where(

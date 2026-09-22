@@ -52,13 +52,15 @@ async def run(payload: dict) -> None:
     async def _publish_validation_event(event_type: str, cu_id, dc_id, repo_id_val, extra: dict):
         """Publish a validation event after commit — exception-safe."""
         try:
-            await event_bus.publish({
-                "event_type": event_type,
-                "code_usage_id": str(cu_id) if cu_id else None,
-                "detected_change_id": str(dc_id) if dc_id else None,
-                "repo_id": str(repo_id_val) if repo_id_val else None,
-                **extra,
-            })
+            await event_bus.publish(
+                {
+                    "event_type": event_type,
+                    "code_usage_id": str(cu_id) if cu_id else None,
+                    "detected_change_id": str(dc_id) if dc_id else None,
+                    "repo_id": str(repo_id_val) if repo_id_val else None,
+                    **extra,
+                }
+            )
         except Exception as exc:
             logger.warning("event_bus publish %s failed (non-fatal): %s", event_type, exc)
 
@@ -96,6 +98,7 @@ async def run(payload: dict) -> None:
         repo_requires_typecheck = repo.requires_typecheck
         repo_allow_install_scripts = getattr(repo, "allow_install_scripts", False)
         diff = patch.diff
+        dc_id = code_usage.detected_change_id
 
         # 1. Structural check
         applies_cleanly, parses, scope_ok = validate_patch(diff, code_snippet)
@@ -103,11 +106,13 @@ async def run(payload: dict) -> None:
         # Emit validating event on entry (before any gate checks)
         # Publish direct — no DB row needed for this in-flight signal
         try:
-            await event_bus.publish({
-                "event_type": "validating",
-                "code_usage_id": str(code_usage.id),
-                "repo_id": str(repo_id),
-            })
+            await event_bus.publish(
+                {
+                    "event_type": "validating",
+                    "code_usage_id": str(code_usage.id),
+                    "repo_id": str(repo_id),
+                }
+            )
         except Exception as exc:
             logger.warning("event_bus publish validating failed (non-fatal): %s", exc)
 
@@ -130,6 +135,7 @@ async def run(payload: dict) -> None:
                 session,
                 event_type="validation_failed",
                 code_usage_id=code_usage.id,
+                detected_change_id=dc_id,
                 repo_id=repo_id,
                 payload={
                     "applies_cleanly": applies_cleanly,
@@ -143,10 +149,18 @@ async def run(payload: dict) -> None:
             )
             await session.commit()
             await _publish_validation_event(
-                "validation_failed", code_usage.id, None, repo_id,
-                {"applies_cleanly": applies_cleanly, "parses": parses,
-                 "scope_ok": scope_ok, "typechecks": None, "tests_pass": None,
-                 "verification_mode": "structural_only"},
+                "validation_failed",
+                code_usage.id,
+                dc_id,
+                repo_id,
+                {
+                    "applies_cleanly": applies_cleanly,
+                    "parses": parses,
+                    "scope_ok": scope_ok,
+                    "typechecks": None,
+                    "tests_pass": None,
+                    "verification_mode": "structural_only",
+                },
             )
             return
 
@@ -170,6 +184,7 @@ async def run(payload: dict) -> None:
                 session,
                 event_type="validation_failed",
                 code_usage_id=code_usage.id,
+                detected_change_id=dc_id,
                 repo_id=repo_id,
                 payload={
                     "applies_cleanly": applies_cleanly,
@@ -183,10 +198,18 @@ async def run(payload: dict) -> None:
             )
             await session.commit()
             await _publish_validation_event(
-                "validation_failed", code_usage.id, None, repo_id,
-                {"applies_cleanly": applies_cleanly, "parses": parses,
-                 "scope_ok": scope_ok, "typechecks": None, "tests_pass": None,
-                 "verification_mode": "structural_only"},
+                "validation_failed",
+                code_usage.id,
+                dc_id,
+                repo_id,
+                {
+                    "applies_cleanly": applies_cleanly,
+                    "parses": parses,
+                    "scope_ok": scope_ok,
+                    "typechecks": None,
+                    "tests_pass": None,
+                    "verification_mode": "structural_only",
+                },
             )
             return
 
@@ -225,6 +248,7 @@ async def run(payload: dict) -> None:
                     session,
                     event_type="validation_failed",
                     code_usage_id=code_usage.id,
+                    detected_change_id=dc_id,
                     repo_id=repo_id,
                     payload={
                         "applies_cleanly": False,
@@ -233,14 +257,23 @@ async def run(payload: dict) -> None:
                         "typechecks": None,
                         "tests_pass": None,
                         "verification_mode": "structural_only",
-                        "reason": "git_apply_failed",
+                        "reason": f"git_apply_failed: {apply_log}",
                     },
                 )
                 await session.commit()
                 await _publish_validation_event(
-                    "validation_failed", code_usage.id, None, repo_id,
-                    {"applies_cleanly": False, "parses": parses, "scope_ok": scope_ok,
-                     "typechecks": None, "tests_pass": None, "verification_mode": "structural_only"},
+                    "validation_failed",
+                    code_usage.id,
+                    dc_id,
+                    repo_id,
+                    {
+                        "applies_cleanly": False,
+                        "parses": parses,
+                        "scope_ok": scope_ok,
+                        "typechecks": None,
+                        "tests_pass": None,
+                        "verification_mode": "structural_only",
+                    },
                 )
                 return
 
@@ -289,6 +322,7 @@ async def run(payload: dict) -> None:
                     session,
                     event_type="validation_failed",
                     code_usage_id=code_usage.id,
+                    detected_change_id=dc_id,
                     repo_id=repo_id,
                     payload={
                         "applies_cleanly": True,
@@ -302,9 +336,18 @@ async def run(payload: dict) -> None:
                 )
                 await session.commit()
                 await _publish_validation_event(
-                    "validation_failed", code_usage.id, None, repo_id,
-                    {"applies_cleanly": True, "parses": True, "scope_ok": scope_ok,
-                     "typechecks": False, "tests_pass": False, "verification_mode": "structural_only"},
+                    "validation_failed",
+                    code_usage.id,
+                    dc_id,
+                    repo_id,
+                    {
+                        "applies_cleanly": True,
+                        "parses": True,
+                        "scope_ok": scope_ok,
+                        "typechecks": False,
+                        "tests_pass": False,
+                        "verification_mode": "structural_only",
+                    },
                 )
                 return
 
@@ -340,6 +383,7 @@ async def run(payload: dict) -> None:
                     session,
                     event_type="validation_failed",
                     code_usage_id=code_usage.id,
+                    detected_change_id=dc_id,
                     repo_id=repo_id,
                     payload={
                         "applies_cleanly": False,
@@ -353,9 +397,18 @@ async def run(payload: dict) -> None:
                 )
                 await session.commit()
                 await _publish_validation_event(
-                    "validation_failed", code_usage.id, None, repo_id,
-                    {"applies_cleanly": False, "parses": True, "scope_ok": scope_ok,
-                     "typechecks": False, "tests_pass": False, "verification_mode": "structural_only"},
+                    "validation_failed",
+                    code_usage.id,
+                    dc_id,
+                    repo_id,
+                    {
+                        "applies_cleanly": False,
+                        "parses": True,
+                        "scope_ok": scope_ok,
+                        "typechecks": False,
+                        "tests_pass": False,
+                        "verification_mode": "structural_only",
+                    },
                 )
                 return
 
@@ -415,6 +468,7 @@ async def run(payload: dict) -> None:
                     session,
                     event_type="validation_failed",
                     code_usage_id=code_usage.id,
+                    detected_change_id=dc_id,
                     repo_id=repo_id,
                     payload={
                         "applies_cleanly": True,
@@ -432,6 +486,7 @@ async def run(payload: dict) -> None:
                     session,
                     event_type="validation_passed",
                     code_usage_id=code_usage.id,
+                    detected_change_id=dc_id,
                     repo_id=repo_id,
                     payload={
                         "applies_cleanly": True,
@@ -456,12 +511,23 @@ async def run(payload: dict) -> None:
             await session.commit()
 
             # Publish final outcome after commit
-            outcome_event = "validation_failed" if (fails_test_req or fails_typecheck_req or run_failed) else "validation_passed"
+            outcome_event = (
+                "validation_failed"
+                if (fails_test_req or fails_typecheck_req or run_failed)
+                else "validation_passed"
+            )
             await _publish_validation_event(
-                outcome_event, code_usage.id, None, repo_id,
-                {"applies_cleanly": True, "typechecks": typechecks,
-                 "tests_pass": tests_pass, "scope_ok": scope_ok,
-                 "verification_mode": verification_mode},
+                outcome_event,
+                code_usage.id,
+                dc_id,
+                repo_id,
+                {
+                    "applies_cleanly": True,
+                    "typechecks": typechecks,
+                    "tests_pass": tests_pass,
+                    "scope_ok": scope_ok,
+                    "verification_mode": verification_mode,
+                },
             )
 
         except Exception as exc:
@@ -490,6 +556,7 @@ async def run(payload: dict) -> None:
                 session,
                 event_type="validation_failed",
                 code_usage_id=code_usage.id,
+                detected_change_id=dc_id,
                 repo_id=repo_id,
                 payload={
                     "applies_cleanly": False,
@@ -503,7 +570,16 @@ async def run(payload: dict) -> None:
             )
             await session.commit()
             await _publish_validation_event(
-                "validation_failed", code_usage.id, None, repo_id,
-                {"applies_cleanly": False, "parses": False, "scope_ok": False,
-                 "typechecks": False, "tests_pass": False, "verification_mode": "structural_only"},
+                "validation_failed",
+                code_usage.id,
+                dc_id,
+                repo_id,
+                {
+                    "applies_cleanly": False,
+                    "parses": False,
+                    "scope_ok": False,
+                    "typechecks": False,
+                    "tests_pass": False,
+                    "verification_mode": "structural_only",
+                },
             )

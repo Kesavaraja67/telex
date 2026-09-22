@@ -45,9 +45,14 @@ async function processQueue() {
   for (const [key, { repoId, filePath, ref }] of currentBatch) {
     try {
       const params = new URLSearchParams({ path: filePath, ref });
+      const headers: Record<string, string> = {};
+      if (typeof window !== "undefined") {
+        const token = localStorage.getItem("telex_token");
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+      }
       const res = await fetch(
         `${API_BASE}/api/repos/${repoId}/atlas/last-edited?${params}`,
-        { credentials: "include" }
+        { credentials: "include", headers }
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();

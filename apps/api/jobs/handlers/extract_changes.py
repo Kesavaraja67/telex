@@ -10,30 +10,39 @@ Payload shape:
     }
 """
 
+import asyncio
 import logging
 import uuid
 
 logger = logging.getLogger(__name__)
 
+_BACKGROUND_TASKS: set[asyncio.Task] = set()
+
 
 def _publish_change_detected(repo_id_str, dc_id_str, payload_dict):
     """Fire-and-forget coroutine helper called after commit."""
-    import asyncio
     from services.event_bus import event_bus
 
     async def _do():
         try:
-            await event_bus.publish({
-                "event_type": "change_detected",
-                "repo_id": repo_id_str,
-                "detected_change_id": dc_id_str,
-                **payload_dict,
-            })
+            await event_bus.publish(
+                {
+                    "event_type": "change_detected",
+                    "repo_id": repo_id_str,
+                    "detected_change_id": dc_id_str,
+                    **payload_dict,
+                }
+            )
         except Exception as exc:
             logger.warning("event_bus publish change_detected failed (non-fatal): %s", exc)
 
-    loop = asyncio.get_event_loop()
-    loop.create_task(_do())
+    try:
+        loop = asyncio.get_running_loop()
+        task = loop.create_task(_do())
+        _BACKGROUND_TASKS.add(task)
+        task.add_done_callback(_BACKGROUND_TASKS.discard)
+    except RuntimeError:
+        pass
 
 
 async def run(payload: dict) -> None:
@@ -117,32 +126,41 @@ async def run(payload: dict) -> None:
 
         await session.commit()
 
-        # Publish to live bus after commit (bus never sees uncommitted rows)
-        # Collect dc ids/payloads before they become detached
-        dc_publish_list = [
-            (str(dc.id), {
-                "symbol_old": ch.get("symbol_old", ""),
-                "symbol_new": ch.get("symbol_new"),
-                "change_type": ch.get("change_type", "signature_change"),
-                "confidence": float(ch.get("confidence", 0.8)),
-                "package": package_name,
-                "version": pv_version,
-            })
-            for dc, ch in dc_rows
-        ]
-        for dc_id_str, ev_payload in dc_publish_list:
-            _publish_change_detected(None, dc_id_str, ev_payload)
-
         # Enqueue scan_repo for every repo that tracks this package
         repo_pkgs = await session.execute(
             select(RepoPackage).where(RepoPackage.package_id == pv_package_id)
         )
-        for rp in repo_pkgs.scalars():
+        tracking_repo_ids = [str(rp.repo_id) for rp in repo_pkgs.scalars()]
+
+        # Publish to live bus after commit (bus never sees uncommitted rows)
+        # Collect dc ids/payloads before they become detached
+        dc_publish_list = [
+            (
+                str(dc.id),
+                {
+                    "symbol_old": ch.get("symbol_old", ""),
+                    "symbol_new": ch.get("symbol_new"),
+                    "change_type": ch.get("change_type", "signature_change"),
+                    "confidence": float(ch.get("confidence", 0.8)),
+                    "package": package_name,
+                    "version": pv_version,
+                },
+            )
+            for dc, ch in dc_rows
+        ]
+        for dc_id_str, ev_payload in dc_publish_list:
+            if tracking_repo_ids:
+                for r_id in tracking_repo_ids:
+                    _publish_change_detected(r_id, dc_id_str, ev_payload)
+            else:
+                _publish_change_detected(None, dc_id_str, ev_payload)
+
+        for r_id in tracking_repo_ids:
             await enqueue_job(
                 session,
                 "scan_repo",
                 {
-                    "repo_id": str(rp.repo_id),
+                    "repo_id": r_id,
                     "package_version_id": str(package_version_id),
                 },
             )

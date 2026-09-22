@@ -459,6 +459,7 @@ async def run(payload: dict) -> None:
 
         # Record pr_opened event (rides the same insert transaction)
         from services.incident_events import record_event
+
         await record_event(
             session,
             event_type="pr_opened",
@@ -474,12 +475,15 @@ async def run(payload: dict) -> None:
     # Publish after commit — non-fatal
     try:
         from services.event_bus import event_bus
-        await event_bus.publish({
-            "event_type": "pr_opened",
-            "repo_id": str(repo_id),
-            "github_pr_url": pr_url,
-            "github_pr_number": pr_number,
-        })
+
+        await event_bus.publish(
+            {
+                "event_type": "pr_opened",
+                "repo_id": str(repo_id),
+                "github_pr_url": pr_url,
+                "github_pr_number": pr_number,
+            }
+        )
     except Exception as exc:
         logger.warning("event_bus publish pr_opened failed (non-fatal): %s", exc)
 

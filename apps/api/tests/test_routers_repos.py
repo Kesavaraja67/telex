@@ -40,7 +40,10 @@ async def test_list_repos_endpoint():
     with patch("routers.repos.get_core_repositories_async", AsyncMock(return_value=mock_repos)):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/repos")
+            unauth_resp = await client.get("/api/repos")
+            assert unauth_resp.status_code == 401
+
+            resp = await client.get("/api/repos", headers={"X-Demo-Key": "telex_demo_secret_2026"})
             assert resp.status_code == 200
             data = resp.json()
             assert len(data) == 1

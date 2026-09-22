@@ -20,15 +20,16 @@ Repo Atlas router.
 import asyncio
 import logging
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import PurePosixPath
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 
-from db.models import Installation, Job, Repo, RepoAtlasGraph
+from db.models import RepoAtlasGraph
 from db.session import AsyncSessionLocal
-from routers.auth import require_auth
+from routers.auth import get_authorized_repo, require_auth
 from services.github_service import (
     fetch_file_content,
     get_default_branch_head_sha,
@@ -47,18 +48,8 @@ async def get_atlas_graph(
     refresh: bool = Query(default=False),
     auth_data: dict = Depends(require_auth),
 ):
-    try:
-        repo_uuid = uuid.UUID(repo_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid repo_id")
-
     async with AsyncSessionLocal() as session:
-        repo = await session.get(Repo, repo_uuid)
-        if repo is None:
-            raise HTTPException(status_code=404, detail="Repo not found")
-        installation = await session.get(Installation, repo.installation_id)
-        if installation is None:
-            raise HTTPException(status_code=404, detail="Installation not found")
+        repo, installation = await get_authorized_repo(session, repo_id, auth_data)
 
         resolved_sha = commit_sha
         if resolved_sha is None or refresh:
@@ -106,7 +97,6 @@ async def get_atlas_graph(
         # Check for stale computing rows (e.g. server restarted or crashed during build)
         is_stale_computing = False
         if row is not None and row.status == "computing" and row.created_at:
-            from datetime import datetime, timezone, timedelta
             if (datetime.now(timezone.utc) - row.created_at) > timedelta(seconds=120):
                 is_stale_computing = True
 
@@ -125,6 +115,7 @@ async def get_atlas_graph(
                 row.error_message = None
 
             from jobs.queue import enqueue_job
+
             job_payload = {
                 "repo_id": str(repo.id),
                 "commit_sha": resolved_sha,
@@ -132,10 +123,6 @@ async def get_atlas_graph(
             }
             await enqueue_job(session, "build_atlas_graph", job_payload)
             await session.commit()
-
-            # Immediate background execution for instant first-try response
-            from jobs.handlers import build_atlas_graph
-            asyncio.create_task(build_atlas_graph.run(job_payload))
 
         return JSONResponse(
             status_code=202,
@@ -154,24 +141,12 @@ async def get_atlas_file(
     ref: str = Query(...),
     auth_data: dict = Depends(require_auth),
 ):
-    try:
-        repo_uuid = uuid.UUID(repo_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid repo_id")
-
     ext = PurePosixPath(path).suffix.lower()
     if ext in BINARY_EXTENSIONS:
-        raise HTTPException(
-            status_code=415, detail="File is binary/media — no preview available"
-        )
+        raise HTTPException(status_code=415, detail="File is binary/media — no preview available")
 
     async with AsyncSessionLocal() as session:
-        repo = await session.get(Repo, repo_uuid)
-        if repo is None:
-            raise HTTPException(status_code=404, detail="Repo not found")
-        installation = await session.get(Installation, repo.installation_id)
-        if installation is None:
-            raise HTTPException(status_code=404, detail="Installation not found")
+        repo, installation = await get_authorized_repo(session, repo_id, auth_data)
 
     content = await asyncio.to_thread(
         fetch_file_content,
@@ -183,9 +158,7 @@ async def get_atlas_file(
     if content is None:
         raise HTTPException(status_code=404, detail="File not found at this ref")
     if len(content) > 1_000_000:
-        content = (
-            content[:1_000_000] + "\n\n… (truncated, file exceeds 1MB preview limit)"
-        )
+        content = content[:1_000_000] + "\n\n… (truncated, file exceeds 1MB preview limit)"
 
     return {"path": path, "ref": ref, "content": content, "language_ext": ext}
 
@@ -197,18 +170,8 @@ async def get_atlas_last_edited(
     ref: str = Query(...),
     auth_data: dict = Depends(require_auth),
 ):
-    try:
-        repo_uuid = uuid.UUID(repo_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid repo_id")
-
     async with AsyncSessionLocal() as session:
-        repo = await session.get(Repo, repo_uuid)
-        if repo is None:
-            raise HTTPException(status_code=404, detail="Repo not found")
-        installation = await session.get(Installation, repo.installation_id)
-        if installation is None:
-            raise HTTPException(status_code=404, detail="Installation not found")
+        repo, installation = await get_authorized_repo(session, repo_id, auth_data)
 
     info = await asyncio.to_thread(
         get_file_last_commit_info,

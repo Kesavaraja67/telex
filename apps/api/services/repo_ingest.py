@@ -46,29 +46,39 @@ async def fetch_repo_snapshot(
     }
 
     async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as client:
-        resp = await client.get(url, headers=headers)
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"tarball fetch failed for {repo_full_name}@{ref}: {resp.status_code}"
-            )
-        content = resp.content
-        if len(content) > MAX_TARBALL_BYTES:
-            raise RuntimeError(
-                f"repo tarball for {repo_full_name}@{ref} exceeds {MAX_TARBALL_BYTES} bytes — refusing to ingest"
-            )
+        async with client.stream("GET", url, headers=headers) as resp:
+            if resp.status_code != 200:
+                raise RuntimeError(
+                    f"tarball fetch failed for {repo_full_name}@{ref}: {resp.status_code}"
+                )
+            buffer = io.BytesIO()
+            total_bytes = 0
+            async for chunk in resp.aiter_bytes():
+                total_bytes += len(chunk)
+                if total_bytes > MAX_TARBALL_BYTES:
+                    raise RuntimeError(
+                        f"repo tarball for {repo_full_name}@{ref} exceeds {MAX_TARBALL_BYTES} bytes — refusing to ingest"
+                    )
+                buffer.write(chunk)
+            content = buffer.getvalue()
 
     tmpdir = Path(tempfile.mkdtemp(prefix="telex_atlas_"))
     with tarfile.open(fileobj=io.BytesIO(content), mode="r:gz") as tf:
         # GitHub tarballs wrap everything in one top-level "<owner>-<repo>-<sha>/" dir.
-        # Guard against path traversal before extracting (tarball is third-party content).
-        safe_members = []
-        for member in tf.getmembers():
-            member_path = (tmpdir / member.name).resolve()
-            if not str(member_path).startswith(str(tmpdir.resolve())):
-                logger.warning("Skipping unsafe tar member: %s", member.name)
-                continue
-            safe_members.append(member)
-        tf.extractall(path=tmpdir, members=safe_members)
+        # The tarball is third-party content: the "data" filter rejects absolute paths,
+        # ".." traversal, links that escape the destination, and special files.
+        try:
+            tf.extractall(path=tmpdir, filter="data")
+        except TypeError:
+            safe_members = []
+            resolved_tmp = tmpdir.resolve()
+            for member in tf.getmembers():
+                member_path = (tmpdir / member.name).resolve()
+                if not member_path.is_relative_to(resolved_tmp):
+                    logger.warning("Skipping unsafe tar member: %s", member.name)
+                    continue
+                safe_members.append(member)
+            tf.extractall(path=tmpdir, members=safe_members)
 
     # Descend into the single top-level directory GitHub always wraps content in
     children = list(tmpdir.iterdir())

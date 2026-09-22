@@ -364,9 +364,7 @@ class IncidentEvent(Base):
             name="ck_incident_events_type",
         ),
         Index("idx_incident_events_repo_created", "repo_id", "created_at"),
-        Index(
-            "idx_incident_events_change_created", "detected_change_id", "created_at"
-        ),
+        Index("idx_incident_events_change_created", "detected_change_id", "created_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -440,15 +438,11 @@ class RepoAtlasGraph(Base):
             "status IN ('computing','ready','failed')",
             name="ck_repo_atlas_graphs_status",
         ),
-        UniqueConstraint(
-            "repo_id", "commit_sha", name="uq_repo_atlas_graphs_repo_commit"
-        ),
+        UniqueConstraint("repo_id", "commit_sha", name="uq_repo_atlas_graphs_repo_commit"),
         Index("idx_repo_atlas_graphs_repo_status", "repo_id", "status"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     repo_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("repos.id", ondelete="CASCADE"), nullable=False
     )
@@ -463,4 +457,3 @@ class RepoAtlasGraph(Base):
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
     )
     completed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
-

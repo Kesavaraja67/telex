@@ -150,7 +150,6 @@ export class WireRenderer {
       this.scene.remove(p.mesh);
       (p.mesh.material as THREE.Material).dispose();
     }
-    PULSE_GEO.dispose();
     this.wires.clear();
     this.pulses = [];
   }

@@ -15,10 +15,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from config import settings
-from routers import auth, packages, repos, stats, webhooks
-from routers.incidents import router as incidents_router
-from routers import settings as settings_router
 from routers import atlas as atlas_router
+from routers import auth, packages, repos, stats, webhooks
+from routers import settings as settings_router
+from routers.incidents import router as incidents_router
 from services.logging_utils import install_redacting_formatters
 
 _API_DIR = Path(__file__).resolve().parent

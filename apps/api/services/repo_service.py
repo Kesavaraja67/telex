@@ -55,7 +55,9 @@ def _parse_github_datetime(iso_str: str | None) -> str:
         return iso_str[:10]
 
 
-def fetch_live_github_commits(repo_full_name: str, limit: int = 5, token: str | None = None) -> list[dict]:
+def fetch_live_github_commits(
+    repo_full_name: str, limit: int = 5, token: str | None = None
+) -> list[dict]:
     """Fetch live recent commits for a repository from GitHub API."""
     cache_key = f"{repo_full_name}-{limit}"
     cached = _CACHE["commits_by_repo"].get(cache_key)
@@ -300,7 +302,7 @@ async def sync_github_app_repositories_async(user_id: str | None = None) -> None
             if user_id:
                 try:
                     user_res = await session.execute(
-                        select(User).where(User.id == uuid.UUID(str(user_id)))
+                        select(User).where(User.id == uuid.UUID(user_id))
                     )
                     current_user = user_res.scalar_one_or_none()
                 except Exception:
@@ -325,17 +327,8 @@ async def sync_github_app_repositories_async(user_id: str | None = None) -> None
                     session.add(db_inst)
                     await session.flush()
 
-                if current_user:
-                    if (
-                        account_login.lower() == current_user.github_login.lower()
-                        or not db_inst.installed_by
-                    ):
-                        db_inst.installed_by = current_user.id
-                elif user_id and not db_inst.installed_by:
-                    try:
-                        db_inst.installed_by = uuid.UUID(str(user_id))
-                    except Exception:
-                        pass
+                if current_user and account_login.lower() == current_user.github_login.lower():
+                    db_inst.installed_by = current_user.id
 
                 async with httpx.AsyncClient(timeout=15.0) as client:
                     gh_repos = []
@@ -429,26 +422,23 @@ async def get_core_repositories_async(
         async with AsyncSessionLocal() as session:
             stmt = select(Repo).where(Repo.is_active == True)
             if user_id:
-                try:
-                    user_uuid = uuid.UUID(str(user_id))
-                    user_res = await session.execute(
-                        select(User).where(User.id == user_uuid)
-                    )
-                    cur_user = user_res.scalar_one_or_none()
-                    user_login = cur_user.github_login.lower() if cur_user else None
+                user_uuid = uuid.UUID(user_id)
+                user_res = await session.execute(select(User).where(User.id == user_uuid))
+                cur_user = user_res.scalar_one_or_none()
+                user_login = cur_user.github_login.lower() if cur_user else None
 
-                    conditions = [Installation.installed_by == user_uuid]
-                    if user_login:
-                        conditions.append(func.lower(Installation.account_login) == user_login)
+                conditions = [Installation.installed_by == user_uuid]
+                if user_login:
+                    conditions.append(func.lower(Installation.account_login) == user_login)
 
-                    user_inst_res = await session.execute(
-                        select(Installation.id).where(or_(*conditions))
-                    )
-                    user_inst_ids = [row[0] for row in user_inst_res.all()]
-                    if user_inst_ids:
-                        stmt = stmt.where(Repo.installation_id.in_(user_inst_ids))
-                except Exception:
-                    pass
+                user_inst_res = await session.execute(
+                    select(Installation.id).where(or_(*conditions))
+                )
+                user_inst_ids = [row[0] for row in user_inst_res.all()]
+                if user_inst_ids:
+                    stmt = stmt.where(Repo.installation_id.in_(user_inst_ids))
+                else:
+                    return []
 
             result = await session.execute(stmt)
             db_repos = result.scalars().all()
@@ -461,10 +451,14 @@ async def get_core_repositories_async(
                 inst_ids = {r.installation_id for r in db_repos if r.installation_id}
                 if inst_ids:
                     inst_records = (
-                        await session.execute(
-                            select(Installation).where(Installation.id.in_(inst_ids))
+                        (
+                            await session.execute(
+                                select(Installation).where(Installation.id.in_(inst_ids))
+                            )
                         )
-                    ).scalars().all()
+                        .scalars()
+                        .all()
+                    )
                     for inst_record in inst_records:
                         try:
                             from services.github_service import get_installation_token
@@ -477,6 +471,17 @@ async def get_core_repositories_async(
                         except Exception:
                             pass
 
+                # Pre-fetch PR counts in one batch query to prevent concurrent operations on the same AsyncSession
+                repo_ids = [r.id for r in db_repos]
+                pr_count_map: dict[uuid.UUID, int] = {}
+                if repo_ids:
+                    pr_counts_res = await session.execute(
+                        select(PullRequest.repo_id, func.count(PullRequest.id))
+                        .where(PullRequest.repo_id.in_(repo_ids))
+                        .group_by(PullRequest.repo_id)
+                    )
+                    pr_count_map = {row[0]: row[1] for row in pr_counts_res.all()}
+
                 async def hydrate_repo(r: Repo) -> dict:
                     token = inst_token_map.get(r.installation_id)
                     commits_task = asyncio.to_thread(
@@ -488,16 +493,13 @@ async def get_core_repositories_async(
                         r.default_branch or "main",
                         token,
                     )
-                    pr_task = session.execute(
-                        select(func.count(PullRequest.id)).where(PullRequest.repo_id == r.id)
-                    )
 
-                    commits, meta, pr_res = await asyncio.gather(
-                        commits_task, meta_task, pr_task, return_exceptions=True
+                    commits, meta = await asyncio.gather(
+                        commits_task, meta_task, return_exceptions=True
                     )
                     commits = commits if isinstance(commits, list) else []
                     meta = meta if isinstance(meta, dict) else {}
-                    pr_count: int = pr_res.scalar_one() if hasattr(pr_res, "scalar_one") else 0
+                    pr_count: int = pr_count_map.get(r.id, 0)
 
                     parts = r.full_name.split("/")
                     owner = parts[0] if len(parts) > 1 else "User"

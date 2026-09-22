@@ -108,6 +108,35 @@ async def _heartbeat_loop(job_id: uuid.UUID, worker_id: str, interval: float = 1
             logger.debug("Heartbeat update failed for job %s: %s", job_id, exc)
 
 
+async def _resolve_repo_id_for_job(session, payload: dict | None) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+    repo_id_val = payload.get("repo_id")
+    if repo_id_val:
+        return str(repo_id_val)
+    if payload.get("code_usage_id"):
+        from db.models import CodeUsage
+
+        try:
+            cu = await session.get(CodeUsage, uuid.UUID(str(payload["code_usage_id"])))
+            if cu and cu.repo_id:
+                return str(cu.repo_id)
+        except Exception:
+            pass
+    elif payload.get("patch_id"):
+        from db.models import CodeUsage, Patch
+
+        try:
+            p = await session.get(Patch, uuid.UUID(str(payload["patch_id"])))
+            if p and p.code_usage_id:
+                cu = await session.get(CodeUsage, p.code_usage_id)
+                if cu and cu.repo_id:
+                    return str(cu.repo_id)
+        except Exception:
+            pass
+    return None
+
+
 async def worker_loop(worker_id: str) -> None:
     logger.info("Worker %s starting", worker_id)
     last_reap = 0.0
@@ -135,6 +164,9 @@ async def worker_loop(worker_id: str) -> None:
 
                 # Start heartbeat while handler executes
                 heartbeat_task = asyncio.create_task(_heartbeat_loop(job.id, worker_id))
+                events_to_publish: list[dict] = []
+                job_id_str = str(job.id)
+                job_type_str = job.job_type
                 try:
                     handler = JOB_HANDLERS.get(job.job_type)
                     if handler is None:
@@ -142,17 +174,26 @@ async def worker_loop(worker_id: str) -> None:
                     await handler(job.payload)
                     job.status = "done"
                     logger.info("Job %s completed", job.id)
-                    # Publish job_done after handler succeeds (commit happens in finally)
-                    try:
-                        from services.event_bus import event_bus
-                        await event_bus.publish({
+
+                    repo_id_str = await _resolve_repo_id_for_job(session, job.payload)
+                    from services.incident_events import record_event as _record_event
+
+                    await _record_event(
+                        session,
+                        event_type="job_done",
+                        repo_id=repo_id_str,
+                        job_id=job.id,
+                        payload={"job_type": job_type_str, "attempts": job.attempts},
+                    )
+                    events_to_publish.append(
+                        {
                             "event_type": "job_done",
-                            "job_id": str(job.id),
-                            "job_type": job.job_type,
+                            "repo_id": repo_id_str,
+                            "job_id": job_id_str,
+                            "job_type": job_type_str,
                             "attempts": job.attempts,
-                        })
-                    except Exception as _bus_exc:
-                        logger.warning("event_bus publish job_done failed (non-fatal): %s", _bus_exc)
+                        }
+                    )
                 except Exception as exc:
                     # Rollback any aborted DB state before writing job status
                     await session.rollback()
@@ -160,7 +201,10 @@ async def worker_loop(worker_id: str) -> None:
                     if job.attempts >= job.max_attempts:
                         job.status = "failed"
                         logger.error(
-                            "Job %s permanently failed after %d attempts: %s", job.id, job.attempts, exc
+                            "Job %s permanently failed after %d attempts: %s",
+                            job.id,
+                            job.attempts,
+                            exc,
                         )
                     else:
                         job.status = "queued"
@@ -175,31 +219,55 @@ async def worker_loop(worker_id: str) -> None:
                             delay,
                             exc,
                         )
-                    # Publish job_failed after status update (commit happens in finally)
-                    try:
-                        from services.event_bus import event_bus
-                        final_status = job.status  # "failed" or "queued" (retry)
-                        await event_bus.publish({
-                            "event_type": "job_failed",
-                            "job_id": str(job.id),
-                            "job_type": job.job_type,
+                    final_status = job.status  # "failed" or "queued" (retry)
+                    repo_id_str = await _resolve_repo_id_for_job(session, job.payload)
+                    from services.incident_events import record_event as _record_event
+
+                    await _record_event(
+                        session,
+                        event_type="job_failed",
+                        repo_id=repo_id_str,
+                        job_id=job.id,
+                        payload={
+                            "job_type": job_type_str,
                             "attempts": job.attempts,
                             "final_status": final_status,
                             "error": str(exc)[:200],
-                        })
-                    except Exception as _bus_exc:
-                        logger.warning("event_bus publish job_failed failed (non-fatal): %s", _bus_exc)
+                        },
+                    )
+                    events_to_publish.append(
+                        {
+                            "event_type": "job_failed",
+                            "repo_id": repo_id_str,
+                            "job_id": job_id_str,
+                            "job_type": job_type_str,
+                            "attempts": job.attempts,
+                            "final_status": final_status,
+                            "error": str(exc)[:200],
+                        }
+                    )
                 finally:
                     heartbeat_task.cancel()
                     try:
                         await heartbeat_task
                     except asyncio.CancelledError:
                         pass
+                    commit_ok = False
                     try:
                         await session.commit()
+                        commit_ok = True
                     except Exception:
-                        logger.exception("Job %s: could not persist final state", job.id)
+                        logger.exception("Job %s: could not persist final state", job_id_str)
                         await session.rollback()
+
+                    if commit_ok and events_to_publish:
+                        try:
+                            from services.event_bus import event_bus
+
+                            for ev in events_to_publish:
+                                await event_bus.publish(ev)
+                        except Exception as _bus_exc:
+                            logger.warning("event_bus publish failed (non-fatal): %s", _bus_exc)
         except asyncio.CancelledError:
             logger.info("Worker %s received cancellation; exiting loop", worker_id)
             break

@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, use } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import SpotlightCard from "@/components/ui/SpotlightCard";
 import BorderBeam from "@/components/ui/BorderBeam";
@@ -18,7 +17,6 @@ export default function RepoDetailPage({
 }) {
   const resolvedParams = use(params);
   const repoId = resolvedParams.id;
-  const router = useRouter();
 
   const [repo, setRepo] = useState<RepoDetails | null>(null);
   const [patches, setPatches] = useState<PatchSummary[]>([]);

@@ -52,13 +52,10 @@ async def list_repos(
     include_benchmarks: bool = False,
 ):
     """Return all active monitored repositories with live git commit metadata."""
-    user_id = None
-    try:
-        auth_data = await require_auth(request)
-        if isinstance(auth_data, dict):
-            user_id = auth_data.get("user_id")
-    except Exception:
-        pass
+    auth_data = await require_auth(request)
+    user_id = auth_data.get("user_id") if isinstance(auth_data, dict) else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
 
     repos = await get_core_repositories_async(
         force_sync=sync, include_benchmarks=include_benchmarks, user_id=user_id

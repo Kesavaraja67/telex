@@ -32,7 +32,7 @@ interface SimLink {
 export class OrganismSimulation {
   private nodes: SimNode[] = [];
   private links: SimLink[] = [];
-  private sim: ReturnType<typeof d3Force3d.forceSimulation>;
+  private sim!: ReturnType<typeof d3Force3d.forceSimulation>;
   private nodeMap = new Map<string, SimNode>();
 
   private readonly ROOT_ID = "__root__";

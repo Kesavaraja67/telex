@@ -58,6 +58,7 @@ async def record_event(
     The caller is responsible for session.commit(). After commit, the caller
     should publish the same data to event_bus so live SSE clients receive it.
     """
+
     # Normalise UUIDs to uuid.UUID objects for the ORM
     def _to_uuid(v: uuid.UUID | str | None) -> uuid.UUID | None:
         if v is None:

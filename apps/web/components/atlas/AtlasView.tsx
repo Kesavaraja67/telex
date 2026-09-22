@@ -37,12 +37,14 @@ export default function AtlasView({
   const [repoName, setRepoName] = useState<string>("");
   const [selection, setSelection] = useState<AtlasSelection | null>(null);
   const [activeIncidents, setActiveIncidents] = useState<ActiveIncident[]>([]);
+  const [breakageMap, setBreakageMap] = useState<Map<string, string[]>>(new Map());
   const [legendOpen, setLegendOpen] = useState(true);
   const [controlsOpen, setControlsOpen] = useState(true);
   const [computeSeconds, setComputeSeconds] = useState(0);
 
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStartedAt = useRef<number>(0);
+  const loadRef = useRef<(opts?: { refresh?: boolean; pinnedSha?: string }) => void>(() => {});
 
   // 1. Polling and loading graph
   const load = useCallback(
@@ -78,13 +80,20 @@ export default function AtlasView({
           setState({ kind: "failed", error: "Timed out waiting for the graph to build." });
           return;
         }
-        pollTimer.current = setTimeout(() => load({ pinnedSha: body.commit_sha }), 1500);
+        pollTimer.current = setTimeout(
+          () => loadRef.current({ pinnedSha: body.commit_sha }),
+          1500
+        );
       } catch (err: any) {
         setState({ kind: "failed", error: err.message || "Network error while fetching graph." });
       }
     },
     [repoId]
   );
+
+  useEffect(() => {
+    loadRef.current = load;
+  }, [load]);
 
   // 2. Compute duration counter
   useEffect(() => {
@@ -117,7 +126,7 @@ export default function AtlasView({
         setActiveIncidents(incidents);
 
         // Fetch graph details for each active incident to get implicated files
-        const brokenSet = new Set<string>();
+        const bMap = new Map<string, string[]>();
         await Promise.allSettled(
           incidents.map(async (inc) => {
             try {
@@ -128,8 +137,12 @@ export default function AtlasView({
               if (gRes.ok) {
                 const gData = await gRes.json();
                 gData.nodes?.forEach((n: any) => {
-                  if (n.status !== "patched") {
-                    brokenSet.add(n.file_path);
+                  if (n.status !== "patched" && n.file_path) {
+                    const list = bMap.get(n.file_path) || [];
+                    if (!list.includes(inc.detected_change_id)) {
+                      list.push(inc.detected_change_id);
+                    }
+                    bMap.set(n.file_path, list);
                   }
                 });
               }
@@ -139,8 +152,10 @@ export default function AtlasView({
           })
         );
 
-        if (isMounted && sceneRef.current) {
-          sceneRef.current.setBreakage(brokenSet);
+        if (!isMounted) return;
+        setBreakageMap(bMap);
+        if (sceneRef.current) {
+          sceneRef.current.setBreakage(bMap);
         }
       } catch {
         // Active incidents optional
@@ -225,6 +240,9 @@ export default function AtlasView({
       commitSha: state.data.commit_sha,
     });
     scene.init(state.data);
+    if (breakageMap.size > 0) {
+      scene.setBreakage(breakageMap);
+    }
     sceneRef.current = scene;
 
     return () => {
@@ -232,6 +250,12 @@ export default function AtlasView({
       sceneRef.current = null;
     };
   }, [state, repoId]);
+
+  useEffect(() => {
+    if (sceneRef.current && breakageMap.size > 0) {
+      sceneRef.current.setBreakage(breakageMap);
+    }
+  }, [breakageMap]);
 
   return (
     <div className="w-full h-full relative select-none bg-black overflow-hidden font-sans">

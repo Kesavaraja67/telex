@@ -17,7 +17,6 @@ import { useEffect, useRef, useState } from "react";
 import type { OrganismDataSource } from "./types";
 import type { IncidentEvent, IncidentGraph } from "./types";
 import { OrganismScene } from "./OrganismScene";
-import { NODE_STATUS } from "./NodeRenderer";
 
 interface OrganismViewProps {
   dataSource: OrganismDataSource;
@@ -136,8 +135,9 @@ function handleEvent(
 
   switch (event.event_type) {
     case "usage_found":
+      if (!cu) break;
       scene.addNode({
-        code_usage_id: cu!,
+        code_usage_id: cu,
         file_path: (payload.file_path as string) ?? "",
         line_start: (payload.line_start as number) ?? 0,
         line_end: (payload.line_end as number) ?? 0,

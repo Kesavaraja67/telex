@@ -110,62 +110,62 @@ LANGUAGE_BY_EXT = {
 # Each entry: (query_source, capture_name_for_the_specifier_string_node)
 IMPORT_QUERIES: dict[str, list[tuple[str, str]]] = {
     "typescript": [
-        ('(import_statement source: (string) @spec)', "spec"),
-        ('(export_statement source: (string) @spec)', "spec"),
+        ("(import_statement source: (string) @spec)", "spec"),
+        ("(export_statement source: (string) @spec)", "spec"),
         (
             '(call_expression function: (identifier) @fn arguments: (arguments (string) @spec) (#eq? @fn "require"))',
             "spec",
         ),
         (
-            '(call_expression function: (import) arguments: (arguments) @spec_dynamic)',
+            "(call_expression function: (import) arguments: (arguments) @spec_dynamic)",
             "spec_dynamic",
         ),
     ],
     "tsx": [
-        ('(import_statement source: (string) @spec)', "spec"),
-        ('(export_statement source: (string) @spec)', "spec"),
+        ("(import_statement source: (string) @spec)", "spec"),
+        ("(export_statement source: (string) @spec)", "spec"),
         (
             '(call_expression function: (identifier) @fn arguments: (arguments (string) @spec) (#eq? @fn "require"))',
             "spec",
         ),
         (
-            '(call_expression function: (import) arguments: (arguments) @spec_dynamic)',
+            "(call_expression function: (import) arguments: (arguments) @spec_dynamic)",
             "spec_dynamic",
         ),
     ],
     "javascript": [
-        ('(import_statement source: (string) @spec)', "spec"),
-        ('(export_statement source: (string) @spec)', "spec"),
+        ("(import_statement source: (string) @spec)", "spec"),
+        ("(export_statement source: (string) @spec)", "spec"),
         (
             '(call_expression function: (identifier) @fn arguments: (arguments (string) @spec) (#eq? @fn "require"))',
             "spec",
         ),
         (
-            '(call_expression function: (import) arguments: (arguments) @spec_dynamic)',
+            "(call_expression function: (import) arguments: (arguments) @spec_dynamic)",
             "spec_dynamic",
         ),
     ],
     "python": [
-        ('(import_from_statement module_name: (dotted_name) @spec)', "spec"),
-        ('(import_from_statement module_name: (relative_import) @spec)', "spec"),
-        ('(import_statement name: (dotted_name) @spec)', "spec"),
+        ("(import_from_statement module_name: (dotted_name) @spec)", "spec"),
+        ("(import_from_statement module_name: (relative_import) @spec)", "spec"),
+        ("(import_statement name: (dotted_name) @spec)", "spec"),
     ],
     "go": [
-        ('(import_spec path: (interpreted_string_literal) @spec)', "spec"),
+        ("(import_spec path: (interpreted_string_literal) @spec)", "spec"),
     ],
     "rust": [
-        ('(use_declaration argument: (_) @spec)', "spec"),
+        ("(use_declaration argument: (_) @spec)", "spec"),
     ],
     "java": [
-        ('(import_declaration (scoped_identifier) @spec)', "spec"),
+        ("(import_declaration (scoped_identifier) @spec)", "spec"),
     ],
     "c": [
-        ('(preproc_include path: (string_literal) @spec)', "spec"),
-        ('(preproc_include path: (system_lib_string) @spec)', "spec"),
+        ("(preproc_include path: (string_literal) @spec)", "spec"),
+        ("(preproc_include path: (system_lib_string) @spec)", "spec"),
     ],
     "cpp": [
-        ('(preproc_include path: (string_literal) @spec)', "spec"),
-        ('(preproc_include path: (system_lib_string) @spec)', "spec"),
+        ("(preproc_include path: (string_literal) @spec)", "spec"),
+        ("(preproc_include path: (system_lib_string) @spec)", "spec"),
     ],
     "ruby": [
         (
@@ -174,10 +174,10 @@ IMPORT_QUERIES: dict[str, list[tuple[str, str]]] = {
         ),
     ],
     "php": [
-        ('(include_expression (string) @spec)', "spec"),
-        ('(include_once_expression (string) @spec)', "spec"),
-        ('(require_expression (string) @spec)', "spec"),
-        ('(require_once_expression (string) @spec)', "spec"),
+        ("(include_expression (string) @spec)", "spec"),
+        ("(include_once_expression (string) @spec)", "spec"),
+        ("(require_expression (string) @spec)", "spec"),
+        ("(require_once_expression (string) @spec)", "spec"),
     ],
 }
 
@@ -224,18 +224,14 @@ def build_import_graph(repo_root: Path) -> AtlasGraph:
 
     files = _walk_files(repo_root)
     if len(files) > MAX_NODES:
-        logger.warning(
-            "Repo has %d files, truncating to %d for Atlas", len(files), MAX_NODES
-        )
+        logger.warning("Repo has %d files, truncating to %d for Atlas", len(files), MAX_NODES)
         files = files[:MAX_NODES]
         truncated = True
     else:
         truncated = False
 
     nodes: dict[str, AtlasNode] = {}
-    folders: dict[str, AtlasFolder] = {
-        "": AtlasFolder(id="", name="/", parent=None, depth=0)
-    }
+    folders: dict[str, AtlasFolder] = {"": AtlasFolder(id="", name="/", parent=None, depth=0)}
 
     for abs_path in files:
         rel = abs_path.relative_to(repo_root).as_posix()
@@ -328,11 +324,7 @@ def build_import_graph(repo_root: Path) -> AtlasGraph:
 def _walk_files(repo_root: Path) -> list[Path]:
     out = []
     for dirpath, dirnames, filenames in os.walk(repo_root):
-        dirnames[:] = [
-            d
-            for d in dirnames
-            if d not in EXCLUDED_DIR_NAMES and not d.startswith(".git")
-        ]
+        dirnames[:] = [d for d in dirnames if d not in EXCLUDED_DIR_NAMES]
         for fn in filenames:
             out.append(Path(dirpath) / fn)
     return out
@@ -478,9 +470,7 @@ def _resolve_js_specifier(
         candidate_base = (from_dir / spec).as_posix()
         return _try_extensions(candidate_base, nodes)
 
-    for alias_prefix, target_prefix in _load_aliases(
-        from_file_rel, repo_root, alias_cache
-    ).items():
+    for alias_prefix, target_prefix in _load_aliases(from_file_rel, repo_root, alias_cache).items():
         if spec == alias_prefix or spec.startswith(alias_prefix + "/"):
             remainder = spec[len(alias_prefix) :].lstrip("/")
             candidate_base = f"{target_prefix}/{remainder}".strip("/")
@@ -520,9 +510,7 @@ def _load_aliases(from_file_rel: str, repo_root: Path, cache: dict) -> dict[str,
                 raw = tsconfig_path.read_text(encoding="utf-8")
                 # tsconfig.json commonly has comments; strip // line comments only
                 cleaned = "\n".join(
-                    line
-                    for line in raw.splitlines()
-                    if not line.strip().startswith("//")
+                    line for line in raw.splitlines() if not line.strip().startswith("//")
                 )
                 data = json.loads(cleaned)
                 paths = data.get("compilerOptions", {}).get("paths", {})
@@ -534,9 +522,11 @@ def _load_aliases(from_file_rel: str, repo_root: Path, cache: dict) -> dict[str,
                         continue
                     alias_prefix = alias_pattern.rstrip("/*")
                     target_pattern = targets[0].rstrip("/*")
-                    target_prefix = os.path.normpath(
-                        os.path.join(project_root_rel, base_url, target_pattern)
-                    ).replace("\\", "/").strip("/")
+                    target_prefix = (
+                        os.path.normpath(os.path.join(project_root_rel, base_url, target_pattern))
+                        .replace("\\", "/")
+                        .strip("/")
+                    )
                     if target_prefix == ".":
                         target_prefix = project_root_rel
                     result[alias_prefix] = target_prefix
@@ -564,9 +554,7 @@ def _resolve_python_specifier(
             base_dir = base_dir.parent
         module_path = remainder.replace(".", "/") if remainder else ""
         candidate = (
-            (base_dir / module_path).as_posix().strip("/")
-            if module_path
-            else base_dir.as_posix()
+            (base_dir / module_path).as_posix().strip("/") if module_path else base_dir.as_posix()
         )
         for suffix in ["", ".py", "/__init__.py"]:
             key = f"{candidate}{suffix}".lstrip("/")

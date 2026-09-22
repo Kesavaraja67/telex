@@ -46,7 +46,7 @@ Detect new versions  ──→  extract_changes  (LLM parses breaking symbols fr
      ▼                                               ▼
 3D Repo Atlas (/dashboard/atlas)            scan_repo  (Tree-Sitter AST)
 Maps imports in 3D force layout             Find affected call sites
-Pockets & illuminates live breakage pulse   TypeScript · TSX · JS · Python
+Pinpoints & illuminates live breakage pulse TypeScript · TSX · JS · Python
 Visualizes blast radius in real time                 │
                                                      ▼  generate_patch  (calls LLM for fix)
                                             Best-of-3 candidates → smallest valid diff

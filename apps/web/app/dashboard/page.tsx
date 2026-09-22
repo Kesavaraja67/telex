@@ -38,6 +38,9 @@ export default function DashboardOverview() {
         const count = reposRes.value.filter((r) => (r as any).category !== "benchmark").length;
         setSyncNotice(`Synced ${count} personal repositories from GitHub App`);
         setTimeout(() => setSyncNotice(null), 4000);
+      } else if (reposRes.status === "rejected") {
+        setSyncNotice(`Sync failed: ${reposRes.reason?.message || "Could not sync repositories"}`);
+        setTimeout(() => setSyncNotice(null), 5000);
       }
       if (statsRes.status === "fulfilled") {
         setStats(statsRes.value);

@@ -7,6 +7,7 @@ import { motion } from "motion/react";
 import TelexLogo from "@/components/ui/TelexLogo";
 import CyberGridBackground from "@/components/ui/CyberGridBackground";
 import { getApiUrl } from "@/lib/api";
+import { SidebarProvider, useSidebar } from "@/components/dashboard/SidebarContext";
 
 interface AuthUser {
   id?: string;
@@ -66,7 +67,7 @@ const NAV_ITEMS = [
   },
 ];
 
-export default function DashboardLayout({
+function DashboardContent({
   children,
 }: {
   children: React.ReactNode;
@@ -75,6 +76,7 @@ export default function DashboardLayout({
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authStatus, setAuthStatus] = useState<"checking" | "authenticated" | "unauthenticated">("checking");
   const [isLocalhost, setIsLocalhost] = useState(false);
+  const { isSidebarCollapsed, toggleSidebar } = useSidebar();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -84,24 +86,23 @@ export default function DashboardLayout({
       window.location.hostname === "127.0.0.1"
     );
 
-    // Extract token from URL hash (#token=...) or query string (?token=...)
+    // Extract token from URL hash (#token=...)
     let tokenFromUrl: string | null = null;
     if (window.location.hash) {
       const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
       tokenFromUrl = hashParams.get("token");
-    }
-    if (!tokenFromUrl && window.location.search) {
-      const searchParams = new URLSearchParams(window.location.search);
-      tokenFromUrl = searchParams.get("token");
     }
 
     if (tokenFromUrl) {
       localStorage.setItem("telex_token", tokenFromUrl);
     }
 
-    // Clean query parameters and hash from address bar if any were provided
-    if (window.location.search || window.location.hash) {
-      const cleanUrl = window.location.pathname;
+    // Remove only credentials/hash from address bar; keep other parameters like ?repo=...
+    if (tokenFromUrl || window.location.hash) {
+      const remaining = new URLSearchParams(window.location.search);
+      remaining.delete("token");
+      const qs = remaining.toString();
+      const cleanUrl = window.location.pathname + (qs ? `?${qs}` : "");
       window.history.replaceState({}, document.title, cleanUrl);
     }
 
@@ -242,147 +243,227 @@ export default function DashboardLayout({
 
   // ── 3. Authenticated Dashboard Layout ───────────────────────────────────────
   return (
-    <div className="flex min-h-screen bg-black text-[#F2F1ED] font-sans antialiased selection:bg-white/20 selection:text-white">
-      {/* Sidebar */}
-      <aside className="w-64 flex-shrink-0 flex flex-col py-6 px-4 bg-black/90 backdrop-blur-2xl border-r border-white/[0.08] relative z-20">
-        {/* Brand header with Minimalist Bold White T Logo */}
-        <Link
-          href="/"
-          className="font-mono font-bold tracking-[0.25em] text-sm text-[#F2F1ED] hover:text-white transition-colors mb-8 px-3 flex items-center gap-2.5 group"
-        >
-          <TelexLogo size={20} withBackground={true} />
-          <span className="tracking-widest">TELEX</span>
-          <span className="font-mono text-[9px] bg-white/[0.06] text-[#7A7F87] px-1.5 py-0.5 rounded border border-white/5 ml-auto">
-            v1.0
-          </span>
-        </Link>
-
-        {/* Navigation links */}
-        <nav className="flex flex-col gap-1.5">
-          {NAV_ITEMS.map((item) => {
-            const isActive =
-              item.href === "/dashboard"
-                ? pathname === "/dashboard"
-                : pathname === item.href || pathname.startsWith(item.href + "/");
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`relative font-mono text-xs tracking-wide px-3.5 py-2.5 rounded-xl transition-all flex items-center gap-3 group ${
-                  isActive
-                    ? "text-white bg-white/[0.08] border border-white/15 shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
-                    : "text-[#A1A1AA] hover:text-white hover:bg-white/[0.04] border border-transparent"
-                }`}
+    <div className="flex min-h-screen bg-black text-[#F2F1ED] font-sans antialiased selection:bg-white/20 selection:text-white relative">
+        {/* Floating Expand Sidebar Button (Shown when sidebar is collapsed) */}
+        {isSidebarCollapsed && (
+          <motion.div
+            initial={{ opacity: 0, x: -12, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: -12, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className="fixed top-3 left-3 z-50 flex items-center"
+          >
+            <button
+              type="button"
+              id="expand-sidebar-btn"
+              onClick={toggleSidebar}
+              title="Expand sidebar (Normal view) [Ctrl+B]"
+              aria-label="Expand sidebar"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/90 hover:bg-black text-[#A1A1AA] hover:text-white border border-white/20 hover:border-white/40 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.8)] font-mono text-xs transition-all hover:scale-105 active:scale-95 cursor-pointer group"
+            >
+              <TelexLogo size={16} withBackground={true} />
+              <svg
+                className="w-3.5 h-3.5 text-[#71717A] group-hover:text-white transition-colors"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.75}
               >
-                {isActive && (
-                  <motion.div
-                    layoutId="sidebar-active-indicator"
-                    className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-white shadow-[0_0_8px_#FFFFFF]"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                  />
-                )}
-                <span className={`transition-colors ${isActive ? "text-white" : "text-[#71717A] group-hover:text-white"}`}>
-                  {item.icon}
+                <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth={1.75} />
+                <path d="M9 3v18" strokeWidth={1.75} />
+                <path d="M13 9l3 3-3 3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span className="text-[11px] text-white font-semibold tracking-wider">TELEX</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-[#A1A1AA] group-hover:text-white border border-white/5 uppercase">
+                Expand
+              </span>
+            </button>
+          </motion.div>
+        )}
+
+        {/* Sidebar */}
+        <aside
+          className={`flex-shrink-0 flex flex-col bg-black/90 backdrop-blur-2xl border-r border-white/[0.08] relative z-30 transition-all duration-300 ease-in-out ${
+            isSidebarCollapsed
+              ? "w-0 p-0 border-r-transparent overflow-hidden opacity-0 pointer-events-none"
+              : "w-64 py-6 px-4 opacity-100"
+          }`}
+        >
+          <div className="w-56 flex flex-col h-full">
+            {/* Brand header with Minimalist Bold White T Logo & Collapse button */}
+            <div className="flex items-center justify-between mb-8 px-1">
+              <Link
+                href="/"
+                className="font-mono font-bold tracking-[0.25em] text-sm text-[#F2F1ED] hover:text-white transition-colors flex items-center gap-2 group"
+              >
+                <TelexLogo size={20} withBackground={true} />
+                <span className="tracking-widest">TELEX</span>
+                <span className="font-mono text-[9px] bg-white/[0.06] text-[#7A7F87] px-1.5 py-0.5 rounded border border-white/5">
+                  v1.0
                 </span>
-                <span>{item.label}</span>
               </Link>
-            );
-          })}
 
-          {/* Quick link back to Landing Page */}
-          <Link
-            href="/"
-            className="font-mono text-xs tracking-wide px-3.5 py-2.5 rounded-xl transition-all flex items-center gap-3 text-[#71717A] hover:text-white hover:bg-white/[0.04] border border-transparent mt-1 group"
-          >
-            <svg className="w-4 h-4 text-[#71717A] group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
-            <span>Landing Page</span>
-          </Link>
-        </nav>
+              <button
+                type="button"
+                id="collapse-sidebar-btn"
+                onClick={toggleSidebar}
+                title="Collapse sidebar to full screen [Ctrl+B]"
+                aria-label="Collapse sidebar"
+                className="p-1.5 rounded-lg text-[#71717A] hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer group"
+              >
+                <svg
+                  className="w-4 h-4 text-[#71717A] group-hover:text-white transition-colors"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.75}
+                >
+                  <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth={1.75} />
+                  <path d="M9 3v18" strokeWidth={1.75} />
+                  <path d="M15 9l-3 3 3 3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
 
-        {/* Connect Repository Sidebar Action */}
-        <div className="pt-4">
-          <a
-            href={`https://github.com/apps/${process.env.NEXT_PUBLIC_GITHUB_APP_NAME || "telex-agent-dev"}/installations/new`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-white text-black font-mono font-semibold text-xs transition-all hover:bg-white/90 hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] active:scale-[0.98]"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            <span>Connect Repo</span>
-          </a>
-        </div>
+            {/* Navigation links */}
+            <nav className="flex flex-col gap-1.5">
+              {NAV_ITEMS.map((item) => {
+                const isActive =
+                  item.href === "/dashboard"
+                    ? pathname === "/dashboard"
+                    : pathname === item.href || pathname.startsWith(item.href + "/");
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`relative font-mono text-xs tracking-wide px-3.5 py-2.5 rounded-xl transition-all flex items-center gap-3 group ${
+                      isActive
+                        ? "text-white bg-white/[0.08] border border-white/15 shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
+                        : "text-[#A1A1AA] hover:text-white hover:bg-white/[0.04] border border-transparent"
+                    }`}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="sidebar-active-indicator"
+                        className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-white shadow-[0_0_8px_#FFFFFF]"
+                        transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      />
+                    )}
+                    <span className={`transition-colors ${isActive ? "text-white" : "text-[#71717A] group-hover:text-white"}`}>
+                      {item.icon}
+                    </span>
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
 
-        {/* User Profile & Daemon Status Footer */}
-        <div className="mt-auto pt-6 border-t border-white/[0.08] flex flex-col gap-3">
-          {/* Authenticated User Info */}
-          <div className="px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-between">
-            <div className="flex items-center gap-2.5 overflow-hidden">
-              {user?.avatar_url ? (
-                <img
-                  src={user.avatar_url}
-                  alt={user.github_login}
-                  className="w-7 h-7 rounded-lg border border-white/20 object-cover shrink-0"
-                />
-              ) : (
-                <div className="w-7 h-7 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center font-mono text-xs font-semibold text-white shrink-0">
-                  {user?.github_login ? user.github_login.slice(0, 2).toUpperCase() : "TX"}
+              {/* Quick link back to Landing Page */}
+              <Link
+                href="/"
+                className="font-mono text-xs tracking-wide px-3.5 py-2.5 rounded-xl transition-all flex items-center gap-3 text-[#71717A] hover:text-white hover:bg-white/[0.04] border border-transparent mt-1 group"
+              >
+                <svg className="w-4 h-4 text-[#71717A] group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                <span>Landing Page</span>
+              </Link>
+            </nav>
+
+            {/* Connect Repository Sidebar Action */}
+            <div className="pt-4">
+              <a
+                href={`https://github.com/apps/${process.env.NEXT_PUBLIC_GITHUB_APP_NAME || "telex-agent-dev"}/installations/new`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-white text-black font-mono font-semibold text-xs transition-all hover:bg-white/90 hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] active:scale-[0.98]"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span>Connect Repo</span>
+              </a>
+            </div>
+
+            {/* User Profile & Daemon Status Footer */}
+            <div className="mt-auto pt-6 border-t border-white/[0.08] flex flex-col gap-3">
+              {/* Authenticated User Info */}
+              <div className="px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-between">
+                <div className="flex items-center gap-2.5 overflow-hidden">
+                  {user?.avatar_url ? (
+                    <img
+                      src={user.avatar_url}
+                      alt={user.github_login}
+                      className="w-7 h-7 rounded-lg border border-white/20 object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className="w-7 h-7 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center font-mono text-xs font-semibold text-white shrink-0">
+                      {user?.github_login ? user.github_login.slice(0, 2).toUpperCase() : "TX"}
+                    </div>
+                  )}
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-mono text-xs font-medium text-white truncate">
+                      {user?.github_login || "Operator"}
+                    </span>
+                    <span className="font-mono text-[9px] text-[#71717A] tracking-wider uppercase">
+                      Connected
+                    </span>
+                  </div>
                 </div>
-              )}
-              <div className="flex flex-col min-w-0">
-                <span className="font-mono text-xs font-medium text-white truncate">
-                  {user?.github_login || "Operator"}
-                </span>
-                <span className="font-mono text-[9px] text-[#71717A] tracking-wider uppercase">
-                  Connected
+
+                <button
+                  onClick={handleSignOut}
+                  title="Sign Out"
+                  className="p-1.5 rounded-lg text-[#71717A] hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer shrink-0"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Worker Pool Status */}
+              <div className="px-3 py-2 rounded-lg bg-black/40 border border-white/[0.04] flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shadow-[0_0_6px_#FFFFFF]" />
+                  <span className="font-mono text-[11px] text-[#A1A1AA]">Radar Daemon</span>
+                </div>
+                <span className="font-mono text-[9px] text-white px-1.5 py-0.5 rounded bg-white/10 border border-white/20 font-medium">
+                  READY
                 </span>
               </div>
             </div>
-
-            <button
-              onClick={handleSignOut}
-              title="Sign Out"
-              className="p-1.5 rounded-lg text-[#71717A] hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer shrink-0"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </button>
           </div>
+        </aside>
 
-          {/* Worker Pool Status */}
-          <div className="px-3 py-2 rounded-lg bg-black/40 border border-white/[0.04] flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shadow-[0_0_6px_#FFFFFF]" />
-              <span className="font-mono text-[11px] text-[#A1A1AA]">Radar Daemon</span>
-            </div>
-            <span className="font-mono text-[9px] text-white px-1.5 py-0.5 rounded bg-white/10 border border-white/20 font-medium">
-              READY
-            </span>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <main
-        className={`flex-1 ${
-          pathname.startsWith("/dashboard/atlas") ? "overflow-hidden h-screen" : "overflow-auto"
-        } bg-black relative`}
-      >
-        <div
-          className={
-            pathname.startsWith("/dashboard/atlas")
-              ? "w-full h-full relative"
-              : "max-w-6xl mx-auto px-8 py-10 relative z-10"
-          }
+        {/* Main content */}
+        <main
+          className={`flex-1 ${
+            pathname.startsWith("/dashboard/atlas") ? "overflow-hidden h-screen" : "overflow-auto"
+          } bg-black relative transition-all duration-300`}
         >
-          {children}
-        </div>
-      </main>
-    </div>
+          <div
+            className={
+              pathname.startsWith("/dashboard/atlas")
+                ? "w-full h-full relative"
+                : "max-w-6xl mx-auto px-8 py-10 relative z-10"
+            }
+          >
+            {children}
+          </div>
+        </main>
+      </div>
+  );
+}
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <SidebarProvider>
+      <DashboardContent>{children}</DashboardContent>
+    </SidebarProvider>
   );
 }
