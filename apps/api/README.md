@@ -6,7 +6,7 @@
 
 ## Overview
 
-The `apps/api` service powers Telex's dependency change detection, multi-language Tree-Sitter AST repository scanning, sandboxed patch verification, and self-healing GitHub Pull Request delivery.
+The `apps/api` service powers Telex's 24/7 package registry surveillance, multi-language Tree-Sitter AST repository scanning, 3D Repo Atlas architectural cartography & blast radius mapping, sandboxed patch verification, and self-healing GitHub Pull Request delivery.
 
 It runs as an asynchronous FastAPI application paired with a PostgreSQL row-level locked job queue (`SELECT ... FOR UPDATE SKIP LOCKED`), ensuring robust, duplicate-free task processing.
 
@@ -46,6 +46,7 @@ It runs as an asynchronous FastAPI application paired with a PostgreSQL row-leve
 - `GET /api/repos/{id}/atlas/graph`: Computes and retrieves cached 3D import graph (nodes, edges, folder hierarchy, commit SHA).
 - `GET /api/repos/{id}/atlas/file`: On-demand single file content preview for 3D card inspection.
 - `GET /api/repos/{id}/atlas/last-edited`: Returns last commit author and timestamp for a selected file.
+- `GET /api/repos/{id}/incidents/stream`: Server-Sent Events (SSE) stream for real-time incident breakage and blast radius pulses.
 
 ### Packages (`/api/packages`)
 - `GET /api/packages`: Monitored package listing across npm and PyPI.

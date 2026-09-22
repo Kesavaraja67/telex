@@ -6,7 +6,7 @@
 
 ## 1. Executive System Topology
 
-Telex operates as an asynchronous, event-driven daemon that continuously tracks upstream library releases, detects breaking symbol changes, scans connected customer repositories, synthesizes unified diffs using LLMs, and verifies every patch inside a native CI sandbox before opening a human-reviewed Pull Request.
+Telex operates as an asynchronous, event-driven daemon that continuously tracks upstream library releases, detects breaking symbol changes, maps codebase import topologies and failure blast radii in an interactive 3D Repo Atlas, synthesizes precision unified diffs using LLMs, and verifies every patch inside a native CI sandbox before opening a human-reviewed Pull Request.
 
 ```text
  ┌────────────────────────────────────────────────────────────────────────────────────────┐
@@ -14,42 +14,42 @@ Telex operates as an asynchronous, event-driven daemon that continuously tracks 
  └────────────────────────────────────────────────────────────────────────────────────────┘
                                              │
                           [ Upstream Registry Notifications ]
-                            - npm & PyPI registry polling
+                            - npm & PyPI registry polling (watches packages 24/7)
                             - Package version updates & changelog discovery
                             - Breaking interface diffs
                                              │
                                              ▼
  ┌────────────────────────────────────────────────────────────────────────────────────────┐
  │                               AST CODE SCANNER LAYER                                   │
- │       (Tree-Sitter Multi-Language Scanner: TypeScript, TSX, JavaScript, Python)         │
+ │       (Tree-Sitter Multi-Language Scanner: TypeScript, TSX, JavaScript, Python)        │
  └────────────────────────────────────────────────────────────────────────────────────────┘
                                              │
-                       [ Pinpoint Exact Usages & Byte Offsets ]
-                        - Function calls: create_completion(...)
-                        - Attribute calls: client.create_completion(...)
-                                             │
-                                             ▼
- ┌────────────────────────────────────────────────────────────────────────────────────────┐
- │                              LLM REPAIR SYNTHESIS LAYER                                │
- │                         (Gemini 2.5 Flash / Claude Providers)                          │
- └────────────────────────────────────────────────────────────────────────────────────────┘
-                                             │
-                             [ Unified Patch Diff Synthesis ]
-                                             │
-                                             ▼
- ┌────────────────────────────────────────────────────────────────────────────────────────┐
- │                           EPHEMERAL VERIFICATION GATE                                  │
- │                     (Isolated Clone Sandbox & Native CI Runs)                          │
- │                      Typechecks (tsc / mypy) + Test Suites                             │
- └────────────────────────────────────────────────────────────────────────────────────────┘
-                                             │
-                                     [ 100% Verified ]
-                                             │
-                                             ▼
- ┌────────────────────────────────────────────────────────────────────────────────────────┐
- │                             PULL REQUEST DELIVERY LAYER                                │
- │                              (Human-Reviewed GitHub PR)                                │
- └────────────────────────────────────────────────────────────────────────────────────────┘
+                     ┌───────────────────────┴───────────────────────┐
+                     ▼                                               ▼
+ ┌───────────────────────────────────────┐       ┌───────────────────────────────────────┐
+ │     3D REPO ATLAS & BLAST RADIUS      │       │      LLM REPAIR SYNTHESIS LAYER       │
+ │          (/dashboard/atlas)           │       │ (Gemini 2.5 Flash / Claude / OpenAI)  │
+ ├───────────────────────────────────────┤       ├───────────────────────────────────────┤
+ │ - Multi-language AST import graph     │       │ [ Pinpoint Exact Usages & Offsets ]   │
+ │ - Layered 3D force layout (Y/X/Z)     │       │ - Unified patch diff synthesis        │
+ │ - Live SSE breakage pulse overlay     │       │ - Multi-candidate best-of-3 selection │
+ │ - Real-time visual failure cascade    │       │ - git apply structural filter         │
+ └───────────────────────────────────────┘       └───────────────────────────────────────┘
+                                                                     │
+                                                                     ▼
+                                                 ┌───────────────────────────────────────┐
+                                                 │      EPHEMERAL VERIFICATION GATE      │
+                                                 │ (Isolated Clone Sandbox & Native CI)  │
+                                                 │  Typechecks (tsc / mypy) + Test Suites│
+                                                 └───────────────────────────────────────┘
+                                                                     │
+                                                             [ 100% Verified ]
+                                                                     │
+                                                                     ▼
+                                                 ┌───────────────────────────────────────┐
+                                                 │      PULL REQUEST DELIVERY LAYER      │
+                                                 │       (Human-Reviewed GitHub PR)      │
+                                                 └───────────────────────────────────────┘
 ```
 
 ---
@@ -180,3 +180,9 @@ Telex features a real-time, interactive 3D architecture visualizer accessible vi
    - Subscribes to Server-Sent Events (`/api/repos/{id}/incidents/stream`) to immediately pulse broken files and dependencies in vivid rose (`#E11D48`) when an upstream dependency change breaks code usages.
 6. **Dedicated Operator Surface**:
    - Centralized on `/dashboard/atlas` with repository switching dropdown, camera reset (`F`), live refresh (`R`), legend toggle (`L`), and direct drilldown to patch generation.
+
+### 5.2 Role in the Autonomous Self-Healing Pipeline
+Repo Atlas directly completes the loop between upstream package surveillance and autonomous LLM repair:
+- **Exposing the Blast Radius**: When `poll_registry` detects an upstream breaking release and `extract_changes` identifies obsolete symbols, `scan_repo` isolates the primary call sites. Repo Atlas maps the **transitive failure blast radius** across all internal import conduits in 3D so engineers see exactly which modules are impacted.
+- **In-Flight Visual Incident Pulse**: While Telex queues `generate_patch` to call the LLM and `validate_patch` to run ephemeral CI test suites, Repo Atlas illuminates broken files and severed conduits in vivid red (`#E11D48`) via real-time SSE streams (`/api/repos/{id}/incidents/stream`).
+- **Pre-Merge Structural Inspection**: Operators can click any 3D card on `/dashboard/atlas` to read syntax-highlighted code, check last-commit metadata, trace connected callers, and verify that the LLM's synthesized diff cleanly isolates the failure before merging the PR.

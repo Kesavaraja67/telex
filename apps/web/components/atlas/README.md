@@ -1,6 +1,6 @@
-# Repo Atlas — 3D Full-Repo Structural Code Visualizer
+# Repo Atlas — 3D Full-Repo Structural Code Visualizer & Blast Radius Engine
 
-Repo Atlas renders a persistent, whole-repository 3D structural map of any connected codebase in Telex. It organizes files into hierarchical horizontal layers mirroring folder depth, with physical 3D cards, real statically-extracted import wires, interactive drag physics, on-demand code reading, and an active incident breakage overlay.
+Repo Atlas renders a persistent, whole-repository 3D structural map of any connected codebase in Telex. It works directly alongside Telex's package watchdog and LLM repair pipeline: while Telex watches npm & PyPI packages for breaking changes, Repo Atlas maps out the entire repository AST, illuminates failure blast radii in real time, and gives operators visual inspection of the code before the LLM patch is merged.
 
 ---
 
@@ -75,3 +75,14 @@ When a breaking dependency change ripples through the codebase:
 - Import wires touching broken nodes switch to red severed status (`#E11D48`).
 - All active broken files illuminate simultaneously.
 - When an incident resolves via PR merge or fix, the graph smoothly transitions back to resting state.
+
+---
+
+## 6. Bridging Package Watching and LLM Healing
+
+Repo Atlas plays a vital role across Telex's core loop:
+1. **Watches Packages (`poll_registry`)**: Telex monitors npm and PyPI for new versions and breaking symbol changes.
+2. **Maps Blast Radius (`/dashboard/atlas`)**: Repo Atlas locates the call sites and visualizes the complete blast radius and transitive import dependencies in 3D.
+3. **Calls LLM for Fix (`generate_patch`)**: Telex feeds isolated AST syntax node snippets into the LLM (Gemini/Claude) to synthesize unified diffs.
+4. **Verifies in CI (`validate_patch`)**: The patch runs against the repo's actual test suites in an isolated sandbox.
+5. **Pre-Merge 3D Inspection**: Operators can click through the 3D cards on `/dashboard/atlas` to verify that the repair cleanly isolates the breakage before merging the PR.

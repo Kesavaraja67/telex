@@ -7,6 +7,7 @@
 ## Overview
 
 The `apps/web` application is the unified operator dashboard and marketing portal for Telex. It features:
+- **Repo Atlas (`/dashboard/atlas`)**: Dedicated 3D architectural visualizer mapping whole-repo static AST imports, failure blast radii, and live incident breakage pulses when upstream packages update.
 - **Repository Management (`/dashboard/repos`)**: Overview of connected repositories, active tracking status, and verification policy toggles (`requires_tests`, `requires_typecheck`).
 - **Telemetry Dashboard (`/dashboard`)**: Real-time stats on monitored repositories, detected dependency breaks, generated patches, and open Pull Requests.
 - **Interactive Marketing Experience (`/`)**: High-contrast monochrome landing page featuring an interactive 3D WebGL bot (`TelexBot3D.tsx`), animated pipeline marquee, and live patch feed demo (`TicketFeed.tsx`).
@@ -22,7 +23,7 @@ The `apps/web` application is the unified operator dashboard and marketing porta
 | `/dashboard` | Operator analytics, patch counts, recent detected changes | `StatCounter.tsx`, `RepoCard.tsx`, `DiffViewer.tsx` |
 | `/dashboard/repos` | Connected repositories, GitHub App installation status | `RepoCard.tsx`, `Badge.tsx` |
 | `/dashboard/repos/[id]` | Repository detail view with active patches and verification status | `PatchTicket.tsx`, `DiffViewer.tsx` |
-| `/dashboard/atlas` | Dedicated 3D Repo Atlas · AST dependency visualizer · real-time incident mapping | `AtlasView.tsx`, `AtlasScene.ts`, `LayeredLayout.ts`, `CardTextureAtlas.ts`, `CodePreviewPanel.tsx` |
+| `/dashboard/atlas` | Dedicated 3D Repo Atlas · AST dependency visualizer · real-time blast radius & incident mapping | `AtlasView.tsx`, `AtlasScene.ts`, `LayeredLayout.ts`, `CardTextureAtlas.ts`, `CodePreviewPanel.tsx` |
 | `/dashboard/settings` | Verification gate policies and provider key management | Policy toggles, provider status |
 | `/dashboard/activity` | Live reverse-chronological event and audit feed | `ActivityFeed.tsx` |
 
