@@ -8,8 +8,14 @@ import BorderBeam from "@/components/ui/BorderBeam";
 import CyberGridBackground from "@/components/ui/CyberGridBackground";
 import { CyberSkeletonPatch } from "@/components/ui/CyberSkeleton";
 import DiffViewer from "@/components/dashboard/DiffViewer";
+import PatchSortControls, { SortMode, sortPatches } from "@/components/dashboard/PatchSortControls";
 import type { RepoDetails, AIExplanation, PatchSummary } from "@/lib/api";
 
+/**
+ * Repository detail page — shows detected breaking changes & patches
+ * with client-side triage sorting (semantic-risk-first, high-confidence,
+ * needs-review) and a Gemini architecture radar.
+ */
 export default function RepoDetailPage({
   params,
 }: {
@@ -20,7 +26,8 @@ export default function RepoDetailPage({
 
   const [repo, setRepo] = useState<RepoDetails | null>(null);
   const [patches, setPatches] = useState<PatchSummary[]>([]);
-  const [selectedPatchIndex, setSelectedPatchIndex] = useState<number>(0);
+  const [selectedPatchId, setSelectedPatchId] = useState<string | null>(null);
+  const [sortMode, setSortMode] = useState<SortMode>("all");
   const [aiExplanation, setAiExplanation] = useState<AIExplanation | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [isLoadingAi, setIsLoadingAi] = useState(false);
@@ -152,7 +159,8 @@ export default function RepoDetailPage({
     );
   }
 
-  const activePatch = patches[selectedPatchIndex] || null;
+  const displayPatches = sortPatches(patches, sortMode);
+  const selectedPatch = displayPatches.find((p) => p.id === selectedPatchId) || displayPatches[0] || null;
 
   return (
     <div className="flex flex-col gap-6 relative z-10 max-w-7xl mx-auto w-full">
@@ -221,10 +229,12 @@ export default function RepoDetailPage({
             <h2 className="font-mono font-semibold text-sm text-white tracking-tight">
               Detected Breaking Changes & Patches
             </h2>
-            <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-[#A1A1AA] border border-white/15">
-              {patches.length} detected
-            </span>
           </div>
+          <PatchSortControls
+            activeMode={sortMode}
+            onModeChange={setSortMode}
+            patchCount={patches.length}
+          />
         </div>
 
         {/* State 2: Empty State for Patches */}
@@ -249,170 +259,202 @@ export default function RepoDetailPage({
             </div>
           </SpotlightCard>
         ) : (
-          /* State 3: Populated Patches + Live Validation Disclosure */
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            {/* Left list: Patches */}
-            <div className="lg:col-span-4 flex flex-col gap-2">
-              {patches.map((patch, idx) => (
-                <button
-                  key={patch.id}
-                  onClick={() => setSelectedPatchIndex(idx)}
-                  className={`p-3 rounded-xl border text-left transition-all flex flex-col gap-1.5 cursor-pointer ${
-                    selectedPatchIndex === idx
-                      ? "bg-white/[0.08] border-white/30 shadow-md"
-                      : "bg-black/50 border-white/[0.08] hover:border-white/20"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs font-bold text-white truncate">
-                      {patch.package}
-                    </span>
-                    <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white border border-white/15 flex-shrink-0">
-                      {patch.status}
-                    </span>
-                  </div>
-
-                  {patch.change_description && (
-                    <p className="font-sans text-[11px] text-[#A1A1AA] line-clamp-2">
-                      {patch.change_description}
-                    </p>
-                  )}
-
-                  <div className="flex items-center justify-between pt-1 border-t border-white/[0.04] font-mono text-[10px] text-[#71717A]">
-                    <span>
-                      Mode:{" "}
-                      <span className="text-white/80">
-                        {patch.verification_mode === "full" ? "Full Sandbox" : "AST Structural"}
+          displayPatches.length === 0 ? (
+            <SpotlightCard
+              spotlightColor="rgba(255, 255, 255, 0.05)"
+              className="p-8 sm:p-10 bg-black/60 backdrop-blur-xl border border-white/10 rounded-xl flex flex-col items-center text-center gap-3"
+              enableTilt={false}
+            >
+              <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex flex-col gap-1 max-w-md">
+                <h3 className="font-mono font-bold text-sm text-white">
+                  No patches match the current filter
+                </h3>
+                <p className="font-sans text-xs text-[#A1A1AA] leading-relaxed">
+                  Try a different sort mode or check back later for new patches.
+                </p>
+              </div>
+            </SpotlightCard>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+              {/* Left list: Patches */}
+              <div className="lg:col-span-4 flex flex-col gap-2">
+                {displayPatches.map((patch) => (
+                  <button
+                    key={patch.id}
+                    onClick={() => setSelectedPatchId(patch.id)}
+                    className={`p-3 rounded-xl border text-left transition-all flex flex-col gap-1.5 cursor-pointer ${
+                      selectedPatch?.id === patch.id
+                        ? "bg-white/[0.08] border-white/30 shadow-md"
+                        : "bg-black/50 border-white/[0.08] hover:border-white/20"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs font-bold text-white truncate">
+                        {patch.package}
                       </span>
-                    </span>
-                    <span>{new Date(patch.opened_at).toLocaleDateString()}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            {/* Right details: Selected Patch Detail & Diff Viewer */}
-            <div className="lg:col-span-8 flex flex-col gap-3">
-              {activePatch && (
-                <SpotlightCard
-                  spotlightColor="rgba(255, 255, 255, 0.05)"
-                  className="p-4 sm:p-5 bg-black/70 backdrop-blur-xl border border-white/15 rounded-xl flex flex-col gap-4 shadow-lg"
-                  enableTilt={false}
-                >
-                  {/* Validation disclosure header */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-white/[0.08]">
-                    <div className="flex flex-col gap-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-sm text-white">
-                          Patch for {activePatch.package}
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white border border-white/15">
+                          {patch.status}
                         </span>
-                        {activePatch.change_type && (
-                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white uppercase border border-white/15">
-                            {activePatch.change_type}
+                        {patch.confidence !== undefined && patch.confidence !== null && (
+                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-[#A1A1AA] border border-white/10">
+                            {(patch.confidence * 100).toFixed(0)}%
+                          </span>
+                        )}
+                        {patch.is_semantic_risk === true && (
+                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                            SEMANTIC
                           </span>
                         )}
                       </div>
-                      <span className="font-sans text-xs text-[#A1A1AA]">
-                        {activePatch.change_description || "Call-site automated AST rewrite"}
-                      </span>
                     </div>
 
-                    {activePatch.pr_url && (
-                      <Link
-                        href={activePatch.pr_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-mono text-xs font-semibold px-3 py-1.5 rounded-lg bg-white text-black hover:bg-white/90 transition-all flex items-center gap-1.5 self-start sm:self-auto shadow-sm"
-                      >
-                        <span>Inspect Pull Request</span>
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </Link>
+                    {patch.change_description && (
+                      <p className="font-sans text-[11px] text-[#A1A1AA] line-clamp-2">
+                        {patch.change_description}
+                      </p>
                     )}
-                  </div>
 
-                  {/* Verification Run Metrics */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 font-mono text-xs">
-                    <div className="p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.06] flex flex-col gap-1">
-                      <span className="text-[10px] text-[#71717A] uppercase">Verification Mode</span>
-                      <span className="font-bold text-white">
-                        {activePatch.verification_mode === "full" ? "Isolated Sandbox (CI)" : "Structural AST Only"}
+                    <div className="flex items-center justify-between pt-1 border-t border-white/[0.04] font-mono text-[10px] text-[#71717A]">
+                      <span>
+                        Mode:{" "}
+                        <span className="text-white/80">
+                          {patch.verification_mode === "full" ? "Full Sandbox" : "AST Structural"}
+                        </span>
                       </span>
+                      <span>{new Date(patch.opened_at).toLocaleDateString()}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Right details: Selected Patch Detail & Diff Viewer */}
+              <div className="lg:col-span-8 flex flex-col gap-3">
+                {selectedPatch && (
+                  <SpotlightCard
+                    spotlightColor="rgba(255, 255, 255, 0.05)"
+                    className="p-4 sm:p-5 bg-black/70 backdrop-blur-xl border border-white/15 rounded-xl flex flex-col gap-4 shadow-lg"
+                    enableTilt={false}
+                  >
+                    {/* Validation disclosure header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-white/[0.08]">
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-sm text-white">
+                            Patch for {selectedPatch.package}
+                          </span>
+                          {selectedPatch.change_type && (
+                            <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white uppercase border border-white/15">
+                              {selectedPatch.change_type}
+                            </span>
+                          )}
+                        </div>
+                        <span className="font-sans text-xs text-[#A1A1AA]">
+                          {selectedPatch.change_description || "Call-site automated AST rewrite"}
+                        </span>
+                      </div>
+
+                      {selectedPatch.pr_url && (
+                        <Link
+                          href={selectedPatch.pr_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-xs font-semibold px-3 py-1.5 rounded-lg bg-white text-black hover:bg-white/90 transition-all flex items-center gap-1.5 self-start sm:self-auto shadow-sm"
+                        >
+                          <span>Inspect Pull Request</span>
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </Link>
+                      )}
                     </div>
 
-                    <div className="p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.06] flex flex-col gap-1">
-                      <span className="text-[10px] text-[#71717A] uppercase">Test Suite Gate</span>
-                      <span className="font-bold text-white flex items-center gap-1.5">
-                        {activePatch.tests_passed === true ? (
-                          <>
-                            <svg className="w-3.5 h-3.5 text-emerald-400 stroke-current" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" aria-hidden="true">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                            <span className="text-emerald-400">Passing (100%)</span>
-                          </>
-                        ) : activePatch.tests_passed === false ? (
-                          <>
-                            <svg className="w-3.5 h-3.5 text-rose-400 stroke-current" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" aria-hidden="true">
-                              <line x1="18" y1="6" x2="6" y2="18" />
-                              <line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                            <span className="text-rose-400">Failed</span>
-                          </>
-                        ) : (
-                          <span className="text-[#71717A]">&mdash; Bypassed / None</span>
-                        )}
-                      </span>
+                    {/* Verification Run Metrics */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 font-mono text-xs">
+                      <div className="p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.06] flex flex-col gap-1">
+                        <span className="text-[10px] text-[#71717A] uppercase">Verification Mode</span>
+                        <span className="font-bold text-white">
+                          {selectedPatch.verification_mode === "full" ? "Isolated Sandbox (CI)" : "Structural AST Only"}
+                        </span>
+                      </div>
+
+                      <div className="p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.06] flex flex-col gap-1">
+                        <span className="text-[10px] text-[#71717A] uppercase">Test Suite Gate</span>
+                        <span className="font-bold text-white flex items-center gap-1.5">
+                          {selectedPatch.tests_passed === true ? (
+                            <>
+                              <svg className="w-3.5 h-3.5 text-emerald-400 stroke-current" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" aria-hidden="true">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                              <span className="text-emerald-400">Passing (100%)</span>
+                            </>
+                          ) : selectedPatch.tests_passed === false ? (
+                            <>
+                              <svg className="w-3.5 h-3.5 text-rose-400 stroke-current" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" aria-hidden="true">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                              <span className="text-rose-400">Failed</span>
+                            </>
+                          ) : (
+                            <span className="text-[#71717A]">&mdash; Bypassed / None</span>
+                          )}
+                        </span>
+                      </div>
+
+                      <div className="p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.06] flex flex-col gap-1">
+                        <span className="text-[10px] text-[#71717A] uppercase">Typecheck Gate</span>
+                        <span className="font-bold text-white flex items-center gap-1.5">
+                          {selectedPatch.typecheck_passed === true ? (
+                            <>
+                              <svg className="w-3.5 h-3.5 text-emerald-400 stroke-current" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" aria-hidden="true">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                              <span className="text-emerald-400">Passing</span>
+                            </>
+                          ) : selectedPatch.typecheck_passed === false ? (
+                            <>
+                              <svg className="w-3.5 h-3.5 text-rose-400 stroke-current" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" aria-hidden="true">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                              <span className="text-rose-400">Failed</span>
+                            </>
+                          ) : (
+                            <span className="text-[#71717A]">&mdash; Bypassed / None</span>
+                          )}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.06] flex flex-col gap-1">
-                      <span className="text-[10px] text-[#71717A] uppercase">Typecheck Gate</span>
-                      <span className="font-bold text-white flex items-center gap-1.5">
-                        {activePatch.typecheck_passed === true ? (
-                          <>
-                            <svg className="w-3.5 h-3.5 text-emerald-400 stroke-current" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" aria-hidden="true">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                            <span className="text-emerald-400">Passing</span>
-                          </>
-                        ) : activePatch.typecheck_passed === false ? (
-                          <>
-                            <svg className="w-3.5 h-3.5 text-rose-400 stroke-current" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" aria-hidden="true">
-                              <line x1="18" y1="6" x2="6" y2="18" />
-                              <line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                            <span className="text-rose-400">Failed</span>
-                          </>
-                        ) : (
-                          <span className="text-[#71717A]">&mdash; Bypassed / None</span>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Diff Viewer */}
-                  {activePatch.diff ? (
-                    <div className="flex flex-col gap-1.5">
-                      <span className="font-mono text-[11px] text-[#71717A] uppercase tracking-wider">
-                        Synthesized Unified Diff
-                      </span>
-                      <DiffViewer
-                        diff={activePatch.diff}
-                        filename={activePatch.package}
-                        animated={false}
-                      />
-                    </div>
-                  ) : (
-                    <div className="p-4 rounded-lg bg-white/[0.02] border border-white/10 text-center font-mono text-xs text-[#71717A]">
-                      Diff recorded in GitHub Pull Request.
-                    </div>
-                  )}
-                </SpotlightCard>
-              )}
+                    {/* Diff Viewer */}
+                    {selectedPatch.diff ? (
+                      <div className="flex flex-col gap-1.5">
+                        <span className="font-mono text-[11px] text-[#71717A] uppercase tracking-wider">
+                          Synthesized Unified Diff
+                        </span>
+                        <DiffViewer
+                          diff={selectedPatch.diff}
+                          filename={selectedPatch.package}
+                          animated={false}
+                        />
+                      </div>
+                    ) : (
+                      <div className="p-4 rounded-lg bg-white/[0.02] border border-white/10 text-center font-mono text-xs text-[#71717A]">
+                        Diff recorded in GitHub Pull Request.
+                      </div>
+                    )}
+                  </SpotlightCard>
+                )}
+              </div>
             </div>
-          </div>
+          )
         )}
-      </div>
 
       {/* Gemini 2.5 Flash Architecture & Risk Radar */}
       <SpotlightCard

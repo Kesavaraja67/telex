@@ -9,6 +9,10 @@ export function getApiUrl(): string {
   return API_BASE;
 }
 
+/**
+ * Low-level fetch wrapper for the FastAPI backend.
+ * Sets Content-Type and credentials headers, throws on non-OK responses.
+ */
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const reqHeaders: Record<string, string> = {
     "Content-Type": "application/json",
@@ -178,6 +182,8 @@ export interface PatchSummary {
   typecheck_passed?: boolean | null;
   change_type?: string | null;
   change_description?: string | null;
+  confidence?: number | null;
+  is_semantic_risk?: boolean | null;
 }
 
 export interface RepoPatches {
