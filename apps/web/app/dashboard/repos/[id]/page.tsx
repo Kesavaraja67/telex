@@ -8,7 +8,7 @@ import BorderBeam from "@/components/ui/BorderBeam";
 import CyberGridBackground from "@/components/ui/CyberGridBackground";
 import { CyberSkeletonPatch } from "@/components/ui/CyberSkeleton";
 import DiffViewer from "@/components/dashboard/DiffViewer";
-import type { RepoDetails, AIExplanation, PatchSummary } from "@/lib/api";
+import { type RepoDetails, type AIExplanation, type PatchSummary, API_BASE } from "@/lib/api";
 
 export default function RepoDetailPage({
   params,
@@ -28,6 +28,11 @@ export default function RepoDetailPage({
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
+    // Early lightweight ping to wake cold backend dynos (e.g. Render free tier)
+    if (typeof window !== "undefined") {
+      fetch(`${API_BASE}/api/health`, { mode: "cors" }).catch(() => {});
+    }
+
     let timer: NodeJS.Timeout | null = null;
     let isMounted = true;
 

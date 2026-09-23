@@ -1,7 +1,7 @@
 import * as d3Force from "d3-force-3d";
 import type { AtlasFolder, AtlasGraphPayload, AtlasNode } from "./types";
 
-export const LAYER_SPACING = 3.2; // vertical distance between hierarchy layers
+export const LAYER_SPACING = 4.8; // vertical distance between hierarchy layers
 export const CARD_WIDTH = 1.6;
 export const CARD_HEIGHT = 1.0;
 
@@ -47,7 +47,7 @@ interface SimNode {
 export class LayeredLayout {
   /**
    * Computes deterministic folder anchors and constrained 2D collision-settled
-   * file card positions for each layer.
+   * file card positions for each layer with generous breathing room.
    */
   static compute(graphPayload: AtlasGraphPayload["graph"]): LayeredLayoutResult {
     const { nodes, folders } = graphPayload;
@@ -91,7 +91,7 @@ export class LayeredLayout {
       const siblingCount = children.length;
       if (siblingCount === 0) continue;
 
-      const radius = 2.8 + 0.45 * siblingCount;
+      const radius = 4.8 + 0.85 * siblingCount;
       const angleStep = (2 * Math.PI) / siblingCount;
 
       children.sort().forEach((childId, idx) => {
@@ -130,15 +130,15 @@ export class LayeredLayout {
     filesByFolder.forEach((folderFiles, folderId) => {
       const anchor = folderAnchors.get(folderId) || folderAnchors.get("")!;
       const fileCount = folderFiles.length;
-      const ringRadius = Math.max(1.4, Math.ceil(Math.sqrt(fileCount)) * 0.95);
+      const ringRadius = Math.max(2.6, Math.ceil(Math.sqrt(fileCount)) * 1.6);
       const angleStep = (2 * Math.PI) / Math.max(1, fileCount);
       const fixedY = -anchor.depth * LAYER_SPACING;
 
       folderFiles.forEach((fNode, idx) => {
         const angle = idx * angleStep;
         // Distribute in concentric rings if many files
-        const tier = Math.floor(idx / 12);
-        const currentR = ringRadius + tier * 1.5;
+        const tier = Math.floor(idx / 10);
+        const currentR = ringRadius + tier * 2.2;
         const seedX = anchor.x + currentR * Math.cos(angle);
         const seedZ = anchor.z + currentR * Math.sin(angle);
 
@@ -160,19 +160,19 @@ export class LayeredLayout {
     });
 
     // 4. Constrained 2D force simulation (X/Z only, Y remains untouched)
-    // Run bounded ticks synchronously
+    // Run bounded ticks synchronously with ample card footprint clearance
     if (simNodes.length > 0) {
       const simulation = d3Force
         .forceSimulation(simNodes, 3)
         .force(
           "collide",
-          d3Force.forceCollide(1.05).iterations(2) // Card footprint clearance
+          d3Force.forceCollide(1.75).iterations(3) // Generous card clearance (card is 1.6 x 1.0)
         )
-        .force("x", d3Force.forceX((d: any) => d.targetX).strength(0.08))
-        .force("z", d3Force.forceZ((d: any) => d.targetZ).strength(0.08))
+        .force("x", d3Force.forceX((d: unknown) => (d as SimNode).targetX).strength(0.045))
+        .force("z", d3Force.forceZ((d: unknown) => (d as SimNode).targetZ).strength(0.045))
         .stop();
 
-      const TICKS = Math.min(180, Math.max(60, Math.floor(simNodes.length / 5)));
+      const TICKS = Math.min(240, Math.max(100, Math.floor(simNodes.length / 3)));
       for (let i = 0; i < TICKS; i++) {
         simulation.tick();
       }

@@ -285,11 +285,12 @@ export default function ReposPage() {
           <div className="p-3.5 rounded-xl border border-white/10 bg-white/[0.02] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
             <div className="flex items-center gap-2 text-[#A1A1AA]">
               <span className="text-white font-bold flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5 text-blue-400 stroke-current" viewBox="0 0 24 24" fill="none" strokeWidth="2" aria-hidden="true">
+                <svg className="w-3.5 h-3.5 text-[#A1A1AA] stroke-current" viewBox="0 0 24 24" fill="none" strokeWidth="2" aria-hidden="true">
                   <circle cx="12" cy="12" r="10" />
                   <path d="M12 16v-4" />
                   <path d="M12 8h.01" />
                 </svg>
+
                 Quality Gate Rules:
               </span>
               <span>Enabling test or typecheck gates enforces isolated CI execution before any PR is created.</span>

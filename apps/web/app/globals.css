@@ -8,7 +8,7 @@
 
   --text-pure:      #FFFFFF;
   --text-secondary: #A1A1AA;
-  --text-muted:     #71717A;
+  --text-muted:     #7E7E8A;
   
   --border:         rgba(255, 255, 255, 0.12);
   --border-subtle:  rgba(255, 255, 255, 0.06);
@@ -20,7 +20,7 @@
   --color-void:      #000000;
   --color-text-pure: #FFFFFF;
   --color-secondary: #A1A1AA;
-  --color-muted:     #71717A;
+  --color-muted:     #7E7E8A;
 
   --font-header:     "Space Grotesk", system-ui, sans-serif;
   --font-sans:       "Space Grotesk", system-ui, sans-serif;

@@ -184,7 +184,7 @@ function DashboardContent({
     const apiUrl = getApiUrl();
 
     return (
-      <div className="flex min-h-screen bg-black text-[#F2F1ED] items-center justify-center p-6 relative overflow-hidden font-sans">
+      <div className="flex min-h-screen bg-black text-[#F4F4F5] items-center justify-center p-6 relative overflow-hidden font-sans">
         <CyberGridBackground />
         <div className="relative z-10 max-w-md w-full p-8 rounded-2xl border border-white/10 bg-black/85 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.8)] text-center flex flex-col items-center gap-6">
           <TelexLogo size={44} withBackground={true} />
@@ -243,7 +243,7 @@ function DashboardContent({
 
   // ── 3. Authenticated Dashboard Layout ───────────────────────────────────────
   return (
-    <div className="flex min-h-screen bg-black text-[#F2F1ED] font-sans antialiased selection:bg-white/20 selection:text-white relative">
+    <div className="flex min-h-screen bg-black text-[#F4F4F5] font-sans antialiased selection:bg-white/20 selection:text-white relative">
         {/* Floating Expand Sidebar Button (Shown when sidebar is collapsed) */}
         {isSidebarCollapsed && (
           <motion.div
@@ -294,11 +294,11 @@ function DashboardContent({
             <div className="flex items-center justify-between mb-8 px-1">
               <Link
                 href="/"
-                className="font-mono font-bold tracking-[0.25em] text-sm text-[#F2F1ED] hover:text-white transition-colors flex items-center gap-2 group"
+                className="font-mono font-bold tracking-[0.25em] text-sm text-white hover:text-white/90 transition-colors flex items-center gap-2 group"
               >
                 <TelexLogo size={20} withBackground={true} />
                 <span className="tracking-widest">TELEX</span>
-                <span className="font-mono text-[9px] bg-white/[0.06] text-[#7A7F87] px-1.5 py-0.5 rounded border border-white/5">
+                <span className="font-mono text-[9px] bg-white/[0.06] text-[#7E7E8A] px-1.5 py-0.5 rounded border border-white/5">
                   v1.0
                 </span>
               </Link>

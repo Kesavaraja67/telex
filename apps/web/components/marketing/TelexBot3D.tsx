@@ -112,7 +112,7 @@ export default function TelexBot3D({
     headGroup.add(knob2);
 
     const ledGeo = new THREE.SphereGeometry(0.03, 16, 16);
-    const ledMat = new THREE.MeshBasicMaterial({ color: 0x5eead4 });
+    const ledMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const led = new THREE.Mesh(ledGeo, ledMat);
     led.position.set(0.98, -0.85, 1.08);
     headGroup.add(led);
@@ -284,19 +284,19 @@ export default function TelexBot3D({
       ctx.lineTo(820, 274);
       ctx.stroke();
 
-      // Line 2: Addition Line (Soft Teal)
-      ctx.fillStyle = "#5EEAD4";
+      // Line 2: Addition Line (Pure White)
+      ctx.fillStyle = "#FFFFFF";
       ctx.fillText("+   const bug = false;", 120, 410);
 
       // Blinking Terminal Block Cursor
       if (showCursor) {
-        ctx.fillStyle = "#5EEAD4";
+        ctx.fillStyle = "#FFFFFF";
         ctx.fillRect(845, 360, 26, 52);
       }
 
       // Bottom Right: [CLICK TO PATCH] Label
       ctx.font = "bold 30px 'Courier New', Courier, monospace";
-      ctx.fillStyle = "rgba(94, 234, 212, 0.85)";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
       ctx.fillText("[CLICK TO PATCH]", 660, 680);
 
       screenTexture.needsUpdate = true;

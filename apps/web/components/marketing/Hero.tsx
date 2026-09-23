@@ -2,13 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { motion } from "motion/react";
-import { Plus_Jakarta_Sans } from "next/font/google";
 import IllocaButton from "@/components/ui/IllocaButton";
-
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
-});
 
 const TelexBot3D = dynamic(() => import("./TelexBot3D"), { ssr: false });
 
@@ -66,12 +60,12 @@ export default function Hero() {
             <span className="text-[#8E8E93]">DEPENDENCY HEALING DAEMON</span>
           </motion.div>
 
-          {/* High-Impact Startup Headline (Plus Jakarta Sans ExtraBold) */}
+          {/* High-Impact Startup Headline */}
           <motion.h1
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.1 }}
-            className={`${jakarta.className} font-extrabold text-4xl sm:text-5xl md:text-6xl tracking-[-0.04em] leading-[1.08] text-white`}
+            className="font-extrabold text-4xl sm:text-5xl md:text-6xl tracking-[-0.04em] leading-[1.08] text-white"
           >
             Autonomous dependency healing{" "}
             <span className="text-silver-gradient block pt-1 drop-shadow-[0_0_30px_rgba(255,255,255,0.2)]">
@@ -79,15 +73,16 @@ export default function Hero() {
             </span>
           </motion.h1>
 
-          {/* Subheadline in 20% Slate Gray */}
+          {/* Subheadline */}
           <motion.p
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className={`${jakarta.className} text-sm sm:text-base text-[#9E9E9E] leading-relaxed max-w-lg font-normal`}
+            className="text-sm sm:text-base text-[#A1A1AA] leading-relaxed max-w-lg font-normal"
           >
             Telex watches your dependencies. When a package ships a breaking change, Telex finds every call-site in your codebase, generates a CI-verified patch, and opens a pull request — before your users notice.
           </motion.p>
+
 
           {/* Dual Action Pill Buttons */}
           <motion.div
