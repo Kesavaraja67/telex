@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen bg-black text-[#ECE7DA] selection:bg-white selection:text-black relative">
+    <main className="min-h-screen bg-black text-[#F4F4F5] selection:bg-white selection:text-black relative">
       {/* Illoca-Style Marginalia Coordinates & Cursor Spotlight */}
       <Marginalia />
 
@@ -34,7 +34,7 @@ export default function LandingPage() {
             <span className="font-display font-bold text-xs tracking-[0.25em]">
               TELEX
             </span>
-            <span className="text-[#666666]">©2026 // AUTONOMOUS SELF-HEALING</span>
+            <span className="text-[#7E7E8A]">©2026 // AUTONOMOUS SELF-HEALING</span>
           </div>
 
           <p className="text-center">

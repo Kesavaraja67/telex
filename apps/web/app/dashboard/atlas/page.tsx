@@ -12,8 +12,8 @@ const AtlasView = dynamic(() => import("@/components/atlas/AtlasView"), {
   ssr: false,
   loading: () => (
     <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-black">
-      <div className="w-10 h-10 border-2 border-white/20 border-t-teal-400 rounded-full animate-spin" />
-      <p className="font-mono text-xs text-[#71717A]">Initializing 3D Atlas Engine…</p>
+      <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+      <p className="font-mono text-xs text-[#71717A]">Loading 3D Atlas Engine…</p>
     </div>
   ),
 });
@@ -69,8 +69,8 @@ function AtlasContent() {
   if (isLoading) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-black">
-        <div className="w-10 h-10 border-2 border-white/20 border-t-white/80 rounded-full animate-spin" />
-        <p className="font-mono text-xs text-[#A1A1AA]">Loading connected repositories…</p>
+        <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        <p className="font-mono text-xs text-[#71717A]">Loading connected repositories…</p>
       </div>
     );
   }
@@ -84,7 +84,7 @@ function AtlasContent() {
           enableTilt={false}
         >
           <div className="w-14 h-14 rounded-xl bg-white/5 border border-white/15 flex items-center justify-center">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[#5EEAD4]">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white">
               <circle cx="12" cy="5" r="2" />
               <circle cx="5" cy="19" r="2" />
               <circle cx="19" cy="19" r="2" />
@@ -133,7 +133,7 @@ function AtlasContent() {
               onClick={() => setIsDropdownOpen((prev) => !prev)}
               className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/15 hover:border-white/30 text-white font-mono text-xs transition-all cursor-pointer group"
             >
-              <span className="w-2 h-2 rounded-full bg-[#5EEAD4] shadow-[0_0_6px_#5eead4]" />
+              <span className="w-2 h-2 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)]" />
               <span className="text-[#71717A] text-[11px]">REPO:</span>
               <span className="font-semibold text-white tracking-wide">
                 {selectedRepo?.full_name || "Select repo"}
@@ -185,7 +185,7 @@ function AtlasContent() {
                             </span>
                           </div>
                           {isCurrent && (
-                            <span className="text-[#5EEAD4] text-xs">✓</span>
+                            <span className="text-white text-xs">✓</span>
                           )}
                         </button>
                       );
@@ -211,7 +211,7 @@ function AtlasContent() {
         {/* Right Info Pill */}
         <div className="flex items-center gap-2 font-mono text-xs">
           <div className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.03] border border-white/10 text-[#71717A] text-[11px]">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#5EEAD4] animate-pulse" />
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
             <span>3D Architecture Visualizer</span>
           </div>
 
@@ -243,8 +243,8 @@ export default function AtlasPage() {
     <Suspense
       fallback={
         <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-black">
-          <div className="w-10 h-10 border-2 border-white/20 border-t-white/80 rounded-full animate-spin" />
-          <p className="font-mono text-xs text-[#A1A1AA]">Loading Repo Atlas…</p>
+          <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+          <p className="font-mono text-xs text-[#71717A]">Loading connected repositories…</p>
         </div>
       }
     >

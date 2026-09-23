@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import TelexLogo from "@/components/ui/TelexLogo";
 import { getApiUrl } from "@/lib/api";
@@ -11,6 +12,7 @@ const NAV_LINKS = [
 ];
 
 export default function Nav() {
+  const router = useRouter();
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [user, setUser] = useState<string | null>(null);
 
@@ -44,7 +46,7 @@ export default function Nav() {
   const handleAuthAction = () => {
     const apiUrl = getApiUrl();
     if (user) {
-      window.location.href = "/dashboard";
+      router.push("/dashboard");
     } else {
       // In local development, use dev-login directly so developer isn't sent to production OAuth
       if (typeof window !== "undefined" && window.location.hostname === "localhost") {
@@ -87,7 +89,7 @@ export default function Nav() {
         </Link>
 
         {/* Nav links */}
-        <div className="hidden md:flex items-center gap-6 lg:gap-8 font-mono text-[11px] uppercase tracking-[0.18em] text-[#888888] shrink-0 whitespace-nowrap">
+        <div className="hidden md:flex items-center gap-6 lg:gap-8 font-mono text-[11px] uppercase tracking-[0.18em] text-[#A1A1AA] shrink-0 whitespace-nowrap">
           {NAV_LINKS.map((link, idx) => (
             <Link
               key={link.href}

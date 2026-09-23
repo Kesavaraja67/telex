@@ -36,10 +36,7 @@ export function CodePreviewPanel({
   );
 
   useEffect(() => {
-    if (isBinary) {
-      setState({ status: "binary" });
-      return;
-    }
+    if (isBinary) return;
 
     let isMounted = true;
     setState({ status: "loading" });
@@ -110,7 +107,7 @@ export function CodePreviewPanel({
             <h2 className="font-mono text-sm font-semibold text-white truncate tracking-tight">
               {node?.name || nodeId.split("/").pop()}
             </h2>
-            <span className="font-mono text-[11px] text-[#71717A] truncate">
+            <span className="font-mono text-[11px] text-[#7E7E8A] truncate">
               {nodeId}
             </span>
           </div>
@@ -144,7 +141,7 @@ export function CodePreviewPanel({
                 <span className="font-semibold text-white">{inc.package}:</span>
                 <span className="line-through text-[#FDA4AF]/70">{inc.symbol_old}</span>
                 <span>→</span>
-                <span className="text-[#5EEAD4]">{inc.symbol_new || "removed"}</span>
+                <span className="text-white font-medium">{inc.symbol_new || "removed"}</span>
               </div>
             ))
           ) : (
@@ -178,8 +175,12 @@ export function CodePreviewPanel({
       <div className="flex-1 overflow-auto p-5 font-mono text-xs leading-relaxed select-text">
         {state.status === "loading" && (
           <div className="h-64 flex flex-col items-center justify-center gap-3">
-            <div className="w-7 h-7 border border-white/20 border-t-white/70 rounded-full animate-spin" />
-            <span className="font-mono text-xs text-[#71717A]">Fetching file content…</span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shadow-[0_0_6px_rgba(255,255,255,0.6)]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse [animation-delay:200ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-white/30 animate-pulse [animation-delay:400ms]" />
+            </div>
+            <span className="font-mono text-xs text-[#71717A] tracking-wider uppercase">Fetching file AST…</span>
           </div>
         )}
 

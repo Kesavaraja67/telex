@@ -65,14 +65,39 @@ coverage.xml
 # Misc
 .vercel
 .turbo
+*.db
 
 # Brag
-brag-output/
-brag-output-30s/
+brag-output*/
 
-# Agent skills (ignore heavy media/binaries and scripts, keep markdown/configs)
+
+# Agent skills (ignore heavy media, audio, scripts, binaries, code)
 .agents/**/assets/
 .agents/**/scripts/
+.agents/**/bin/
+.agents/**/src/
+.agents/**/test/
+.agents/**/daemon/
+.agents/**/vendor/
+.agents/**/templates/
+.agents/**/migrations/
+.agents/**/lib/
 .agents/**/*.wav
 .agents/**/*.ogg
 .agents/**/*.mp3
+.agents/**/*.png
+.agents/**/*.jpg
+.agents/**/*.jpeg
+.agents/**/*.gif
+.agents/**/*.ts
+.agents/**/*.js
+.agents/**/*.cjs
+.agents/**/*.mjs
+.agents/**/*.sh
+.agents/**/*.tmpl
+.agents/**/*.lock
+.agents/**/*.toml
+.agents/**/*.c
+.agents/**/*.swift
+.agents/**/*.Dockerfile
+
