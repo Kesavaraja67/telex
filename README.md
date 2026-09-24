@@ -76,24 +76,34 @@ Watch the comprehensive 75-second architectural walkthrough of Telex in action. 
 <br>
 
 <div align="center">
-  <video src="apps/web/public/Telex-new-video.mp4" poster="apps/web/public/video-poster.jpg" width="100%" controls style="max-width: 960px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15);">
-    Your browser does not support the video tag.
+
+  <!-- ================================================================= -->
+  <!-- [PASTE_VIDEO_HERE]: Drag & drop Telex-new-video.mp4 or paste URL  -->
+  <!-- https://github.com/user-attachments/assets/PASTE_YOUR_LINK_HERE   -->
+  <!-- ================================================================= -->
+
+  <video src="https://github.com/Kesavaraja67/telex/raw/main/apps/web/public/Telex-new-video.mp4" poster="https://github.com/Kesavaraja67/telex/raw/main/apps/web/public/video-poster.jpg" controls="controls" width="100%" style="max-width: 960px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15);">
+    <a href="https://github.com/Kesavaraja67/telex/raw/main/apps/web/public/Telex-new-video.mp4">
+      <img src="https://github.com/Kesavaraja67/telex/raw/main/apps/web/public/video-poster.jpg" alt="Click to Watch Telex Autonomous Pipeline Demo (75s)" width="100%" style="max-width: 960px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15);" />
+    </a>
   </video>
+
+  <!-- ================================================================= -->
 
   <br><br>
 
   <p>
-    <a href="apps/web/public/Telex-new-video.mp4">
+    <a href="https://github.com/Kesavaraja67/telex/raw/main/apps/web/public/Telex-new-video.mp4">
       <img src="https://img.shields.io/badge/%E2%96%B6%EF%B8%8F%20Play%20Video-Telex--new--video.mp4-14B8A6?style=flat-square&logoColor=white" alt="Play Video" />
     </a>
     &nbsp;
-    <a href="apps/web/public/Telex-new-video.mp4" download="Telex-new-video.mp4">
+    <a href="https://github.com/Kesavaraja67/telex/raw/main/apps/web/public/Telex-new-video.mp4" download="Telex-new-video.mp4">
       <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20Download-1080p%20HD-050508?style=flat-square&logoColor=white" alt="Download Video" />
     </a>
   </p>
 
   <p>
-    <a href="apps/web/public/Telex-new-video.mp4"><b>▶ Click here to stream or download <code>Telex-new-video.mp4</code> directly</b></a>
+    <a href="https://github.com/Kesavaraja67/telex/raw/main/apps/web/public/Telex-new-video.mp4"><b>▶ Click here to stream <code>Telex-new-video.mp4</code> directly in browser</b></a>
   </p>
 
   <p><sub><b>Launch Video:</b> <code>apps/web/public/Telex-new-video.mp4</code> (1080p HD · ElevenLabs Liam Narration)</sub></p>
