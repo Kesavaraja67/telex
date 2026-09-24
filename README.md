@@ -77,37 +77,10 @@ Watch the comprehensive 75-second architectural walkthrough of Telex in action. 
 
 <div align="center">
 
-  
-
 https://github.com/user-attachments/assets/f4042653-0351-4777-9391-a88c4b3345e8
 
-
-
-  <video src="https://github.com/Kesavaraja67/telex/raw/main/apps/web/public/Telex-new-video.mp4" poster="https://github.com/Kesavaraja67/telex/raw/main/apps/web/public/video-poster.jpg" controls="controls" width="100%" style="max-width: 960px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15);">
-    <a href="https://github.com/Kesavaraja67/telex/raw/main/apps/web/public/Telex-new-video.mp4">
-      <img src="https://github.com/Kesavaraja67/telex/raw/main/apps/web/public/video-poster.jpg" alt="Click to Watch Telex Autonomous Pipeline Demo (75s)" width="100%" style="max-width: 960px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15);" />
-    </a>
-  </video>
-
-  <!-- ================================================================= -->
-
-  <br><br>
-
-  <p>
-    <a href="https://github.com/Kesavaraja67/telex/raw/main/apps/web/public/Telex-new-video.mp4">
-      <img src="https://img.shields.io/badge/%E2%96%B6%EF%B8%8F%20Play%20Video-Telex--new--video.mp4-14B8A6?style=flat-square&logoColor=white" alt="Play Video" />
-    </a>
-    &nbsp;
-    <a href="https://github.com/Kesavaraja67/telex/raw/main/apps/web/public/Telex-new-video.mp4" download="Telex-new-video.mp4">
-      <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20Download-1080p%20HD-050508?style=flat-square&logoColor=white" alt="Download Video" />
-    </a>
-  </p>
-
-  <p>
-    <a href="https://github.com/Kesavaraja67/telex/raw/main/apps/web/public/Telex-new-video.mp4"><b>▶ Click here to stream <code>Telex-new-video.mp4</code> directly in browser</b></a>
-  </p>
-
-  <p><sub><b>Launch Video:</b> <code>apps/web/public/Telex-new-video.mp4</code> (1080p HD · ElevenLabs Liam Narration)</sub></p>
+  <br>
+  <p><sub><b>Launch Video:</b> <code>Telex-new-video.mp4</code> (1080p HD · 75.0s · ElevenLabs Liam Narration)</sub></p>
 </div>
 
 <br>
