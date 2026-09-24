@@ -66,6 +66,9 @@ coverage.xml
 .vercel
 .turbo
 *.db
+*.mp4
+!**/Telex-new-video.mp4
+*.webm
 
 # Brag
 brag-output*/

@@ -1,88 +1,174 @@
-# Repo Atlas — 3D Full-Repo Structural Code Visualizer & Blast Radius Engine
+<a id="top"></a>
 
-Repo Atlas renders a persistent, whole-repository 3D structural map of any connected codebase in Telex. It works directly alongside Telex's package watchdog and LLM repair pipeline: while Telex watches npm & PyPI packages for breaking changes, Repo Atlas maps out the entire repository AST, illuminates failure blast radii in real time, and gives operators visual inspection of the code before the LLM patch is merged.
+<div align="center">
+
+  <h1>Repo Atlas 3D Engine</h1>
+  <p><b>Spatial Architecture Visualizer, Catenary Conduit Physics & Blast Radius Mapping</b></p>
+
+  <p>
+    <img src="https://img.shields.io/badge/Three.js-WebGL-000000?style=flat-square&logo=three.js&logoColor=white" alt="Three.js WebGL" />
+    <img src="https://img.shields.io/badge/d3--force--3d-Layered%20Physics-F9A03F?style=flat-square&logoColor=white" alt="d3-force-3d" />
+    <img src="https://img.shields.io/badge/AST%20Imports-Multi--Language-14B8A6?style=flat-square" alt="Multi-Language AST Imports" />
+    <img src="https://img.shields.io/badge/SSE-Realtime%20Incidents-F43F5E?style=flat-square" alt="Realtime SSE Incidents" />
+  </p>
+
+  <br>
+
+  <p>
+    <a href="#overview"><b>Overview</b></a> &nbsp;•&nbsp;
+    <a href="#component-architecture"><b>Architecture</b></a> &nbsp;•&nbsp;
+    <a href="#layered-layout-math"><b>Layout Mathematics</b></a> &nbsp;•&nbsp;
+    <a href="#catenary-cables"><b>Catenary Cables</b></a> &nbsp;•&nbsp;
+    <a href="#card-textures"><b>Card Textures</b></a> &nbsp;•&nbsp;
+    <a href="#incident-overlay"><b>Incident Overlay</b></a>
+  </p>
+
+</div>
+
+<br>
 
 ---
 
-## 1. Architecture Overview
+<br>
 
+## <a id="overview"></a>01. Overview
+
+Repo Atlas is Telex's dedicated 3D architectural visualizer and blast radius intelligence engine. Rather than rendering flat, static directory trees, Repo Atlas constructs an interactive spatial reactor room for any connected repository.
+
+When upstream packages release breaking changes, operators can immediately trace how internal modules depend on the affected package, inspect source code in-canvas, and verify patch isolation before merging.
+
+<br>
+
+<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
+
+---
+
+<br>
+
+## <a id="component-architecture"></a>02. Component Architecture
+
+```text
+apps/web/app/dashboard/atlas/page.tsx (Operator page with universal repo switcher)
+  └── AtlasView.tsx                   (HUD, search filter, SSE event listener, keybindings)
+       ├── AtlasScene.ts              (Three.js scene graph, PMREM lighting, camera orbit)
+       │    ├── LayeredLayout.ts      (Hierarchical depth Y + 2D polar force simulation)
+       │    ├── CardTextureAtlas.ts   (512x320 canvas card textures & language badges)
+       │    ├── WireRenderer2.ts      (Catenary 3D cables + bezier import wires + photon pulses)
+       │    ├── DragController.ts     (Raycasting + horizontal plane drag constraint)
+       │    └── lastEditedCache.ts    (Lazy debounced commit metadata fetching)
+       └── CodePreviewPanel.tsx       (Slide-in syntax-highlighted code reader + breakage banner)
 ```
-apps/web/app/dashboard/atlas/page.tsx (Dedicated operator page with repo switcher dropdown)
-  └─ AtlasView.tsx (HUD, polling, SSE event handling, keyboard shortcuts)
-       ├─ AtlasScene.ts (Three.js scene, lighting, camera orbit, camera reset & focus)
-       │    ├─ LayeredLayout.ts (hierarchical folder depth Y + 2D X/Z force simulation)
-       │    ├─ CardTextureAtlas.ts (512x320 canvas card textures & language badges)
-       │    ├─ WireRenderer2.ts (hierarchy lines + bezier import wires + breakage pulses)
-       │    ├─ DragController.ts (raycasting + horizontal plane drag constraint)
-       │    └─ lastEditedCache.ts (lazy debounced commit metadata fetching)
-       └─ CodePreviewPanel.tsx (slide-in syntax-highlighted code reader + breakage banner)
+
+<br>
+
+<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
+
+---
+
+<br>
+
+## <a id="layered-layout-math"></a>03. Layered Layout Mathematics (`LayeredLayout.ts`)
+
+To avoid chaotic ball-of-mud graph clustering, Repo Atlas employs a deterministic **layered polar layout**:
+
+### 1. Depth Axis Stratification ($Y$)
+Directory hierarchy is strictly mapped to the negative vertical axis:
+$$Y = -\text{depth} \times \text{LAYER\_SPACING} \quad (\text{where } \text{LAYER\_SPACING} = 4.8)$$
+- Root files and top-level modules reside at $Y = 0$.
+- Submodules and internal libraries descend downward without overlapping vertical planes.
+- $Y$ coordinates are locked during force simulation, preserving architectural hierarchy.
+
+### 2. Deterministic Polar Folder Anchors ($X, Z$)
+Sibling folders at the same depth level are distributed along concentric polar rings:
+$$\text{radius} = 4.8 + 0.85 \times \text{siblingCount}$$
+$$\theta_i = \theta_{\text{parent}} + \frac{2\pi \cdot i}{\text{siblingCount}}$$
+
+### 3. File Card Ring Seeding & Collision Avoidance
+Individual files cluster around their folder anchor:
+$$\text{ringRadius} = \max\left(2.6, \lceil\sqrt{\text{fileCount}}\rceil \times 1.6\right)$$
+
+A constrained 2D force simulation (`d3-force-3d`) runs along the $X$ and $Z$ axes with `forceCollide(1.75)` to eliminate card overlap while strictly preserving $Y$ coordinates.
+
+<br>
+
+<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
+
+---
+
+<br>
+
+## <a id="catenary-cables"></a>04. Catenary Conduit Physics & Photon Pulses
+
+Imports are modeled as physical dielectric rubber cables carrying optical data packets:
+
+```text
+               (p1)                                     (p2)
+                ┌────────┐                             ┌────────┐
+                │ Card A │                             │ Card B │
+                └────┬───┘                             └───┬────┘
+                     │                                     │
+                     ╰──────╮                       ╭──────╯
+                            ╰───────────────╮       │
+                                    • • •   ╰───────╯
+                                 [photon pulse]
 ```
 
----
+### Physics Specification
+- **Gravitational Sag**: Inter-layer cables sag under simulated gravity:
+  $$\text{mid}_y = \frac{p1_y + p2_y}{2} - \text{sag}$$
+- **Intra-layer Upward Arches**: Connections on the same depth layer arch upward gracefully to avoid colliding with card surfaces:
+  $$\text{mid}_y += \min(1.8, \max(0.35, \text{distance} \times 0.15))$$
+- **Normal Cable Geometry**: $r = 0.028$ units, PBR roughness `0.42`, teal emissive core (`#14B8A6`).
+- **Severed Cable Geometry**: $r = 0.044$ units, crimson emissive core (`#F43F5E`).
+- **Photon Packet Simulation**: High-luminance emissive beads (`#5EEAD4`) travel along bezier curves representing active data calls.
 
-## 2. Layered Layout Algorithm (`LayeredLayout.ts`)
+<br>
 
-1. **Strict Folder-Depth Stratification (Y axis)**:
-   - $Y = -\text{depth} \times \text{LAYER\_SPACING}$ (where `LAYER_SPACING = 3.2`).
-   - Root files and top-level directories rest at $Y = 0$.
-   - Depth 1 rests at $Y = -3.2$, depth 2 at $Y = -6.4$, etc.
-   - Y is locked and excluded from physics simulation so folder structure is never distorted.
-
-2. **Deterministic Polar Folder Anchors (X and Z axes)**:
-   - Sibling folders at the same depth are distributed in polar rings around their parent anchor:
-     $$\text{radius} = 2.8 + 0.45 \times \text{siblingCount}$$
-   - This layout is deterministic and stable across reloads for the same commit SHA.
-
-3. **Local Card Clusters & 2D Collision Avoidance**:
-   - Files within a folder are seeded in concentric rings around their folder anchor.
-   - A constrained 2D force pass (`d3-force-3d`) runs `forceX` and `forceZ` toward the anchor, with `forceCollide` clearance to eliminate card overlap without shifting Y.
+<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
 
 ---
 
-## 3. Card Visual Specification (`CardTextureAtlas.ts`)
+<br>
 
-Each file card is a 16:10 world plane (`1.6 × 1.0` units) backed by a 512×320 canvas texture:
-- **Card Body**: Void glass fill `rgba(255, 255, 255, 0.03)` over pure black with a 1px border.
-- **Row 1**:
-  - Top-Left: Rounded language badge chip (e.g. `TS`, `TSX`, `JS`, `PY`, `{}`, `MD`).
-  - Top-Right: Last-edited relative timestamp (e.g. `3d ago`, `2h ago`) or skeleton bar while resolving.
-- **Row 2**: 20px monospace filename in pure white.
-- **Row 3**: 12px secondary folder path, truncated from the left with `…/`.
-- **Row 4**: Warning badge `⚠ [count]` when `unresolved_import_count > 0`.
-- **Binary/Media Files**: Centered icon glyph with a clear "No preview available" notice.
+## <a id="card-textures"></a>05. Canvas Card Texture Atlas (`CardTextureAtlas.ts`)
 
----
+Each 3D file card is a 16:10 world plane (`1.6 × 1.0` units) backed by an optimized 512×320 dynamic canvas texture:
 
-## 4. Import Graph Extraction & Honest Static Analysis (`apps/api/services/import_graph.py`)
+- **Frosted Polycarbonate Base**: `rgba(255, 255, 255, 0.03)` with 1px border.
+- **Language Chips**: Pre-rendered badge chips for `TS`, `TSX`, `JS`, `PY`, `GO`, `RS`, `JAVA`, `C++`, `MD`.
+- **Monospace Typography**: File names rasterized in JetBrains Mono / Geist Mono for tabular stability.
+- **Git Metadata**: Displays relative last-edited timestamps (`2h ago`, `3d ago`) or skeleton bars while resolving.
+- **Incident State**: Broken cards render with a high-contrast crimson border (`#E11D48`) and emissive halo.
 
-- Extracted via tree-sitter AST queries without running untrusted code.
-- Resolves:
-  - TypeScript, TSX, JavaScript (`import`, `require`, dynamic `import()`, `tsconfig.json` paths)
-  - Python (`from . import ...`, absolute package imports)
-  - Go (`import "package"`, internal module directories)
-  - Rust (`use crate::...`, internal submodules)
-  - Java, C/C++, Ruby, PHP, and web configuration files
-- **Honesty Guarantees**:
-  - Dynamic imports `import(expr)` and unresolvable internal specifiers are recorded as `unresolved_specifiers` on the card and never drawn as dangling edges to nowhere.
-  - External 3rd-party packages are deliberately omitted so the graph represents the repository itself.
+<br>
+
+<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
 
 ---
 
-## 5. Live Breakage Overlay
+<br>
 
-When a breaking dependency change ripples through the codebase:
-- Files implicated in active incidents light up with a red border (`#E11D48`) and emissive glow.
-- Import wires touching broken nodes switch to red severed status (`#E11D48`).
-- All active broken files illuminate simultaneously.
-- When an incident resolves via PR merge or fix, the graph smoothly transitions back to resting state.
+## <a id="incident-overlay"></a>06. Live Incident Breakage Overlay (SSE)
 
----
+Repo Atlas connects to the backend incident event stream:
+```typescript
+const eventSource = new EventSource(`/api/repos/${repoId}/incidents/stream`);
+eventSource.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  // data.broken_files: string[]
+  // data.severed_wires: [string, string][]
+  highlightIncidentBlastRadius(data);
+};
+```
 
-## 6. Bridging Package Watching and LLM Healing
+1. **Instant Propagation**: When a package breaking change is detected, all implicated source files transition into active crimson alert.
+2. **Severed Conduits**: Dependent import wires flash and switch to crimson warning state.
+3. **Smooth Resolution**: When a repair patch is merged and verified, the affected nodes and cables elastically transition back to healthy teal resting state.
 
-Repo Atlas plays a vital role across Telex's core loop:
-1. **Watches Packages (`poll_registry`)**: Telex monitors npm and PyPI for new versions and breaking symbol changes.
-2. **Maps Blast Radius (`/dashboard/atlas`)**: Repo Atlas locates the call sites and visualizes the complete blast radius and transitive import dependencies in 3D.
-3. **Calls LLM for Fix (`generate_patch`)**: Telex feeds isolated AST syntax node snippets into the LLM (Gemini/Claude) to synthesize unified diffs.
-4. **Verifies in CI (`validate_patch`)**: The patch runs against the repo's actual test suites in an isolated sandbox.
-5. **Pre-Merge 3D Inspection**: Operators can click through the 3D cards on `/dashboard/atlas` to verify that the repair cleanly isolates the breakage before merging the PR.
+<br>
+
+<div align="center">
+  <a href="#top">
+    <img src="https://img.shields.io/badge/%E2%86%91-Back%20to%20Top-050508?style=flat-square&logoColor=white" alt="Back to Top" />
+  </a>
+</div>
