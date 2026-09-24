@@ -77,10 +77,11 @@ Watch the comprehensive 75-second architectural walkthrough of Telex in action. 
 
 <div align="center">
 
-  <!-- ================================================================= -->
-  <!-- [PASTE_VIDEO_HERE]: Drag & drop Telex-new-video.mp4 or paste URL  -->
-  <!-- https://github.com/user-attachments/assets/PASTE_YOUR_LINK_HERE   -->
-  <!-- ================================================================= -->
+  
+
+https://github.com/user-attachments/assets/f4042653-0351-4777-9391-a88c4b3345e8
+
+
 
   <video src="https://github.com/Kesavaraja67/telex/raw/main/apps/web/public/Telex-new-video.mp4" poster="https://github.com/Kesavaraja67/telex/raw/main/apps/web/public/video-poster.jpg" controls="controls" width="100%" style="max-width: 960px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15);">
     <a href="https://github.com/Kesavaraja67/telex/raw/main/apps/web/public/Telex-new-video.mp4">
