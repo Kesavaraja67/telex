@@ -64,10 +64,56 @@ async def run(payload: dict) -> None:
 
         # Fetch changelog if not supplied in payload
         changelog = payload.get("changelog") or pv.changelog_raw or ""
-        if not changelog:
-            logger.warning("extract_changes: no changelog for %s@%s", package_name, pv.version)
+        ecosystem = payload.get("ecosystem", "npm")
 
-        old_version = payload.get("old_version", "unknown")
+        if not changelog:
+            logger.info("extract_changes: attempting registry changelog fetch for %s@%s", package_name, pv.version)
+            from services.registry_watcher import fetch_latest_version
+            reg_info = await fetch_latest_version(package_name, ecosystem=ecosystem)
+            if reg_info:
+                changelog = reg_info.get("changelog_raw") or reg_info.get("changelog_url") or ""
+                if changelog:
+                    pv.changelog_raw = changelog
+                    await session.commit()
+
+        if not changelog:
+            logger.warning("extract_changes: no changelog available for %s@%s", package_name, pv.version)
+
+        old_version = payload.get("old_version")
+        if not old_version or old_version == "unknown":
+            # Attempt to find the previous version from DB if not passed in payload
+            try:
+                prev_pv_res = await session.execute(
+                    select(PackageVersion)
+                    .where(
+                        PackageVersion.package_id == getattr(pv, "package_id", None),
+                        PackageVersion.id != getattr(pv, "id", None),
+                    )
+                    .order_by(
+                        PackageVersion.published_at.desc().nullslast(),
+                        PackageVersion.id.desc(),
+                    )
+                    .limit(1)
+                )
+                if hasattr(prev_pv_res, "scalar_one_or_none"):
+                    prev_row = prev_pv_res.scalar_one_or_none()
+                    if asyncio.iscoroutine(prev_row):
+                        prev_row = None
+                else:
+                    prev_row = None
+                old_version = getattr(prev_row, "version", None) or "unknown"
+            except Exception:
+                old_version = "unknown"
+
+
+        from datetime import datetime, timezone
+
+        # First version ever seen for this package: treat as baseline, no prior breaking changes
+        if old_version in ("none", "unknown", None) and payload.get("old_version") == "none":
+            logger.info("extract_changes: initial version %s@%s recorded as baseline", package_name, pv.version)
+            pv.scanned_at = datetime.now(timezone.utc)
+            await session.commit()
+            return
 
         changes = await extract_breaking_changes(
             package_name=package_name,
@@ -80,7 +126,7 @@ async def run(payload: dict) -> None:
             logger.info(
                 "extract_changes: no breaking changes found in %s@%s", package_name, pv.version
             )
-            pv.scanned_at = __import__("datetime").datetime.utcnow()
+            pv.scanned_at = datetime.now(timezone.utc)
             await session.commit()
             return
 

@@ -9,7 +9,7 @@
   <h1>T E L E X</h1>
 
   <p>
-    <b>Autonomous dependency self-healing and 3D architectural cartography for production codebases.</b>
+    <b>Automated dependency self-healing and 3D architectural cartography for production codebases.</b>
   </p>
 
   <p>
@@ -40,26 +40,24 @@
 
   <br><br>
 
-  <!-- Quick Navigation -->
+  <!-- Quick Navigation: 7 Fundamental Questions -->
   <p>
-    <a href="#launch-video"><b>Launch Film</b></a> &nbsp;•&nbsp;
-    <a href="#overview"><b>Overview</b></a> &nbsp;•&nbsp;
-    <a href="#why-telex"><b>Why Telex</b></a> &nbsp;•&nbsp;
-    <a href="#how-it-works"><b>How It Works</b></a> &nbsp;•&nbsp;
-    <a href="#repo-atlas-3d"><b>Repo Atlas (3D)</b></a> &nbsp;•&nbsp;
-    <a href="#llm-repair-matrix"><b>LLM Providers</b></a> &nbsp;•&nbsp;
-    <a href="#security-model"><b>Security</b></a> &nbsp;•&nbsp;
-    <a href="#local-setup"><b>Quickstart</b></a> &nbsp;•&nbsp;
-    <a href="#verification--tests"><b>Tests</b></a>
+    <a href="#problem"><b>1. Problem</b></a> &nbsp;•&nbsp;
+    <a href="#what-telex-does"><b>2. What Telex Does</b></a> &nbsp;•&nbsp;
+    <a href="#who-is-it-for"><b>3. Target Audience</b></a> &nbsp;•&nbsp;
+    <a href="#concrete-example"><b>4. Real Example</b></a> &nbsp;•&nbsp;
+    <a href="#how-verification-works"><b>5. Verification</b></a> &nbsp;•&nbsp;
+    <a href="#how-to-try-it"><b>6. Quickstart</b></a> &nbsp;•&nbsp;
+    <a href="#architecture--deep-details"><b>7. Architecture</b></a>
   </p>
 
   <br>
 
-  <!-- Telex Mascot & Autonomous Agent Avatar -->
-  <img src="apps/web/public/telex-man1.png" alt="Telex Autonomous Agent Avatar" width="340" style="max-width: 100%; height: auto; filter: drop-shadow(0 18px 36px rgba(0,0,0,0.85));" />
+  <!-- Telex Mascot Avatar -->
+  <img src="apps/web/public/telex-man1.png" alt="Telex Automated Agent Avatar" width="340" style="max-width: 100%; height: auto; filter: drop-shadow(0 18px 36px rgba(0,0,0,0.85));" />
 
   <br><br>
-  <p><sub><b>TELEX AGENT CORE</b> · Industrial Cybernetic Hardware &amp; Autonomous Dependency Reactor</sub></p>
+  <p><sub><b>TELEX AGENT CORE</b> · Industrial Code Repair Engine &amp; Dependency Reactor</sub></p>
 
 </div>
 
@@ -69,9 +67,9 @@
 
 <br>
 
-## <a id="launch-video"></a>01. Product Launch Film & Autonomous Pipeline Demo
+## Product Launch Film & Architectural Walkthrough
 
-Watch the comprehensive 75-second architectural walkthrough of Telex in action. This film demonstrates 24/7 package registry surveillance, 3D Repo Atlas topology rendering, Tree-Sitter AST call-site isolation, precision LLM patch synthesis, and ephemeral CI test sandboxes with ElevenLabs **Liam** voice narration:
+Watch the 75-second architectural walkthrough of Telex in action. This film demonstrates 24/7 package registry surveillance, 3D Repo Atlas topology rendering, Tree-Sitter AST call-site isolation, LLM patch synthesis, and ephemeral CI test sandboxes with ElevenLabs **Liam** voice narration:
 
 <br>
 
@@ -91,20 +89,15 @@ https://github.com/user-attachments/assets/f4042653-0351-4777-9391-a88c4b3345e8
 
 <br>
 
-## <a id="overview"></a>02. Overview
+## <a id="problem"></a>01. What Problem Does Telex Solve?
 
-Every production codebase depends on dozens of third-party packages. When an upstream dependency publishes a breaking release at 3:00 AM, traditional CI pipelines fail hours later, leaving developers to dig through commits, changelogs, and git-blame history to find and fix the issue.
+Every production application relies on dozens or hundreds of open-source packages. When an upstream dependency publishes a major or breaking release, existing dependency bots (Dependabot, Renovate) only bump the version string in `package.json` or `pyproject.toml` and open a pull request.
 
-**Telex replaces that manual cycle with an autonomous, end-to-end self-healing loop:**
+**The outcome is always one of two failure modes:**
+1. **The PR immediately breaks CI:** The test suite or typechecker fails because function signatures changed or methods were removed. A software engineer must stop feature work, read third-party changelogs, search the repository for all affected call sites, rewrite the code, and re-test.
+2. **The PR quietly passes CI but ships latent defects:** If test coverage doesn't assert the changed behavior, breaking semantic changes slip straight into production builds unnoticed.
 
-1. **Surveillance**: 24/7 background polling of `npm` and `PyPI` registries captures breaking releases immediately upon release.
-2. **Blast Radius Analysis**: Constructs a 3D structural import graph and maps failure propagation across the entire codebase.
-3. **AST Precision Scanning**: Uses Tree-Sitter to pinpoint exact function calls, imports, and member expressions—without false positives.
-4. **Autonomous Patch Synthesis**: Prompts enterprise LLMs (Gemini, Claude, GPT-4o, Groq) to craft minimal, syntactically clean unified diffs.
-5. **Sandbox Verification**: Validates candidate patches inside isolated CI runners using your actual test suite and typechecker.
-6. **Transparent Pull Requests**: Delivers human-reviewed GitHub PRs containing complete validation receipts, test logs, and check runs.
-
-> **Strict Non-Negotiable Contract**: Telex **never** automatically merges code to production. Every synthesized patch is submitted as a verified, human-reviewed GitHub Pull Request with cryptographic provenance and sandbox logs.
+Teams either freeze versions indefinitely—accumulating technical debt and security vulnerabilities—or spend hundreds of engineering hours manually performing mechanical dependency migrations.
 
 <br>
 
@@ -114,97 +107,296 @@ Every production codebase depends on dozens of third-party packages. When an ups
 
 <br>
 
-## <a id="why-telex"></a>03. Why Telex (Comparison Matrix)
+## <a id="what-telex-does"></a>02. What Does Telex Actually Do?
 
-Existing automated tooling either generates high-noise pull requests that break builds or blindly searches files with naive regular expressions. Telex is engineered specifically for production reliability:
+Telex turns breaking dependency updates into verified, ready-to-merge GitHub pull requests that rewrite your call sites automatically.
 
-| Capability | Naive Dependabot / Renovate | Grep / Regex Scripts | Telex Autonomous Agent |
+```text
+[Upstream Registry] ──(24/7 Poll)──> [Changelog Parser]
+                                             │
+                                   (Breaking Symbol List)
+                                             │
+                                             ▼
+[Your Repository] ──(Tree-Sitter AST)──> [Exact Call Sites]
+                                             │
+                                    (Call-Site Context)
+                                             │
+                                             ▼
+                                     [LLM Patch Engine]
+                                             │
+                                       (Unified Diff)
+                                             │
+                                             ▼
+                                   [Sandbox CI Verification]
+                                             │
+                                    (Passing Test Proof)
+                                             │
+                                             ▼
+                                 [Human-Reviewed GitHub PR]
+```
+
+### The 6-Stage Automated Lifecycle:
+1. **Registry Surveillance**: Continuously polls `npm` and `PyPI` registries to detect published versions and fetch release metadata.
+2. **Breaking Change Extraction**: Analyzes release notes and changelogs to identify removed, renamed, signature-changed, or behavior-changed API symbols with confidence ratings.
+3. **AST Precision Scanning**: Uses Tree-Sitter to parse your repository's ASTs and locate exact call sites, imported identifiers, and member expressions—without regex false positives.
+4. **Targeted Patch Synthesis**: Prompts enterprise LLMs (Gemini, Claude, GPT-4o, Groq) with the exact call site and migration contract to synthesize minimal, surgical unified diffs.
+5. **Ephemeral Sandbox Verification**: Validates candidate patches in isolated GitHub Actions environments against your repository's actual test suites and typecheckers.
+6. **Human-Reviewed Pull Requests**: Opens a single comprehensive PR per dependency upgrade containing full verification receipts, test logs, and risk classifications.
+
+> **Strict Non-Negotiable Contract**: Telex **never** automatically merges code. Every patch requires human engineering review and approval before entering production.
+
+<br>
+
+<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
+
+---
+
+<br>
+
+## <a id="who-is-it-for"></a>03. Who Is Telex For?
+
+Telex is built for:
+- **Fast-Moving Product Teams**: Avoid losing days of sprint velocity every time a critical framework or library (e.g., Pydantic v1→v2, Axios v0→v1, Next.js, FastAPI) introduces breaking changes.
+- **Platform & Infrastructure Teams**: Keep fleet-wide dependencies modern across dozens of microservices without manual patch coordination.
+- **Maintainers of Mission-Critical Services**: Protect systems with strict, evidence-bound verification where passing tests on the exact commit SHA are required before any code is approved.
+
+**Supported Ecosystems & Languages:**
+- **Automated Dependency Repair Pipeline**:
+  - Package Registries: **npm**, **PyPI**
+  - AST Call-Site Scanner: **TypeScript** (`.ts`, `.mts`, `.cts`), **TSX** (`.tsx`), **JavaScript** (`.js`, `.jsx`, `.mjs`, `.cjs`), **Python** (`.py`)
+- **Repo Atlas 3D Visualization & Cartography**:
+  - Full import-graph cartography supports **21 languages** including Go, Rust, Java, C/C++, Ruby, PHP, and more.
+
+<br>
+
+<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
+
+---
+
+<br>
+
+## <a id="concrete-example"></a>04. Concrete Before/After Example
+
+### Scenario: Upgrading `axios` (v0.x → v1.x)
+In Axios v1.x, the legacy `CancelToken` factory and source API was deprecated and removed in favor of the standard Web API `AbortController`.
+
+#### Upstream Change Extracted by Telex:
+```json
+{
+  "change_type": "removed",
+  "symbol_old": "axios.CancelToken.source",
+  "symbol_new": "new AbortController()",
+  "description": "CancelToken.source() removed in favor of native AbortController signal."
+}
+```
+
+#### 1. Target Repository Code (`src/services/apiClient.ts`):
+```typescript
+import axios from 'axios';
+
+export async function fetchUserData(userId: string) {
+  const cancelSource = axios.CancelToken.source();
+  const request = axios.get(`/users/${userId}`, {
+    cancelToken: cancelSource.token,
+  });
+  return { request, cancel: () => cancelSource.cancel('User aborted') };
+}
+```
+
+#### 2. Tree-Sitter AST Call Site Detection:
+Telex pinpoints lines 4–7 without string matching or false positives in comments:
+```text
+Matched: CancelToken.source() at src/services/apiClient.ts:4:24
+Matched: cancelToken property at src/services/apiClient.ts:6:5
+```
+
+#### 3. Surgical Unified Diff Synthesized and Verified by Telex:
+```diff
+--- a/src/services/apiClient.ts
++++ b/src/services/apiClient.ts
+@@ -3,6 +3,6 @@
+ export async function fetchUserData(userId: string) {
+-  const cancelSource = axios.CancelToken.source();
++  const controller = new AbortController();
+   const request = axios.get(`/users/${userId}`, {
+-    cancelToken: cancelSource.token,
++    signal: controller.signal,
+   });
+-  return { request, cancel: () => cancelSource.cancel('User aborted') };
++  return { request, cancel: () => controller.abort('User aborted') };
+ }
+```
+
+#### 4. The Resulting Pull Request:
+Telex tests this diff against `npm test` and `tsc --noEmit` in an ephemeral sandbox. When all tests pass green, it opens a PR with the diff, test receipts, and a complete migration breakdown.
+
+<br>
+
+<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
+
+---
+
+<br>
+
+## <a id="how-verification-works"></a>05. How Verification Works
+
+Telex enforces **evidence-bound verification**. A patch is never labeled verified merely because an LLM produced syntactically plausible code.
+
+```text
+[Synthesized Diff]
+       │
+       ▼
+[Pre-Flight Git Apply] ──(Fails)──> [Abort & Reject Patch]
+       │
+    (Passes)
+       │
+       ▼
+[Ephemeral GitHub Actions Branch]
+ (telex/validate-<patch_id>)
+       │
+       ▼
+[Execute Project Test Suite]
+ - Node: npm test / pnpm test / yarn test / tsc
+ - Python: pytest / python -m unittest / mypy
+ - Install scripts blocked by default (--ignore-scripts)
+       │
+       ▼
+[Check Run Evaluation]
+ - Must pass specifically on verification commit SHA
+ - Skipped or neutral status = FAILS CLOSED (Not verified)
+       │
+       ▼
+[Semantic Risk Classifier]
+ - Marks behavioral changes with [semantic-risk]
+ - Flags "needs-human-review" label when coverage is uncertain
+       │
+       ▼
+[Delete Temporary Branch & Deliver PR]
+```
+
+### Key Verification Invariants:
+1. **Isolated Verification Branches**: Candidate patches are tested on temporary branches (`telex/validate-<id>`), never directly on your default branch.
+2. **Lifecycle Script Blocking**: Package installation in verification sandboxes uses `--ignore-scripts` by default to prevent untrusted packages from executing arbitrary `postinstall` code.
+3. **Commit SHA Binding**: Validation receipts are cryptographically tied to the exact `base_sha` and `commit_sha`. If your default branch drifts before PR creation, Telex marks validation stale and revalidates.
+4. **Fail-Closed Gate**: If CI check runs are skipped, canceled, timed out, or missing, the patch is marked unverified.
+
+<br>
+
+<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
+
+---
+
+<br>
+
+## <a id="how-to-try-it"></a>06. How to Try It in 5 Minutes
+
+### Prerequisites
+- **Python**: 3.11+
+- **Node.js**: 20+ (`npm` 10+)
+- **PostgreSQL**: 15+ (local or hosted via Neon / Supabase)
+- **Git**
+
+<br>
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Kesavaraja67/telex.git
+cd telex
+```
+
+<br>
+
+### 2. Configure Backend (`apps/api`)
+```bash
+cd apps/api
+
+# Create & activate virtual environment
+python -m venv venv
+# Windows (PowerShell):
+.\venv\Scripts\Activate.ps1
+# macOS / Linux:
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment variables
+cp .env.example .env
+```
+
+Generate an encryption key for credentials:
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+Paste the generated key as `TELEX_ENCRYPTION_KEY` in `apps/api/.env`.
+
+Apply database migrations:
+```bash
+alembic upgrade head
+```
+
+Start the FastAPI application and worker:
+```bash
+uvicorn main:app --reload --port 8000
+```
+API runs at `http://localhost:8000`. Health check available at `http://localhost:8000/health`.
+
+<br>
+
+### 3. Configure Frontend (`apps/web`)
+In a second terminal window:
+```bash
+cd apps/web
+
+# Install frontend dependencies
+npm install
+
+# Configure environment variables
+cp .env.example .env.local
+
+# Launch Next.js development server
+npm run dev
+```
+Open your browser to `http://localhost:3000`.
+
+<br>
+
+### 4. Run the Test Suite
+Verify your installation by running the backend test suite:
+```bash
+cd apps/api
+pytest -v
+```
+
+<br>
+
+<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
+
+---
+
+<br>
+
+## <a id="architecture--deep-details"></a>07. Architecture & Deeper Details
+
+### Comparison Matrix
+
+| Capability | Naive Dependabot / Renovate | Grep / Regex Scripts | Telex Automated System |
 |---|---|---|---|
-| **Upstream Registry Interception** | Periodic file scan in repo | None | **24/7 registry polling + LLM breaking symbol extraction** |
+| **Upstream Registry Interception** | Periodic manifest scan | None | **Continuous 24/7 npm & PyPI polling + breaking symbol extraction** |
 | **Codebase Cartography** | None | Flat directory tree | **Interactive 3D Repo Atlas with catenary wire physics** |
 | **Blast Radius Mapping** | Blind version bump | High false-positive grep | **Real-time 3D failure propagation & caller cascade** |
-| **Call Site Resolution** | None | Broken by strings & comments | **Tree-Sitter AST parser (TS, TSX, JS, Python, Go, Rust)** |
-| **Patch Generation** | Upgrades package version only | None | **Best-of-3 LLM unified diff targeting exact call sites** |
+| **Call Site Resolution** | None | Broken by strings & comments | **Tree-Sitter AST parser (TypeScript, TSX, JavaScript, Python)** |
+| **Patch Generation** | Bumps version number only | None | **Minimal surgical unified diff targeting exact call sites** |
 | **CI Verification** | Fails in downstream CI | Untested | **Pre-commit ephemeral sandbox running your actual test suite** |
 | **Multi-Tenancy Fair Queue** | Basic sequential queue | N/A | **PostgreSQL `SKIP LOCKED` with per-tenant fairness caps** |
 | **LLM Flexibility** | Fixed proprietary bot | None | **10 LLM providers (BYOK Fernet-encrypted or hosted Gemini)** |
-| **Human Review Governance** | Auto-merges on green CI | Manual | **Zero auto-merge policy; comprehensive PR validation receipt** |
+| **Human Review Governance** | Often configured to auto-merge | Manual | **Zero auto-merge policy; comprehensive PR validation receipt** |
 
 <br>
 
-<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
+### 3D Repo Atlas Cartography & Blast Radius
 
----
-
-<br>
-
-## <a id="how-it-works"></a>04. How It Works (Autonomous Pipeline)
-
-The diagram below details the autonomous execution cycle across Telex's distributed backend workers and Next.js frontend:
-
-```text
-               ┌─────────────────────────────────────────────────────────┐
-               │              Upstream Package Registries                │
-               │                   (npm / PyPI 24/7)                     │
-               └────────────────────────────┬────────────────────────────┘
-                                            │
-                                            ▼  job: poll_registry
-               ┌─────────────────────────────────────────────────────────┐
-               │             Breaking Change Extraction                  │
-               │   - Downloads version release notes & changelogs        │
-               │   - LLM extracts obsolete vs replacement symbols        │
-               └────────────────────────────┬────────────────────────────┘
-                                            │
-                    ┌───────────────────────┴───────────────────────┐
-                    ▼                                               ▼
-     ┌─────────────────────────────┐                 ┌─────────────────────────────┐
-     │       3D REPO ATLAS         │                 │    TREE-SITTER AST SCAN     │
-     │      /dashboard/atlas       │                 │      job: scan_repo         │
-     ├─────────────────────────────┤                 ├─────────────────────────────┤
-     │ - 3D Force-directed layout  │                 │ - Multi-language AST parser │
-     │ - Catenary import cables    │                 │ - TypeScript, TSX, JS, Py   │
-     │ - Real-time SSE incident    │                 │ - Zero false positives      │
-     │   breakage pulses           │                 │ - Isolates byte offsets     │
-     └─────────────────────────────┘                 └──────────────┬──────────────┘
-                                                                    │
-                                                                    ▼  job: generate_patch
-                                                     ┌─────────────────────────────┐
-                                                     │     LLM REPAIR SYNTHESIS    │
-                                                     │   - Best-of-3 candidates    │
-                                                     │   - Smallest valid diff     │
-                                                     │   - Strict git apply test   │
-                                                     └──────────────┬──────────────┘
-                                                                    │
-                                                                    ▼  job: validate_patch
-                                                     ┌─────────────────────────────┐
-                                                     │ EPHEMERAL SANDBOX CI GATE   │
-                                                     │   - Clones repo in sandbox  │
-                                                     │   - Runs real test suites   │
-                                                     │   - Typechecks (tsc / mypy) │
-                                                     └──────────────┬──────────────┘
-                                                                    │
-                                                                    ▼  job: open_pr
-                                                     ┌─────────────────────────────┐
-                                                     │   HUMAN-REVIEWED GITHUB PR  │
-                                                     │   - Verification mode badge │
-                                                     │   - Complete test logs      │
-                                                     │   - Never auto-merged       │
-                                                     └─────────────────────────────┘
-```
-
-Every job handler operates inside an asynchronous PostgreSQL worker engine utilizing row-level locks (`SELECT ... FOR UPDATE SKIP LOCKED`), heartbeats, exponential backoff, and fair-share scheduling across all connected repositories.
-
-<br>
-
-<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
-
----
-
-<br>
-
-## <a id="repo-atlas-3d"></a>05. Repo Atlas: 3D Architectural Cartography & Blast Radius
-
-Located directly at `/dashboard/atlas`, **Repo Atlas** is Telex's signature 3D visualizer. It transforms raw file trees and static AST relationships into an interactive spatial reactor room.
+Located at `/dashboard/atlas`, **Repo Atlas** is Telex's 3D spatial cartography engine. It turns complex AST relationships and import dependencies into an interactive spatial reactor room.
 
 <br>
 
@@ -215,39 +407,22 @@ Located directly at `/dashboard/atlas`, **Repo Atlas** is Telex's signature 3D v
 
 <br>
 
-### Key Architectural Visualizer Features
-
-1. **Folder Stratification along Depth Axis ($Y$)**:
-   - $Y = -\text{depth} \times 4.8$, ensuring clean vertical parallax between directory generations.
-   - Root files rest on the primary surface plane ($Y = 0$), while internal submodules descend into progressive depths.
-2. **Deterministic Polar Layout ($X/Z$)**:
-   - Sibling directories anchor along polar coordinate rings ($\text{radius} = 4.8 + 0.85 \times \text{siblings}$).
-   - File cards cluster radially around their parent anchors with 2D force collision repulsion to guarantee zero label overlap.
-3. **Catenary Rubber Conduit Physics**:
-   - Imports are rendered as physical 3D dielectric cables with gravitational sag, natural spring tension, and photon packet pulses.
-   - Healthy cables render in sleek teal cores (`#14B8A6`); severed or breaking connections switch to high-visibility crimson (`#F43F5E`).
-4. **Live Incident Breakage Pulse (SSE)**:
-   - Streams live incident events over Server-Sent Events (`/api/repos/{id}/incidents/stream`).
-   - Active breaking changes immediately illuminate impacted nodes and upstream callers in real time.
-5. **In-Canvas Source Code Inspection**:
-   - Clicking any 3D polycarbonate card smoothly swings camera focus and opens an interactive slide-in code viewer showing syntax-highlighted source code, call sites, and Git commit metadata.
+- **Depth Stratification**: $Y = -\text{depth} \times 4.8$, creating clean vertical parallax across directory tiers.
+- **Deterministic Polar Layout**: Ring coordinates with 2D force collision repulsion prevent label overlap.
+- **Catenary Conduit Physics**: Imports render as dielectric cables with gravitational sag and tension. Healthy cables render teal (`#14B8A6`); breaking connections pulse crimson (`#F43F5E`).
+- **Live Incident Stream (SSE)**: Streams real-time breakage pulses to highlight impacted caller nodes over Server-Sent Events.
+- **In-Canvas Source Inspection**: Clicking any 3D node opens a slide-in code viewer displaying line-level AST references and commit metadata.
 
 <br>
 
 <div align="center">
   <img src="apps/web/public/repo-atlas-inspect.png" alt="Telex Repo Atlas - In-Canvas Card Inspection" width="100%" style="border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);" />
-  <p><i>Figure 2: Slide-in AST card inspector showing line-level import references, commit metadata, and breakage state.</i></p>
+  <p><i>Figure 2: Slide-in AST card inspector showing line-level import references and breakage state.</i></p>
 </div>
 
 <br>
 
-<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
-
----
-
-<br>
-
-## <a id="telemetry--fleet"></a>06. Telemetry & Repository Fleet Management
+### Telemetry & Repository Fleet Management
 
 Telex monitors multiple repositories across organizations with centralized policy management, automated telemetry summaries, and historical patch verification metrics.
 
@@ -267,15 +442,9 @@ Telex monitors multiple repositories across organizations with centralized polic
 
 <br>
 
-<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
+### LLM Repair Providers & BYOK Architecture
 
----
-
-<br>
-
-## <a id="llm-repair-matrix"></a>07. LLM Repair Providers & BYOK Architecture
-
-Telex integrates with 10 industry-leading LLM providers. You can bring your own API key (BYOK) or leverage the built-in Gemini platform service:
+Telex supports 10 enterprise LLM providers. You can bring your own API key (BYOK) or leverage the built-in Gemini platform service:
 
 | Provider | Default Production Model | Supported Context | Encryption at Rest |
 |---|---|---|---|
@@ -290,151 +459,19 @@ Telex integrates with 10 industry-leading LLM providers. You can bring your own 
 | **Together AI** | `llama-3.3-70B-Instruct-Turbo` | 128,000 tokens | AES-128 Fernet |
 | **Nvidia Nemotron** | `llama-3.1-nemotron-70b-instruct` | 128,000 tokens | AES-128 Fernet |
 
-### Diff Synthesis Guardrails
-- **Minimal Surface Diff**: The generator is strictly instructed to patch only the broken call site, preserving formatting, whitespace, and variable names.
-- **Micro-Apply Validation**: Every candidate patch is tested with `git apply --check` before entering CI sandboxes.
-- **Best-of-3 Selection**: Generates up to three candidate patches, selects the smallest valid diff, and rejects hallucinations.
-
 <br>
 
-<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
+### Security & Cryptographic Model
 
----
-
-<br>
-
-## <a id="security-model"></a>08. Security & Cryptographic Model
-
-Production infrastructure demands strict security boundaries:
-
-- **Fernet Secret Encryption**: BYOK API keys are encrypted at rest using Fernet symmetric encryption. Keys are decrypted only in-memory during LLM execution and are never logged or echoed back.
+- **Fernet Secret Encryption**: BYOK API keys are encrypted at rest using AES-128 Fernet symmetric encryption. Keys are decrypted only in-memory during LLM execution and are never logged or echoed back.
 - **Strict Log Scrubbing**: A root logging filter automatically scans and redacts API keys (`sk-*`, `AIza*`, `sk-ant-*`) and high-entropy secrets from standard output and disk logs.
 - **HMAC-SHA256 Webhook Verification**: All GitHub App webhook payloads are verified against your secret signature (`X-Hub-Signature-256`) before task execution.
 - **HttpOnly Cross-Origin JWT Sessions**: Authentication uses secure HttpOnly, SameSite cookies to protect tokens from cross-site scripting (XSS).
-- **Automated CI Security Scanners**: Every commit and pull request runs automated dependency auditing via `pip-audit`, `npm audit`, and secret detection via `gitleaks`.
+- **Automated CI Security Scanners**: Automated dependency auditing via `pip-audit`, `npm audit`, and secret detection via `gitleaks`.
 
 <br>
 
-<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
-
----
-
-<br>
-
-## <a id="local-setup"></a>09. Quickstart & Local Setup
-
-### Prerequisites
-- **Python**: 3.11+
-- **Node.js**: 20+ (`npm` 10+)
-- **PostgreSQL**: 15+ (local or cloud instance such as Neon / Supabase)
-- **Git**
-
-<br>
-
-### 1. Clone Repository
-```bash
-git clone https://github.com/Kesavaraja67/telex.git
-cd telex
-```
-
-<br>
-
-### 2. Backend Setup (`apps/api`)
-```bash
-cd apps/api
-
-# Create & activate virtual environment
-python -m venv venv
-# Windows (PowerShell):
-.\venv\Scripts\Activate.ps1
-# macOS / Linux:
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure environment variables
-cp .env.example .env
-```
-
-Generate your secret Fernet encryption key:
-```bash
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-```
-Paste this value as `TELEX_ENCRYPTION_KEY` in `apps/api/.env`.
-
-Apply database migrations:
-```bash
-alembic upgrade head
-```
-
-Start the FastAPI application and background worker:
-```bash
-uvicorn main:app --reload --port 8000
-```
-API runs at `http://localhost:8000`. Health check available at `http://localhost:8000/health`.
-
-<br>
-
-### 3. Frontend Setup (`apps/web`)
-In a separate terminal window:
-```bash
-cd apps/web
-
-# Install frontend dependencies
-npm install
-
-# Configure environment variables
-cp .env.example .env.local
-
-# Launch Next.js development server
-npm run dev
-```
-Open your browser to `http://localhost:3000`.
-
-<br>
-
-<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
-
----
-
-<br>
-
-## <a id="verification--tests"></a>10. Verification & Test Suite
-
-Telex enforces automated testing in CI with an enforced branch and statement coverage gate:
-
-```bash
-cd apps/api
-pytest -v
-```
-
-### Test Suite Modules
-- **AST Scanner Validation (`tests/test_code_scanner.py`)**: Tests Tree-Sitter parsing across TypeScript, TSX, JavaScript, and Python.
-- **Patch Generation Pipeline (`tests/test_patch_generation.py`)**: Tests candidate selection, syntax verification, and minimal diff filtering.
-- **GitHub App Workflows (`tests/test_github_service.py`)**: Validates branch creation, check runs, and human-reviewed pull request templates.
-- **Fair Queue Engine (`tests/test_queue.py`)**: Validates row-locking, per-installation limits, and backoff schedules.
-- **Telemetry & Stats Router (`tests/test_routers_stats.py`)**: Tests metrics aggregation across repositories and patches.
-
-```text
-tests/test_code_scanner.py ............. PASSED
-tests/test_patch_generation.py ......... PASSED
-tests/test_github_service.py ........... PASSED
-tests/test_queue.py .................... PASSED
-tests/test_routers_stats.py ............ PASSED
-
-======================= all test suites passed =======================
-```
-
-<br>
-
-<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
-
----
-
-<br>
-
-## <a id="repository-layout"></a>11. Repository Layout
+### Repository Layout
 
 ```text
 telex/
@@ -442,10 +479,10 @@ telex/
 │   ├── api/                           # Backend FastAPI & Background Worker
 │   │   ├── alembic/                   # Database migrations & schema version history
 │   │   ├── db/models.py               # SQLAlchemy models (Repo, Patch, Atlas, etc.)
-│   │   ├── jobs/handlers/             # Autonomous queue handlers
+│   │   ├── jobs/handlers/             # Automated queue handlers
 │   │   │   ├── poll_registry.py       # Watches npm & PyPI registries
 │   │   │   ├── extract_changes.py     # Parses breaking symbol changes
-│   │   │   ├── scan_repo.py           # Tree-Sitter AST code scanner
+│   │   │   ├── scan_repo.py           # Tree-Sitter AST code scanner (TS/JS/Py)
 │   │   │   ├── generate_patch.py      # LLM diff synthesis engine
 │   │   │   ├── validate_patch.py      # Ephemeral sandbox runner
 │   │   │   ├── build_atlas_graph.py   # Computes 3D structural graph
@@ -468,7 +505,7 @@ telex/
 │       │   ├── atlas/                 # Three.js 3D visualizer & layout engine
 │       │   └── marketing/             # Interactive 3D bot, hero, marquee
 │       └── public/                    # High-res screenshots, logo, and video assets
-│           ├── telex-man1.png         # Autonomous agent mascot avatar
+│           ├── telex-man1.png         # Agent mascot avatar
 │           ├── Telex-new-video.mp4    # 1080p 75s launch & pipeline walkthrough video
 │           ├── video-poster.jpg       # Video poster frame
 │           └── repo-atlas-*.png       # 3D architecture screenshots
@@ -478,6 +515,7 @@ telex/
 ├── DESIGN.md                          # Design system & aesthetic doctrine
 ├── CONTRIBUTING.md                    # Contributor guide and pull request rules
 ├── CODE_OF_CONDUCT.md                 # Contributor covenant
+├── SPEC.md                            # Executable specification & contracts
 └── LICENSE                            # MIT License
 ```
 
@@ -489,7 +527,7 @@ telex/
 
 <br>
 
-## <a id="license"></a>12. License & Community
+## License & Community
 
 Telex is distributed under the **[MIT License](LICENSE)**.
 

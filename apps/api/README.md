@@ -39,7 +39,7 @@
 
 ## <a id="overview"></a>01. Overview
 
-The `apps/api` service is Telex's core autonomous runtime. It handles:
+The `apps/api` service is Telex's core automated runtime. It handles:
 - **Registry Polling**: Monitors npm and PyPI package indices around the clock for breaking releases and changelogs.
 - **Tree-Sitter AST Analysis**: Inspects repository source trees to locate affected function signatures, member expressions, and call sites with zero regex false positives.
 - **3D Repo Atlas Cartography**: Computes hierarchical folder depth, polar force coordinates, and real-time SSE incident streams for `/dashboard/atlas`.
