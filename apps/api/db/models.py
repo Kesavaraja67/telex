@@ -1,3 +1,5 @@
+import json as _json
+import sqlite3 as _sqlite3
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -16,11 +18,27 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+
+@compiles(JSONB, "sqlite")
+def compile_jsonb_sqlite(type_, compiler, **kw):
+    return "JSON"
+
+
+@compiles(ARRAY, "sqlite")
+def compile_array_sqlite(type_, compiler, **kw):
+    return "JSON"
+
+
+_sqlite3.register_adapter(list, lambda val: _json.dumps([str(x) if isinstance(x, uuid.UUID) else x for x in val]))
+_sqlite3.register_adapter(dict, _json.dumps)
 
 
 class Base(DeclarativeBase):
     pass
+
 
 
 # ─── Users ────────────────────────────────────────────────────────────────────
