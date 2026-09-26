@@ -89,6 +89,10 @@ async def run(payload: dict) -> None:
         # Re-load entities needed for the scan loop
         repo = await session.get(Repo, repo_id)
         pv = await session.get(PackageVersion, package_version_id)
+        from db.models import Package
+        pkg = await session.get(Package, pv.package_id) if pv else None
+        pkg_name = pkg.name if pkg else None
+
         changes_result = await session.execute(
             select(DetectedChange).where(DetectedChange.package_version_id == package_version_id)
         )
@@ -126,7 +130,7 @@ async def run(payload: dict) -> None:
 
             for change in changes:
                 symbol = change.symbol_old.split("(")[0].strip()  # strip signature
-                usages = find_usages(item.path, source, symbol)
+                usages = find_usages(item.path, source, symbol, package_name=pkg_name)
 
                 for usage in usages:
                     # Idempotent: skip if this exact usage already exists

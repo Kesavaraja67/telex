@@ -119,3 +119,132 @@ def test_find_usages_python_fixture():
     snippets = [u["snippet"] for u in usages]
     assert any('create_completion(model="gpt-4"' in s for s in snippets)
     assert any('client.create_completion(model="gpt-4o"' in s for s in snippets)
+
+
+# ── Change 18: Import Binding Resolution Tests ─────────────────────────────────
+
+
+def test_import_binding_resolution_file_a_named_import():
+    """File A imports get from lodash: get(obj, path) -> matches lodash.get."""
+    code = b"""
+import { get } from 'lodash';
+const result = get(user, 'address.city');
+"""
+    usages = find_usages("src/a.ts", code, "get", package_name="lodash")
+    assert len(usages) == 1
+    assert "get(user, 'address.city')" in usages[0]["snippet"]
+    assert usages[0]["line_start"] == 3
+
+
+def test_import_binding_resolution_file_b_local_definition():
+    """File B defines local function get(x): get(x) -> does NOT match lodash.get."""
+    code = b"""
+function get(x) {
+    return x * 2;
+}
+const val = get(10);
+"""
+    usages = find_usages("src/b.ts", code, "get", package_name="lodash")
+    assert len(usages) == 0
+
+
+def test_import_binding_resolution_file_c_foreign_import():
+    """File C imports get from axios: get(url) -> does NOT match lodash.get."""
+    code = b"""
+import { get } from 'axios';
+const res = await get('https://api.example.com/users');
+"""
+    usages = find_usages("src/c.ts", code, "get", package_name="lodash")
+    assert len(usages) == 0
+
+
+def test_import_binding_resolution_file_d_renamed_import():
+    """File D uses renamed import import { get as lodashGet } from 'lodash': lodashGet(obj, path) -> matches lodash.get."""
+    code = b"""
+import { get as lodashGet } from 'lodash';
+const city = lodashGet(user, 'profile.city');
+"""
+    usages = find_usages("src/d.ts", code, "get", package_name="lodash")
+    assert len(usages) == 1
+    assert "lodashGet(user, 'profile.city')" in usages[0]["snippet"]
+    assert usages[0]["line_start"] == 3
+
+
+def test_import_binding_resolution_commonjs_require():
+    """CommonJS require patterns with namespace, destructuring, and renaming."""
+    # Namespace require
+    code_ns = b"""
+const lodash = require('lodash');
+const res = lodash.get(data, 'key');
+"""
+    assert len(find_usages("src/cjs1.js", code_ns, "get", package_name="lodash")) == 1
+
+    # Destructured require
+    code_destruct = b"""
+const { get } = require('lodash');
+const res = get(data, 'key');
+"""
+    assert len(find_usages("src/cjs2.js", code_destruct, "get", package_name="lodash")) == 1
+
+    # Aliased destructured require
+    code_alias = b"""
+const { get: lodashGet } = require('lodash');
+const res = lodashGet(data, 'key');
+"""
+    assert len(find_usages("src/cjs3.js", code_alias, "get", package_name="lodash")) == 1
+
+    # Foreign require
+    code_foreign = b"""
+const axios = require('axios');
+const { get } = require('axios');
+const res1 = axios.get('https://api');
+const res2 = get('https://api');
+"""
+    assert len(find_usages("src/cjs4.js", code_foreign, "get", package_name="lodash")) == 0
+
+
+def test_import_binding_resolution_python_imports():
+    """Python import statement and import-from binding resolution."""
+    # from requests import get
+    py_from = b"""
+from requests import get
+res = get('https://api.example.com')
+"""
+    assert len(find_usages("src/api.py", py_from, "get", package_name="requests")) == 1
+
+    # from requests import get as req_get
+    py_alias = b"""
+from requests import get as req_get
+res = req_get('https://api.example.com')
+"""
+    assert len(find_usages("src/api.py", py_alias, "get", package_name="requests")) == 1
+
+    # import requests; requests.get(...)
+    py_mod = b"""
+import requests
+res = requests.get('https://api.example.com')
+"""
+    assert len(find_usages("src/api.py", py_mod, "get", package_name="requests")) == 1
+
+    # import requests as req; req.get(...)
+    py_mod_alias = b"""
+import requests as req
+res = req.get('https://api.example.com')
+"""
+    assert len(find_usages("src/api.py", py_mod_alias, "get", package_name="requests")) == 1
+
+    # Foreign import: from httpx import get
+    py_foreign = b"""
+from httpx import get
+res = get('https://api.example.com')
+"""
+    assert len(find_usages("src/api.py", py_foreign, "get", package_name="requests")) == 0
+
+    # Local definition: def get(x): ...
+    py_local = b"""
+def get(x):
+    return x
+val = get(10)
+"""
+    assert len(find_usages("src/api.py", py_local, "get", package_name="requests")) == 0
+
