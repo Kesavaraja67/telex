@@ -704,13 +704,13 @@ async def wait_for_telex_verification(
             await asyncio.sleep(poll_interval)
             continue
 
-        # Filter check runs for our specific verification gate
+        # Filter check runs strictly for our specific verification gate
         matching_checks = [
             cr
             for cr in check_runs
-            if "telex" in (cr.name or "").lower() or expected_workflow_name in (cr.name or "")
+            if "telex" in (cr.name or "").lower() or (expected_workflow_name and expected_workflow_name.lower() in (cr.name or "").lower())
         ]
-        target_checks = matching_checks or check_runs
+        target_checks = matching_checks
 
         if target_checks:
             saw_checks = True
@@ -727,7 +727,7 @@ async def wait_for_telex_verification(
             all_completed = all(c["status"] == "completed" for c in observed_checks.values())
             if all_completed and observed_checks:
                 all_success = all(
-                    c["conclusion"] in ("success", "neutral", "skipped")
+                    c["conclusion"] == "success"
                     for c in observed_checks.values()
                 )
 
@@ -735,7 +735,7 @@ async def wait_for_telex_verification(
                 for c in observed_checks.values():
                     status_str = (
                         "passed"
-                        if c["conclusion"] in ("success", "skipped")
+                        if c["conclusion"] == "success"
                         else f"failed ({c['conclusion']})"
                     )
                     logs.append(f"Verification Check [{c['name']}]: {status_str}")
