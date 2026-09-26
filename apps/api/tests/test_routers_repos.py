@@ -1,14 +1,26 @@
 """
 Unit tests for routers/repos.py — repository listing, syncing, details, and policy toggles.
+Validates authentication, authorization (get_authorized_repo), and rate limiting.
 """
 
+import uuid
 from datetime import datetime, timezone
-import pytest
-from httpx import AsyncClient, ASGITransport
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+from fastapi import HTTPException
+from httpx import ASGITransport, AsyncClient
+
+from db.models import Installation, Repo
 from main import app
-from schemas import RepoOut
+from routers.repos import _AI_EXPLAIN_COOLDOWN
+
+
+@pytest.fixture(autouse=True)
+def clear_cooldown():
+    _AI_EXPLAIN_COOLDOWN.clear()
+    yield
+    _AI_EXPLAIN_COOLDOWN.clear()
 
 
 @pytest.mark.asyncio
@@ -51,11 +63,15 @@ async def test_list_repos_endpoint():
 
 
 @pytest.mark.asyncio
-async def test_get_repo_details_found():
+async def test_get_repo_details():
     now = datetime.now(timezone.utc)
+    repo_uuid = uuid.uuid4()
+    mock_db_repo = Repo(id=repo_uuid, full_name="owner/detail-repo", default_branch="main", is_active=True)
+    mock_inst = Installation(id=uuid.uuid4(), github_installation_id=123)
+
     mock_repos = [
         {
-            "id": "repo-456",
+            "id": str(repo_uuid),
             "full_name": "owner/detail-repo",
             "name": "detail-repo",
             "owner": "owner",
@@ -74,13 +90,29 @@ async def test_get_repo_details_found():
         }
     ]
 
-    with patch("routers.repos.get_core_repositories_async", AsyncMock(return_value=mock_repos)):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/repos/repo-456")
-            assert resp.status_code == 200
-            data = resp.json()
-            assert data["full_name"] == "owner/detail-repo"
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # 1. Unauthenticated -> 401
+        r_unauth = await client.get(f"/api/repos/{repo_uuid}")
+        assert r_unauth.status_code == 401
+
+        # 2. Unauthorized -> 403
+        with patch("routers.repos.get_authorized_repo", AsyncMock(side_effect=HTTPException(status_code=403, detail="Repository access denied"))):
+            r_forbidden = await client.get(f"/api/repos/{repo_uuid}", headers={"X-Demo-Key": "telex_demo_secret_2026"})
+            assert r_forbidden.status_code == 403
+
+        # 3. Not found -> 404
+        with patch("routers.repos.get_authorized_repo", AsyncMock(side_effect=HTTPException(status_code=404, detail="Repo not found"))):
+            r_notfound = await client.get(f"/api/repos/{repo_uuid}", headers={"X-Demo-Key": "telex_demo_secret_2026"})
+            assert r_notfound.status_code == 404
+
+        # 4. Authorized -> 200
+        with patch("routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))):
+            with patch("routers.repos.get_core_repositories_async", AsyncMock(return_value=mock_repos)):
+                resp = await client.get(f"/api/repos/{repo_uuid}", headers={"X-Demo-Key": "telex_demo_secret_2026"})
+                assert resp.status_code == 200
+                data = resp.json()
+                assert data["full_name"] == "owner/detail-repo"
 
 
 @pytest.mark.asyncio
@@ -103,6 +135,9 @@ async def test_sync_repos_endpoint():
 
 @pytest.mark.asyncio
 async def test_ai_explain_repo():
+    repo_uuid = uuid.uuid4()
+    mock_db_repo = Repo(id=repo_uuid, full_name="owner/repo-1", default_branch="main")
+    mock_inst = Installation(id=uuid.uuid4(), github_installation_id=123)
     mock_explain = {
         "summary": "FastAPI backend",
         "commit_insights": [],
@@ -110,86 +145,107 @@ async def test_ai_explain_repo():
         "risk_score": 10,
         "recommended_actions": [],
     }
-    with patch("routers.repos.explain_repo_with_gemini", AsyncMock(return_value=mock_explain)):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.post("/api/repos/repo-1/ai-explain")
-            assert resp.status_code == 200
-            assert resp.json()["architecture_verdict"] == "Production-ready"
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Unauthenticated -> 401
+        r_unauth = await client.post(f"/api/repos/{repo_uuid}/ai-explain")
+        assert r_unauth.status_code == 401
+
+        # Authorized -> 200
+        with patch("routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))):
+            with patch("routers.repos.explain_repo_with_gemini", AsyncMock(return_value=mock_explain)):
+                resp = await client.post(
+                    f"/api/repos/{repo_uuid}/ai-explain",
+                    headers={"X-Demo-Key": "telex_demo_secret_2026"},
+                )
+                assert resp.status_code == 200
+                assert resp.json()["architecture_verdict"] == "Production-ready"
+
+                # Rapid duplicate request -> 429 rate limit cooldown
+                r_ratelimit = await client.post(
+                    f"/api/repos/{repo_uuid}/ai-explain",
+                    headers={"X-Demo-Key": "telex_demo_secret_2026"},
+                )
+                assert r_ratelimit.status_code == 429
 
 
 @pytest.mark.asyncio
 async def test_ai_explain_not_found():
-    with patch(
-        "routers.repos.explain_repo_with_gemini", AsyncMock(side_effect=KeyError("not found"))
-    ):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.post("/api/repos/non-existent/ai-explain")
-            assert resp.status_code == 404
+    repo_uuid = uuid.uuid4()
+    mock_db_repo = Repo(id=repo_uuid, full_name="owner/repo-1", default_branch="main")
+    mock_inst = Installation(id=uuid.uuid4(), github_installation_id=123)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        with patch("routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))):
+            with patch(
+                "routers.repos.explain_repo_with_gemini", AsyncMock(side_effect=KeyError("not found"))
+            ):
+                resp = await client.post(
+                    f"/api/repos/{repo_uuid}/ai-explain",
+                    headers={"X-Demo-Key": "telex_demo_secret_2026"},
+                )
+                assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_toggle_repo():
-    from routers.auth import require_auth
+    repo_uuid = uuid.uuid4()
+    mock_db_repo = Repo(id=repo_uuid, full_name="org/repo-99", is_active=True)
+    mock_inst = Installation(id=uuid.uuid4(), github_installation_id=123)
 
-    async def override_require_auth():
-        return {"user_id": "test-user"}
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Unauthenticated -> 401
+        r_unauth = await client.post(f"/api/repos/{repo_uuid}/toggle", json={"is_active": False})
+        assert r_unauth.status_code == 401
 
-    app.dependency_overrides[require_auth] = override_require_auth
-    try:
-        mock_repos = [{"id": "repo-99", "full_name": "org/repo-99", "name": "repo-99"}]
-        with patch("routers.repos.get_core_repositories_async", AsyncMock(return_value=mock_repos)):
+        # Authorized -> 200
+        with patch("routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))):
             with patch("routers.repos.AsyncSessionLocal") as mock_session_ctx:
                 mock_session = AsyncMock()
                 mock_session.__aenter__.return_value = mock_session
                 mock_session.__aexit__.return_value = None
-                mock_session.execute = AsyncMock(
-                    return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=MagicMock()))
-                )
+                mock_session.commit = AsyncMock()
                 mock_session_ctx.return_value = mock_session
 
-                transport = ASGITransport(app=app)
-                async with AsyncClient(transport=transport, base_url="http://test") as client:
-                    resp = await client.post("/api/repos/repo-99/toggle", json={"is_active": False})
-                    assert resp.status_code == 200
-                    assert resp.json() == {"id": "repo-99", "is_active": False}
-    finally:
-        app.dependency_overrides.pop(require_auth, None)
+                resp = await client.post(
+                    f"/api/repos/{repo_uuid}/toggle",
+                    json={"is_active": False},
+                    headers={"X-Demo-Key": "telex_demo_secret_2026"},
+                )
+                assert resp.status_code == 200
+                assert resp.json() == {"id": str(repo_uuid), "is_active": False}
 
 
 @pytest.mark.asyncio
 async def test_update_repo_settings():
-    from routers.auth import require_auth
-    from db.models import Repo
-    import uuid
+    repo_uuid = uuid.uuid4()
+    mock_db_repo = Repo(
+        id=repo_uuid,
+        full_name="org/test-repo",
+        requires_tests=False,
+        requires_typecheck=False,
+        is_active=True,
+    )
+    mock_inst = Installation(id=uuid.uuid4(), github_installation_id=123)
 
-    async def override_require_auth():
-        return {"user_id": "test-user"}
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Unauthenticated -> 401
+        r_unauth = await client.patch(f"/api/repos/{repo_uuid}", json={"requires_tests": True})
+        assert r_unauth.status_code == 401
 
-    app.dependency_overrides[require_auth] = override_require_auth
-    try:
-        repo_uuid = uuid.uuid4()
-        mock_repo = Repo(
-            id=repo_uuid,
-            full_name="org/test-repo",
-            requires_tests=False,
-            requires_typecheck=False,
-            is_active=True,
-        )
+        # Authorized -> 200
+        with patch("routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))):
+            with patch("routers.repos.AsyncSessionLocal") as mock_session_ctx:
+                mock_session = AsyncMock()
+                mock_session.__aenter__.return_value = mock_session
+                mock_session.__aexit__.return_value = None
+                mock_session.commit = AsyncMock()
+                mock_session_ctx.return_value = mock_session
 
-        with patch("routers.repos.AsyncSessionLocal") as mock_session_ctx:
-            mock_session = AsyncMock()
-            mock_session.__aenter__.return_value = mock_session
-            mock_session.__aexit__.return_value = None
-            mock_session.execute = AsyncMock(
-                return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=mock_repo))
-            )
-            mock_session.commit = AsyncMock()
-            mock_session_ctx.return_value = mock_session
-
-            transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
                 resp = await client.patch(
                     f"/api/repos/{repo_uuid}",
                     json={
@@ -198,6 +254,7 @@ async def test_update_repo_settings():
                         "is_active": False,
                         "allow_install_scripts": True,
                     },
+                    headers={"X-Demo-Key": "telex_demo_secret_2026"},
                 )
                 assert resp.status_code == 200
                 data = resp.json()
@@ -205,29 +262,35 @@ async def test_update_repo_settings():
                 assert data["requires_typecheck"] is True
                 assert data["is_active"] is False
                 assert data["allow_install_scripts"] is True
-    finally:
-        app.dependency_overrides.pop(require_auth, None)
 
 
 @pytest.mark.asyncio
 async def test_list_patches_endpoint():
-    mock_repos = [{"id": "repo-1", "full_name": "org/repo-1", "name": "repo-1"}]
-    with patch("routers.repos.get_core_repositories_async", AsyncMock(return_value=mock_repos)):
-        with patch("routers.repos.AsyncSessionLocal") as mock_session_ctx:
-            mock_session = AsyncMock()
-            mock_session.__aenter__.return_value = mock_session
-            mock_session.__aexit__.return_value = None
-            mock_session.execute = AsyncMock(
-                return_value=MagicMock(
-                    scalar_one_or_none=MagicMock(return_value=MagicMock(id="repo-1")),
-                    scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[]))),
-                )
-            )
-            mock_session_ctx.return_value = mock_session
+    repo_uuid = uuid.uuid4()
+    mock_db_repo = Repo(id=repo_uuid, full_name="org/repo-1", is_active=True)
+    mock_inst = Installation(id=uuid.uuid4(), github_installation_id=123)
 
-            transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
-                resp = await client.get("/api/repos/repo-1/patches")
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Unauthenticated -> 401
+        r_unauth = await client.get(f"/api/repos/{repo_uuid}/patches")
+        assert r_unauth.status_code == 401
+
+        # Authorized -> 200
+        with patch("routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))):
+            with patch("routers.repos.AsyncSessionLocal") as mock_session_ctx:
+                mock_session = AsyncMock()
+                mock_session.__aenter__.return_value = mock_session
+                mock_session.__aexit__.return_value = None
+                mock_session.execute = AsyncMock(
+                    return_value=MagicMock(all=MagicMock(return_value=[]))
+                )
+                mock_session_ctx.return_value = mock_session
+
+                resp = await client.get(
+                    f"/api/repos/{repo_uuid}/patches",
+                    headers={"X-Demo-Key": "telex_demo_secret_2026"},
+                )
                 assert resp.status_code == 200
                 data = resp.json()
                 assert "patches" in data
@@ -236,59 +299,32 @@ async def test_list_patches_endpoint():
 
 @pytest.mark.asyncio
 async def test_repo_endpoints_404_cases():
-    from routers.auth import require_auth
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        with patch("routers.repos.get_authorized_repo", AsyncMock(side_effect=HTTPException(status_code=404, detail="Repo not found"))):
+            r1 = await client.get("/api/repos/missing-repo", headers={"X-Demo-Key": "telex_demo_secret_2026"})
+            assert r1.status_code == 404
 
-    async def override_require_auth():
-        return {"user_id": "test-user"}
+            r2 = await client.post("/api/repos/missing-repo/toggle", json={"is_active": True}, headers={"X-Demo-Key": "telex_demo_secret_2026"})
+            assert r2.status_code == 404
 
-    app.dependency_overrides[require_auth] = override_require_auth
-    try:
-        with patch("routers.repos.get_core_repositories_async", AsyncMock(return_value=[])):
-            with patch("routers.repos.AsyncSessionLocal") as mock_session_ctx:
-                mock_session = AsyncMock()
-                mock_session.__aenter__.return_value = mock_session
-                mock_session.__aexit__.return_value = None
-                mock_session.execute = AsyncMock(
-                    return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))
-                )
-                mock_session_ctx.return_value = mock_session
+            r3 = await client.patch("/api/repos/missing-repo", json={"requires_tests": True}, headers={"X-Demo-Key": "telex_demo_secret_2026"})
+            assert r3.status_code == 404
 
-                transport = ASGITransport(app=app)
-                async with AsyncClient(transport=transport, base_url="http://test") as client:
-                    # 1. get_repo_details 404
-                    r1 = await client.get("/api/repos/missing-repo")
-                    assert r1.status_code == 404
-
-                    # 2. toggle_repo 404
-                    r2 = await client.post(
-                        "/api/repos/missing-repo/toggle", json={"is_active": True}
-                    )
-                    assert r2.status_code == 404
-
-                    # 3. update_repo_settings 404
-                    r3 = await client.patch(
-                        "/api/repos/missing-repo", json={"requires_tests": True}
-                    )
-                    assert r3.status_code == 404
-
-                    # 4. list_patches 404
-                    r4 = await client.get("/api/repos/missing-repo/patches")
-                    assert r4.status_code == 404
-    finally:
-        app.dependency_overrides.pop(require_auth, None)
+            r4 = await client.get("/api/repos/missing-repo/patches", headers={"X-Demo-Key": "telex_demo_secret_2026"})
+            assert r4.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_list_patches_populated():
-    import uuid
-    from db.models import Patch, CodeUsage, Repo, PullRequest, ValidationRun
-
     repo_id = uuid.uuid4()
     patch_id = uuid.uuid4()
     now = datetime.now(timezone.utc)
 
-    mock_repos = [{"id": str(repo_id), "full_name": "org/repo", "name": "repo"}]
+    from db.models import CodeUsage, Patch, PullRequest, ValidationRun
+
     mock_db_repo = Repo(id=repo_id, full_name="org/repo")
+    mock_inst = Installation(id=uuid.uuid4(), github_installation_id=123)
 
     mock_patch = Patch(
         id=patch_id,
@@ -317,18 +353,12 @@ async def test_list_patches_populated():
         typechecks=True,
     )
 
-    with patch("routers.repos.get_core_repositories_async", AsyncMock(return_value=mock_repos)):
+    with patch("routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))):
         with patch("routers.repos.AsyncSessionLocal") as mock_session_ctx:
             mock_session = AsyncMock()
             mock_session.__aenter__.return_value = mock_session
             mock_session.__aexit__.return_value = None
 
-            # Execute calls:
-            # 1. repo_res (select Repo)
-            # 2. pairs (select Patch, CodeUsage)
-            # 3. pr_res (select PullRequest)
-            # 4. vr_res (select ValidationRun)
-            # 5. dc_res (select DetectedChange)
             call_idx = 0
 
             def fake_execute(stmt):
@@ -336,12 +366,10 @@ async def test_list_patches_populated():
                 call_idx += 1
                 mock_res = MagicMock()
                 if call_idx == 1:
-                    mock_res.scalar_one_or_none.return_value = mock_db_repo
-                elif call_idx == 2:
                     mock_res.all.return_value = [(mock_patch, mock_cu)]
-                elif call_idx == 3:
+                elif call_idx == 2:
                     mock_res.scalars.return_value = MagicMock(all=MagicMock(return_value=[mock_pr]))
-                elif call_idx == 4:
+                elif call_idx == 3:
                     mock_res.scalars.return_value = MagicMock(all=MagicMock(return_value=[mock_vr]))
                 else:
                     mock_res.scalars.return_value = MagicMock(all=MagicMock(return_value=[]))
@@ -352,7 +380,10 @@ async def test_list_patches_populated():
 
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
-                resp = await client.get(f"/api/repos/{repo_id}/patches")
+                resp = await client.get(
+                    f"/api/repos/{repo_id}/patches",
+                    headers={"X-Demo-Key": "telex_demo_secret_2026"},
+                )
                 assert resp.status_code == 200
                 data = resp.json()
                 assert len(data["patches"]) == 1

@@ -327,8 +327,9 @@ async def sync_github_app_repositories_async(user_id: str | None = None) -> None
                     session.add(db_inst)
                     await session.flush()
 
-                if current_user and account_login.lower() == current_user.github_login.lower():
-                    db_inst.installed_by = current_user.id
+                if current_user:
+                    if account_login.lower() == current_user.github_login.lower() or db_inst.installed_by is None:
+                        db_inst.installed_by = current_user.id
 
                 async with httpx.AsyncClient(timeout=15.0) as client:
                     gh_repos = []

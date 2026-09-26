@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Header, HTTPException, Request
 from sqlalchemy import select
 
-from db.models import Installation, PullRequest, Repo
+from db.models import Installation, PullRequest, Repo, User
 from db.session import AsyncSessionLocal
 from services.github_service import verify_webhook_signature
 
@@ -78,8 +78,25 @@ async def _handle_installation_created(payload: dict) -> None:
                 account_login=inst_data["account"]["login"],
                 account_type=inst_data["account"]["type"],
             )
+            sender_id = payload.get("sender", {}).get("id")
+            if sender_id:
+                user_res = await session.execute(
+                    select(User).where(User.github_id == sender_id)
+                )
+                user = user_res.scalar_one_or_none()
+                if user:
+                    inst.installed_by = user.id
             session.add(inst)
             await session.flush()
+        elif inst.installed_by is None:
+            sender_id = payload.get("sender", {}).get("id")
+            if sender_id:
+                user_res = await session.execute(
+                    select(User).where(User.github_id == sender_id)
+                )
+                user = user_res.scalar_one_or_none()
+                if user:
+                    inst.installed_by = user.id
 
         # Upsert repos
         for repo_data in repos_data:

@@ -279,6 +279,50 @@ async def test_github_callback_success(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_github_callback_missing_cookie_fails_400():
+    from httpx import ASGITransport, AsyncClient
+    from main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/auth/github/callback?code=abc&state=some_nonce:/dashboard")
+        assert resp.status_code == 400
+        assert "Invalid or missing OAuth state" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_github_callback_missing_state_fails_400():
+    from httpx import ASGITransport, AsyncClient
+    from main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        cookies={"telex_oauth_state": "valid_nonce"},
+    ) as client:
+        resp = await client.get("/auth/github/callback?code=abc")
+        assert resp.status_code == 400
+        assert "Invalid or missing OAuth state" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_github_callback_mismatched_nonce_fails_400():
+    from httpx import ASGITransport, AsyncClient
+    from main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        cookies={"telex_oauth_state": "expected_nonce"},
+    ) as client:
+        resp = await client.get("/auth/github/callback?code=abc&state=wrong_nonce:/dashboard")
+        assert resp.status_code == 400
+        assert "Invalid or missing OAuth state" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_get_authorized_repo_missing_user():
     from routers.auth import get_authorized_repo
 
