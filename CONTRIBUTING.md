@@ -218,13 +218,16 @@ pytest -c apps/api/pyproject.toml apps/api
 # 2. Run standalone CLI tests (packages/telex-core)
 pytest packages/telex-core/tests
 
-# 3. Run lint checks
+# 3. Test polyglot AST scanner (Go, Rust, Java, Python, Ruby, C#, TS/JS)
+pytest apps/api/tests/test_code_scanner.py
+
+# 4. Run lint checks
 ruff check .
 black --check apps/api packages/telex-core
 
-# 4. Run frontend typecheck & lint (apps/web)
+# 5. Run frontend typecheck & lint (apps/web)
 cd apps/web
-npx tsc --noEmit
+npm run typecheck
 npm run lint
 ```
 
@@ -251,14 +254,32 @@ npm run lint
 
 <br>
 
-## <a id="checklist"></a>09. Pull Request Checklist
+## <a id="issues"></a>09. Good First Issues & Issue Lifecycle
+
+If you are a first-time contributor:
+1. **Find an Issue**:
+   - Look for issues labeled [`good first issue`](https://github.com/Kesavaraja67/telex/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) or [`help wanted`](https://github.com/Kesavaraja67/telex/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
+   - Leave a comment saying: *"I would like to work on this issue!"*
+2. **Create a Topic Branch**:
+   ```bash
+   git checkout -b feat/issue-<id>-short-name
+   ```
+3. **Link Your Pull Request**:
+   - In your PR description, write: `Resolves #<id>` (e.g. `Resolves #32`).
+   - When the PR is reviewed and merged, GitHub will automatically close the issue.
+
+---
+
+<br>
+
+## <a id="checklist"></a>10. Pull Request Checklist
 
 Before opening your pull request, verify:
 
 - [ ] **Tests Added & Passing**: Verified with `pytest` across modified packages.
 - [ ] **Lint Clean**: Passed `ruff check .` with zero errors.
 - [ ] **Code Formatted**: Passed `black .` formatting.
-- [ ] **Frontend Validation**: Passed `npx tsc --noEmit` and `npm run lint` in `apps/web`.
+- [ ] **Frontend Validation**: Passed `npm run typecheck` and `npm run lint` in `apps/web`.
 - [ ] **Visual Proof**: UI changes include screenshots or screen recordings.
 - [ ] **No Force Pushes**: Clean commit history.
 
