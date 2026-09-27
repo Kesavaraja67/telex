@@ -34,8 +34,16 @@ async def _publish_usage_found(repo_id_str, dc_id_str, cu_id_str, payload_dict):
 # Max file size to scan (bytes) — skip huge generated/vendored files
 MAX_FILE_BYTES = 500_000
 
-# Extensions to scan
-SCAN_EXTENSIONS = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py"}
+# Extensions to scan (polyglot support for Phase 12)
+SCAN_EXTENSIONS = {
+    ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
+    ".py",
+    ".go",
+    ".rs",
+    ".java",
+    ".rb",
+    ".cs",
+}
 
 
 async def run(payload: dict) -> None:

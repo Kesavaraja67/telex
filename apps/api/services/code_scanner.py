@@ -33,6 +33,31 @@ LANGUAGE_CONFIG = {
         "extensions": {".py"},
         "call_node_type": "call",
     },
+    "go": {
+        "parser_name": "go",
+        "extensions": {".go"},
+        "call_node_type": "call_expression",
+    },
+    "rust": {
+        "parser_name": "rust",
+        "extensions": {".rs"},
+        "call_node_type": "call_expression",
+    },
+    "java": {
+        "parser_name": "java",
+        "extensions": {".java"},
+        "call_node_type": "method_invocation",
+    },
+    "ruby": {
+        "parser_name": "ruby",
+        "extensions": {".rb"},
+        "call_node_type": "call",
+    },
+    "c_sharp": {
+        "parser_name": "c_sharp",
+        "extensions": {".cs"},
+        "call_node_type": "invocation_expression",
+    },
 }
 
 
@@ -268,6 +293,183 @@ def _extract_bindings_python(root, source_bytes: bytes, target_pkg: str, target_
     return direct_bindings, namespace_bindings, foreign_bindings, local_definitions
 
 
+def _extract_bindings_go(root, source_bytes: bytes, target_pkg: str, target_symbol: str):
+    """Extract bindings for Go (import specs and local funcs)."""
+    direct_bindings = set()
+    namespace_bindings = set()
+    foreign_bindings = set()
+    local_definitions = set()
+
+    for child in root.children:
+        if child.type == "import_declaration":
+            def process_import_spec(spec_node):
+                alias_node = spec_node.child_by_field_name("name")
+                path_node = spec_node.child_by_field_name("path") or (spec_node.children[-1] if spec_node.children else None)
+                if not path_node:
+                    return
+                path_val = source_bytes[path_node.start_byte : path_node.end_byte].decode("utf-8").strip('"\'')
+                base_pkg = path_val.split("/")[-1]
+                alias = source_bytes[alias_node.start_byte : alias_node.end_byte].decode("utf-8") if alias_node else base_pkg
+                is_target = (path_val == target_pkg) or (base_pkg == target_pkg) or path_val.endswith(f"/{target_pkg}")
+                if is_target:
+                    if alias == ".":
+                        direct_bindings.add(target_symbol)
+                    else:
+                        namespace_bindings.add(alias)
+                        namespace_bindings.add(base_pkg)
+                else:
+                    foreign_bindings.add(alias)
+
+            for c in child.children:
+                if c.type == "import_spec":
+                    process_import_spec(c)
+                elif c.type == "import_spec_list":
+                    for sc in c.children:
+                        if sc.type == "import_spec":
+                            process_import_spec(sc)
+
+        elif child.type == "function_declaration":
+            fn_name_node = child.child_by_field_name("name")
+            if fn_name_node:
+                local_definitions.add(source_bytes[fn_name_node.start_byte : fn_name_node.end_byte].decode("utf-8"))
+
+    return direct_bindings, namespace_bindings, foreign_bindings, local_definitions
+
+
+def _extract_bindings_rust(root, source_bytes: bytes, target_pkg: str, target_symbol: str):
+    """Extract bindings for Rust (use declarations and functions)."""
+    direct_bindings = set()
+    namespace_bindings = set()
+    foreign_bindings = set()
+    local_definitions = set()
+
+    for child in root.children:
+        if child.type == "use_declaration":
+            raw_use = source_bytes[child.start_byte : child.end_byte].decode("utf-8").replace("use", "").replace(";", "").strip()
+            is_target = target_pkg in raw_use
+            if is_target:
+                if "::" in raw_use:
+                    parts = [p.strip() for p in raw_use.split("::")]
+                    last_part = parts[-1]
+                    if " as " in last_part:
+                        orig, alias = [x.strip() for x in last_part.split(" as ")]
+                        if orig == target_symbol:
+                            direct_bindings.add(alias)
+                    elif last_part == target_symbol:
+                        direct_bindings.add(last_part)
+                    namespace_bindings.add(parts[0])
+                elif " as " in raw_use:
+                    orig, alias = [x.strip() for x in raw_use.split(" as ")]
+                    if orig == target_pkg:
+                        namespace_bindings.add(alias)
+                else:
+                    namespace_bindings.add(raw_use)
+            else:
+                if "::" in raw_use:
+                    foreign_bindings.add(raw_use.split("::")[0].strip())
+                else:
+                    foreign_bindings.add(raw_use)
+
+        elif child.type == "function_item":
+            fn_name_node = child.child_by_field_name("name")
+            if fn_name_node:
+                local_definitions.add(source_bytes[fn_name_node.start_byte : fn_name_node.end_byte].decode("utf-8"))
+
+    return direct_bindings, namespace_bindings, foreign_bindings, local_definitions
+
+
+def _extract_bindings_java(root, source_bytes: bytes, target_pkg: str, target_symbol: str):
+    """Extract bindings for Java (import declarations and methods)."""
+    direct_bindings = set()
+    namespace_bindings = set()
+    foreign_bindings = set()
+    local_definitions = set()
+
+    for child in root.children:
+        if child.type == "import_declaration":
+            raw_import = source_bytes[child.start_byte : child.end_byte].decode("utf-8").replace("import", "").replace("static", "").replace(";", "").strip()
+            is_target = target_pkg.lower() in raw_import.lower()
+            last_part = raw_import.split(".")[-1]
+            if is_target:
+                if last_part == target_symbol:
+                    direct_bindings.add(last_part)
+                namespace_bindings.add(last_part)
+                for segment in raw_import.split("."):
+                    namespace_bindings.add(segment)
+            else:
+                foreign_bindings.add(last_part)
+
+    def walk_java_vars(node):
+        if node.type in ("local_variable_declaration", "field_declaration"):
+            t_node = node.child_by_field_name("type")
+            t_text = source_bytes[t_node.start_byte : t_node.end_byte].decode("utf-8") if t_node else ""
+            if any(ns.lower() == t_text.lower() for ns in namespace_bindings):
+                for c in node.children:
+                    if c.type == "variable_declarator":
+                        v_name = c.child_by_field_name("name")
+                        if v_name:
+                            namespace_bindings.add(source_bytes[v_name.start_byte : v_name.end_byte].decode("utf-8"))
+        elif node.type == "method_declaration":
+            m_name = node.child_by_field_name("name")
+            if m_name:
+                local_definitions.add(source_bytes[m_name.start_byte : m_name.end_byte].decode("utf-8"))
+
+        for c in node.children:
+            walk_java_vars(c)
+
+    walk_java_vars(root)
+    return direct_bindings, namespace_bindings, foreign_bindings, local_definitions
+
+
+def _extract_bindings_ruby(root, source_bytes: bytes, target_pkg: str, target_symbol: str):
+    """Extract bindings for Ruby (require calls and methods)."""
+    direct_bindings = set()
+    namespace_bindings = set()
+    foreign_bindings = set()
+    local_definitions = set()
+
+    for child in root.children:
+        if child.type == "call":
+            raw_text = source_bytes[child.start_byte : child.end_byte].decode("utf-8")
+            if "require" in raw_text:
+                if target_pkg.lower() in raw_text.lower():
+                    namespace_bindings.add(target_pkg)
+                    namespace_bindings.add(target_pkg.capitalize())
+                    namespace_bindings.add(target_pkg.upper())
+
+        elif child.type in ("method", "singleton_method"):
+            m_name = child.child_by_field_name("name")
+            if m_name:
+                local_definitions.add(source_bytes[m_name.start_byte : m_name.end_byte].decode("utf-8"))
+
+    return direct_bindings, namespace_bindings, foreign_bindings, local_definitions
+
+
+def _extract_bindings_csharp(root, source_bytes: bytes, target_pkg: str, target_symbol: str):
+    """Extract bindings for C# (using directives and methods)."""
+    direct_bindings = set()
+    namespace_bindings = set()
+    foreign_bindings = set()
+    local_definitions = set()
+
+    for child in root.children:
+        if child.type == "using_directive":
+            raw_using = source_bytes[child.start_byte : child.end_byte].decode("utf-8").replace("using", "").replace("static", "").replace(";", "").strip()
+            is_target = target_pkg.lower() in raw_using.lower()
+            last_part = raw_using.split(".")[-1]
+            if is_target:
+                if last_part == target_symbol:
+                    direct_bindings.add(last_part)
+                namespace_bindings.add(last_part)
+                namespace_bindings.add(target_pkg)
+                for segment in raw_using.split("."):
+                    namespace_bindings.add(segment)
+            else:
+                foreign_bindings.add(last_part)
+
+    return direct_bindings, namespace_bindings, foreign_bindings, local_definitions
+
+
 def find_usages(
     file_path: str,
     source: bytes,
@@ -340,6 +542,16 @@ def find_usages(
             direct, ns, foreign, local = _extract_bindings_js_ts(root, source, target_pkg, target_symbol)
         elif lang_name == "python":
             direct, ns, foreign, local = _extract_bindings_python(root, source, target_pkg, target_symbol)
+        elif lang_name == "go":
+            direct, ns, foreign, local = _extract_bindings_go(root, source, target_pkg, target_symbol)
+        elif lang_name == "rust":
+            direct, ns, foreign, local = _extract_bindings_rust(root, source, target_pkg, target_symbol)
+        elif lang_name == "java":
+            direct, ns, foreign, local = _extract_bindings_java(root, source, target_pkg, target_symbol)
+        elif lang_name == "ruby":
+            direct, ns, foreign, local = _extract_bindings_ruby(root, source, target_pkg, target_symbol)
+        elif lang_name == "c_sharp":
+            direct, ns, foreign, local = _extract_bindings_csharp(root, source, target_pkg, target_symbol)
         else:
             direct, ns, foreign, local = set(), set(), set(), set()
 
@@ -355,58 +567,99 @@ def find_usages(
     usages: list[dict] = []
 
     def check_call(node):
-        is_call = (
-            lang_name in ("typescript", "tsx", "javascript") and node.type == "call_expression"
-        ) or (lang_name == "python" and node.type == "call")
+        call_type = selected_config.get("call_node_type", "call_expression")
+        if node.type == call_type:
+            fn_text = ""
+            receiver_text = ""
+            prop_text = ""
 
-        if is_call:
-            fn_child = node.child_by_field_name("function")
-            if fn_child:
-                # Direct call: get(...)
-                if fn_child.type == "identifier":
-                    callee = source[fn_child.start_byte : fn_child.end_byte].decode(
-                        "utf-8", errors="replace"
-                    )
-                    if target_pkg:
-                        if callee in direct and callee not in foreign and callee not in local:
-                            _record_usage(node)
-                    else:
-                        if callee == target_symbol:
-                            _record_usage(node)
+            if lang_name in ("typescript", "tsx", "javascript"):
+                fn_child = node.child_by_field_name("function")
+                if fn_child:
+                    if fn_child.type == "identifier":
+                        fn_text = source[fn_child.start_byte : fn_child.end_byte].decode("utf-8", errors="replace")
+                    elif fn_child.type == "member_expression":
+                        p = fn_child.child_by_field_name("property")
+                        o = fn_child.child_by_field_name("object")
+                        prop_text = source[p.start_byte : p.end_byte].decode("utf-8", errors="replace") if p else ""
+                        receiver_text = source[o.start_byte : o.end_byte].decode("utf-8", errors="replace") if o else ""
+            elif lang_name == "python":
+                fn_child = node.child_by_field_name("function")
+                if fn_child:
+                    if fn_child.type == "identifier":
+                        fn_text = source[fn_child.start_byte : fn_child.end_byte].decode("utf-8", errors="replace")
+                    elif fn_child.type == "attribute":
+                        p = fn_child.child_by_field_name("attribute")
+                        o = fn_child.child_by_field_name("object")
+                        prop_text = source[p.start_byte : p.end_byte].decode("utf-8", errors="replace") if p else ""
+                        receiver_text = source[o.start_byte : o.end_byte].decode("utf-8", errors="replace") if o else ""
+            elif lang_name == "go":
+                fn_child = node.child_by_field_name("function")
+                if fn_child:
+                    if fn_child.type == "identifier":
+                        fn_text = source[fn_child.start_byte : fn_child.end_byte].decode("utf-8", errors="replace")
+                    elif fn_child.type == "selector_expression":
+                        o = fn_child.child_by_field_name("operand")
+                        p = fn_child.child_by_field_name("field")
+                        receiver_text = source[o.start_byte : o.end_byte].decode("utf-8", errors="replace") if o else ""
+                        prop_text = source[p.start_byte : p.end_byte].decode("utf-8", errors="replace") if p else ""
+            elif lang_name == "rust":
+                fn_child = node.child_by_field_name("function")
+                if fn_child:
+                    if fn_child.type == "identifier":
+                        fn_text = source[fn_child.start_byte : fn_child.end_byte].decode("utf-8", errors="replace")
+                    elif fn_child.type == "scoped_identifier":
+                        path_node = fn_child.child_by_field_name("path")
+                        name_node = fn_child.child_by_field_name("name")
+                        receiver_text = source[path_node.start_byte : path_node.end_byte].decode("utf-8", errors="replace") if path_node else ""
+                        prop_text = source[name_node.start_byte : name_node.end_byte].decode("utf-8", errors="replace") if name_node else ""
+                    elif fn_child.type == "field_expression":
+                        o = fn_child.child_by_field_name("value")
+                        p = fn_child.child_by_field_name("field")
+                        receiver_text = source[o.start_byte : o.end_byte].decode("utf-8", errors="replace") if o else ""
+                        prop_text = source[p.start_byte : p.end_byte].decode("utf-8", errors="replace") if p else ""
+            elif lang_name == "java":
+                name_node = node.child_by_field_name("name")
+                obj_node = node.child_by_field_name("object")
+                prop_text = source[name_node.start_byte : name_node.end_byte].decode("utf-8", errors="replace") if name_node else ""
+                receiver_text = source[obj_node.start_byte : obj_node.end_byte].decode("utf-8", errors="replace") if obj_node else ""
+                if not receiver_text:
+                    fn_text = prop_text
+            elif lang_name == "ruby":
+                m_node = node.child_by_field_name("method")
+                r_node = node.child_by_field_name("receiver")
+                prop_text = source[m_node.start_byte : m_node.end_byte].decode("utf-8", errors="replace") if m_node else ""
+                receiver_text = source[r_node.start_byte : r_node.end_byte].decode("utf-8", errors="replace") if r_node else ""
+                if not prop_text and not receiver_text:
+                    c0 = node.children[0] if node.children else None
+                    if c0 and c0.type == "identifier":
+                        fn_text = source[c0.start_byte : c0.end_byte].decode("utf-8", errors="replace")
+            elif lang_name == "c_sharp":
+                expr_node = node.child_by_field_name("expression") or (node.children[0] if node.children else None)
+                if expr_node:
+                    if expr_node.type == "identifier":
+                        fn_text = source[expr_node.start_byte : expr_node.end_byte].decode("utf-8", errors="replace")
+                    elif expr_node.type == "member_access_expression" and len(expr_node.children) >= 3:
+                        receiver_text = source[expr_node.children[0].start_byte : expr_node.children[0].end_byte].decode("utf-8", errors="replace")
+                        prop_text = source[expr_node.children[2].start_byte : expr_node.children[2].end_byte].decode("utf-8", errors="replace")
 
-                # Member expression / attribute call: lodash.get(...) or req.get(...)
-                elif (
-                    lang_name in ("typescript", "tsx", "javascript")
-                    and fn_child.type == "member_expression"
-                ) or (lang_name == "python" and fn_child.type == "attribute"):
-                    obj_node = fn_child.child_by_field_name("object")
-                    prop_node = fn_child.child_by_field_name(
-                        "property" if lang_name != "python" else "attribute"
-                    )
-                    prop_text = (
-                        source[prop_node.start_byte : prop_node.end_byte].decode(
-                            "utf-8", errors="replace"
-                        )
-                        if prop_node
-                        else ""
-                    )
-                    obj_text = (
-                        source[obj_node.start_byte : obj_node.end_byte].decode(
-                            "utf-8", errors="replace"
-                        )
-                        if obj_node
-                        else ""
-                    )
-
-                    if prop_text == target_symbol:
-                        if not target_pkg:
-                            _record_usage(node)
-                        else:
-                            base_obj = obj_text.split(".")[0].split("(")[0].strip()
-                            if (obj_text in ns or base_obj in ns) and (
-                                obj_text not in foreign and base_obj not in foreign
-                            ):
-                                _record_usage(node)
+            # Check matches against bindings or target_symbol
+            if fn_text:
+                if target_pkg:
+                    if fn_text in direct and fn_text not in foreign and fn_text not in local:
+                        _record_usage(node)
+                else:
+                    if fn_text == target_symbol:
+                        _record_usage(node)
+            elif prop_text == target_symbol:
+                if not target_pkg:
+                    _record_usage(node)
+                else:
+                    base_obj = receiver_text.split(".")[0].split("(")[0].strip()
+                    if (receiver_text in ns or base_obj in ns or any(item in receiver_text for item in ns)) and (
+                        receiver_text not in foreign and base_obj not in foreign
+                    ):
+                        _record_usage(node)
 
         for c in node.children:
             check_call(c)
@@ -440,17 +693,23 @@ def find_usages(
 
 
 def is_test_file(file_path: str) -> bool:
-    """Return True if the file path matches standard test file patterns."""
+    """Return True if the file path matches standard test file patterns across languages."""
     p = str(file_path).replace("\\", "/").lower()
     parts = p.split("/")
     filename = parts[-1]
     if any(part in ("tests", "test", "__tests__", "spec", "specs") for part in parts[:-1]):
         return True
-    if filename.startswith("test_") or filename.endswith("_test.py"):
+    if filename.startswith("test_") or filename.endswith("_test.py") or filename.endswith("_test.go"):
         return True
     if filename.endswith(".test.ts") or filename.endswith(".test.tsx") or filename.endswith(".test.js") or filename.endswith(".test.jsx"):
         return True
     if filename.endswith(".spec.ts") or filename.endswith(".spec.tsx") or filename.endswith(".spec.js") or filename.endswith(".spec.jsx"):
+        return True
+    if filename.endswith("_spec.rb") or filename.endswith("_test.rb"):
+        return True
+    if filename.endswith("test.java") or filename.endswith("tests.java"):
+        return True
+    if filename.endswith("test.cs") or filename.endswith("tests.cs"):
         return True
     return False
 

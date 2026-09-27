@@ -78,3 +78,51 @@ def test_scan_directory(tmp_path: Path):
     usages_py = scan_directory(str(tmp_path), "get", package_name="requests")
     assert len(usages_py) == 1
     assert usages_py[0]["file_path"] == str(f2)
+
+
+def test_polyglot_find_usages_go_and_rust():
+    go_code = b"""package main
+import "github.com/gin-gonic/gin"
+func main() {
+    r := gin.Default()
+}
+"""
+    go_usages = find_usages("main.go", go_code, "Default", package_name="gin")
+    assert len(go_usages) == 1
+    assert "gin.Default()" in go_usages[0]["snippet"]
+
+    rust_code = b"""use serde_json::to_string;
+fn main() {
+    let s = to_string(&data);
+}
+"""
+    rust_usages = find_usages("lib.rs", rust_code, "to_string", package_name="serde_json")
+    assert len(rust_usages) == 1
+    assert "to_string(&data)" in rust_usages[0]["snippet"]
+
+
+def test_polyglot_find_usages_java_ruby_csharp():
+    java_code = b"""import com.google.gson.Gson;
+class Main {
+    void run() {
+        Gson g = new Gson();
+        g.toJson(data);
+    }
+}
+"""
+    assert len(find_usages("Main.java", java_code, "toJson", package_name="gson")) == 1
+
+    ruby_code = b"""require "json"
+JSON.parse(data)
+"""
+    assert len(find_usages("app.rb", ruby_code, "parse", package_name="json")) == 1
+
+    cs_code = b"""using System.Text.Json;
+class Program {
+    void Main() {
+        JsonSerializer.Serialize(obj);
+    }
+}
+"""
+    assert len(find_usages("Program.cs", cs_code, "Serialize", package_name="System.Text.Json")) == 1
+

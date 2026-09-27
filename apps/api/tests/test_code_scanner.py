@@ -278,3 +278,101 @@ def test_detect_symbol_in_tests():
     assert detect_symbol_in_tests(repo_files_without_coverage, "fetchUser", "user-sdk") is False
 
 
+def test_find_usages_go_selector_and_package_boundary():
+    """Go selector expressions, direct calls, and foreign import exclusion."""
+    go_code = b"""package main
+import (
+    "github.com/gin-gonic/gin"
+    mylog "github.com/sirupsen/logrus"
+)
+func main() {
+    r := gin.Default()
+    mylog.Default()
+}
+"""
+    # Should find gin.Default() but NOT mylog.Default()
+    usages = find_usages("main.go", go_code, "Default", package_name="gin")
+    assert len(usages) == 1
+    assert "gin.Default()" in usages[0]["snippet"]
+    assert usages[0]["line_start"] == 7
+
+
+def test_find_usages_rust_scoped_and_direct_bindings():
+    """Rust scoped identifier, direct imports, and field expressions."""
+    rust_code = b"""use serde_json::to_string;
+use serde_json as sj;
+use other_crate::to_string as other_to_string;
+
+fn main() {
+    let s = to_string(&foo);
+    let v = sj::from_str(&s);
+    let o = other_to_string(&bar);
+}
+"""
+    # Direct import usage
+    usages_to_string = find_usages("lib.rs", rust_code, "to_string", package_name="serde_json")
+    assert len(usages_to_string) == 1
+    assert "to_string(&foo)" in usages_to_string[0]["snippet"]
+
+    # Scoped usage
+    usages_from_str = find_usages("lib.rs", rust_code, "from_str", package_name="serde_json")
+    assert len(usages_from_str) == 1
+    assert "sj::from_str(&s)" in usages_from_str[0]["snippet"]
+
+
+def test_find_usages_java_method_invocation():
+    """Java method invocation with import binding."""
+    java_code = b"""import com.google.gson.Gson;
+class Main {
+    void run() {
+        Gson g = new Gson();
+        g.toJson(data);
+    }
+}
+"""
+    usages = find_usages("Main.java", java_code, "toJson", package_name="gson")
+    assert len(usages) == 1
+    assert "g.toJson(data)" in usages[0]["snippet"]
+
+
+def test_find_usages_ruby_require_and_call():
+    """Ruby require statement and method call."""
+    rb_code = b"""require "json"
+def process(data)
+    JSON.parse(data)
+end
+"""
+    usages = find_usages("app.rb", rb_code, "parse", package_name="json")
+    assert len(usages) == 1
+    assert "JSON.parse(data)" in usages[0]["snippet"]
+
+
+def test_find_usages_csharp_member_access():
+    """C# using directive and member access expression."""
+    cs_code = b"""using System.Text.Json;
+class Program {
+    void Main() {
+        JsonSerializer.Serialize(obj);
+    }
+}
+"""
+    usages = find_usages("Program.cs", cs_code, "Serialize", package_name="System.Text.Json")
+    assert len(usages) == 1
+    assert "JsonSerializer.Serialize(obj)" in usages[0]["snippet"]
+
+
+def test_polyglot_is_test_file():
+    """Polyglot test file pattern detection across Go, Rust, Java, Ruby, C#."""
+    from services.code_scanner import is_test_file
+
+    assert is_test_file("pkg/server/server_test.go") is True
+    assert is_test_file("src/tests/test_model.rs") is True
+    assert is_test_file("src/test/java/UserTest.java") is True
+    assert is_test_file("spec/models/order_spec.rb") is True
+    assert is_test_file("Tests/ApiTests.cs") is True
+    assert is_test_file("pkg/server/server.go") is False
+    assert is_test_file("src/main.rs") is False
+    assert is_test_file("src/User.java") is False
+
+
+
