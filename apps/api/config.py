@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     llm_provider_default: str = "gemini"
 
+    # Encryption / Security
+    telex_encryption_key: str = ""
+
     # Deployment environment
     # Set to "production" in Render/Vercel to activate secret validation.
     environment: str = "development"
@@ -77,6 +80,8 @@ if _is_production:
         _missing.append("GITHUB_APP_ID")
     if not settings.github_app_private_key:
         _missing.append("GITHUB_APP_PRIVATE_KEY")
+    if not settings.telex_encryption_key:
+        _missing.append("TELEX_ENCRYPTION_KEY")
     if _missing:
         raise RuntimeError(
             f"Production startup blocked — the following secrets are missing or have default values: "

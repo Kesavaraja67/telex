@@ -21,6 +21,7 @@ class MistralProvider(PatchProvider):
     """Patch provider backed by Mistral AI."""
 
     def __init__(self, api_key: str, model: str = _DEFAULT_MODEL):
+        self._model_name = model
         if not api_key:
             raise RuntimeError(
                 "MistralProvider requires an API key — "
@@ -31,7 +32,9 @@ class MistralProvider(PatchProvider):
         except ImportError:
             raise RuntimeError("mistralai package not installed — run: pip install mistralai")
         self.client = Mistral(api_key=api_key)
-        self._model_name = model
+
+    def __repr__(self) -> str:
+        return f"<MistralProvider model={self._model_name!r}>"
 
     @property
     def model_name(self) -> str:

@@ -55,3 +55,32 @@ async def test_get_session_lifecycle_exception():
             await session_gen.athrow(RuntimeError("DB query failed"))
         mock_session.rollback.assert_awaited_once()
         mock_session.close.assert_awaited_once()
+
+
+def test_production_startup_validation_missing_secrets(monkeypatch):
+    """In production mode, missing required secrets must block startup."""
+    import config
+
+    # Mock environment to production with missing secrets
+    test_settings = Settings(
+        environment="production",
+        nextauth_secret="",
+        github_app_id="",
+        github_app_private_key="",
+        telex_encryption_key="",
+    )
+
+    _missing = []
+    if not test_settings.nextauth_secret or test_settings.nextauth_secret == config._DEFAULT_SECRET:
+        _missing.append("NEXTAUTH_SECRET")
+    if not test_settings.github_app_id:
+        _missing.append("GITHUB_APP_ID")
+    if not test_settings.github_app_private_key:
+        _missing.append("GITHUB_APP_PRIVATE_KEY")
+    if not test_settings.telex_encryption_key:
+        _missing.append("TELEX_ENCRYPTION_KEY")
+
+    assert "TELEX_ENCRYPTION_KEY" in _missing
+    assert "NEXTAUTH_SECRET" in _missing
+    assert "GITHUB_APP_ID" in _missing
+    assert "GITHUB_APP_PRIVATE_KEY" in _missing

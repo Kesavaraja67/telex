@@ -27,6 +27,7 @@ class CohereProvider(PatchProvider):
     _DEFAULT_MODEL = "command-r-plus-08-2024"
 
     def __init__(self, api_key: str, model: str = _DEFAULT_MODEL):
+        self._model_name = model
         if not api_key:
             raise RuntimeError("CohereProvider requires an API key.")
         try:
@@ -34,7 +35,9 @@ class CohereProvider(PatchProvider):
         except ImportError:
             raise RuntimeError("cohere package not installed — run: pip install cohere")
         self.client = AsyncClientV2(api_key=api_key)
-        self._model_name = model
+
+    def __repr__(self) -> str:
+        return f"<CohereProvider model={self._model_name!r}>"
 
     @property
     def model_name(self) -> str:
@@ -105,6 +108,7 @@ class XAIProvider(PatchProvider):
     _BASE_URL = "https://api.x.ai/v1"
 
     def __init__(self, api_key: str, model: str = _DEFAULT_MODEL):
+        self._model_name = model
         if not api_key:
             raise RuntimeError("XAIProvider requires an xAI API key.")
         try:
@@ -112,7 +116,9 @@ class XAIProvider(PatchProvider):
         except ImportError:
             raise RuntimeError("openai package not installed — run: pip install openai")
         self.client = AsyncOpenAI(api_key=api_key, base_url=self._BASE_URL)
-        self._model_name = model
+
+    def __repr__(self) -> str:
+        return f"<XAIProvider model={self._model_name!r}>"
 
     @property
     def model_name(self) -> str:
@@ -183,6 +189,7 @@ class DeepSeekProvider(PatchProvider):
     _BASE_URL = "https://api.deepseek.com/v1"
 
     def __init__(self, api_key: str, model: str = _DEFAULT_MODEL):
+        self._model_name = model
         if not api_key:
             raise RuntimeError("DeepSeekProvider requires a DeepSeek API key.")
         try:
@@ -190,7 +197,9 @@ class DeepSeekProvider(PatchProvider):
         except ImportError:
             raise RuntimeError("openai package not installed — run: pip install openai")
         self.client = AsyncOpenAI(api_key=api_key, base_url=self._BASE_URL)
-        self._model_name = model
+
+    def __repr__(self) -> str:
+        return f"<DeepSeekProvider model={self._model_name!r}>"
 
     @property
     def model_name(self) -> str:
@@ -261,6 +270,7 @@ class TogetherProvider(PatchProvider):
     _BASE_URL = "https://api.together.xyz/v1"
 
     def __init__(self, api_key: str, model: str = _DEFAULT_MODEL):
+        self._model_name = model
         if not api_key:
             raise RuntimeError("TogetherProvider requires a Together AI API key.")
         try:
@@ -268,7 +278,9 @@ class TogetherProvider(PatchProvider):
         except ImportError:
             raise RuntimeError("openai package not installed — run: pip install openai")
         self.client = AsyncOpenAI(api_key=api_key, base_url=self._BASE_URL)
-        self._model_name = model
+
+    def __repr__(self) -> str:
+        return f"<TogetherProvider model={self._model_name!r}>"
 
     @property
     def model_name(self) -> str:
@@ -339,6 +351,7 @@ class NemotronProvider(PatchProvider):
     _BASE_URL = "https://integrate.api.nvidia.com/v1"
 
     def __init__(self, api_key: str, model: str = _DEFAULT_MODEL):
+        self._model_name = model
         if not api_key:
             raise RuntimeError("NemotronProvider requires an Nvidia API key.")
         try:
@@ -346,7 +359,9 @@ class NemotronProvider(PatchProvider):
         except ImportError:
             raise RuntimeError("openai package not installed — run: pip install openai")
         self.client = AsyncOpenAI(api_key=api_key, base_url=self._BASE_URL)
-        self._model_name = model
+
+    def __repr__(self) -> str:
+        return f"<NemotronProvider model={self._model_name!r}>"
 
     @property
     def model_name(self) -> str:

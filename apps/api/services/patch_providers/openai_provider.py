@@ -21,6 +21,7 @@ class OpenAIProvider(PatchProvider):
     """Patch provider backed by OpenAI Chat Completions API."""
 
     def __init__(self, api_key: str, model: str = _DEFAULT_MODEL):
+        self._model_name = model
         if not api_key:
             raise RuntimeError(
                 "OpenAIProvider requires an API key — "
@@ -31,7 +32,9 @@ class OpenAIProvider(PatchProvider):
         except ImportError:
             raise RuntimeError("openai package not installed — run: pip install openai")
         self.client = AsyncOpenAI(api_key=api_key)
-        self._model_name = model
+
+    def __repr__(self) -> str:
+        return f"<OpenAIProvider model={self._model_name!r}>"
 
     @property
     def model_name(self) -> str:

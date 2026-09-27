@@ -19,6 +19,8 @@ Provider name → class mapping:
   nemotron  → NemotronProvider  (nvidia/llama-3.1-nemotron-70b-instruct default)
 """
 
+from db.session import AsyncSessionLocal
+
 from .base import PatchProvider
 
 
@@ -46,12 +48,22 @@ def get_patch_provider(
         from .gemini import GeminiProvider
 
         key = api_key or settings.gemini_api_key
+        if not key:
+            raise RuntimeError(
+                "GeminiProvider requires GEMINI_API_KEY — "
+                "configure platform key in environment or add a BYOK key in Settings."
+            )
         return GeminiProvider(key)
 
     if provider_name in ("claude", "anthropic"):
         from .claude import ClaudeProvider
 
         key = api_key or settings.anthropic_api_key
+        if not key:
+            raise RuntimeError(
+                "ClaudeProvider requires ANTHROPIC_API_KEY — "
+                "configure platform key in environment or add a BYOK key in Settings."
+            )
         return ClaudeProvider(key)
 
     if provider_name == "openai":
@@ -139,48 +151,78 @@ async def get_patch_provider_for_user(
     """
     BYOK-aware provider factory.
 
-    Looks up the user's stored API key for the requested provider. If found,
-    decrypts it and instantiates the BYOK provider. If not found, falls back
-    to the platform's hosted Gemini key.
+    Fallback hierarchy:
+      1. User's decrypted BYOK key for preferred_provider
+      2. If preferred_provider is platform-supported with a key (e.g. Gemini, Claude): use platform key
+      3. If preferred_provider has no key, fall back to default platform provider (e.g. Gemini)
+      4. If no key is available anywhere: fail closed with RuntimeError.
 
     Args:
         user_id:            UUID string of the authenticated user.
-        preferred_provider: Provider name to try first. Falls back to 'gemini'.
+        preferred_provider: Provider name to try first. Falls back to default provider.
     """
+    import logging
     import uuid as uuid_module
+    from datetime import datetime, timezone
 
     from sqlalchemy import select
 
     from config import settings
     from db.models import UserApiKey
-    from db.session import AsyncSessionLocal
     from services.crypto import decrypt_key
+
+    logger = logging.getLogger(__name__)
 
     provider_name = (preferred_provider or settings.llm_provider_default).lower().strip()
 
+    uid = None
     try:
         uid = uuid_module.UUID(user_id)
     except (ValueError, AttributeError):
-        # Demo operator or invalid — fall back to hosted Gemini
-        return get_patch_provider("gemini")
+        pass
 
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            select(UserApiKey).where(
-                UserApiKey.user_id == uid,
-                UserApiKey.provider == provider_name,
+    if uid is not None:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(UserApiKey).where(
+                    UserApiKey.user_id == uid,
+                    UserApiKey.provider == provider_name,
+                )
             )
-        )
-        row = result.scalar_one_or_none()
+            row = result.scalar_one_or_none()
 
-        if row is not None:
-            plaintext_key = decrypt_key(row.encrypted_key)
-            # Update last_used_at
-            from datetime import datetime, timezone
+            if row is not None:
+                try:
+                    plaintext_key = decrypt_key(row.encrypted_key)
+                    row.last_used_at = datetime.now(timezone.utc)
+                    await session.commit()
+                    provider = get_patch_provider(provider_name, api_key=plaintext_key)
+                    del plaintext_key
+                    return provider
+                except Exception as exc:
+                    logger.warning(
+                        "get_patch_provider_for_user: failed to decrypt BYOK key for user=%s provider=%s: %s",
+                        uid,
+                        provider_name,
+                        exc,
+                    )
+                    # Proceed to platform fallback
 
-            row.last_used_at = datetime.now(timezone.utc)
-            await session.commit()
-            return get_patch_provider(provider_name, api_key=plaintext_key)
+    # Check if preferred provider can be fulfilled by platform key
+    if provider_name == "gemini" and settings.gemini_api_key:
+        return get_patch_provider("gemini")
+    if provider_name in ("claude", "anthropic") and settings.anthropic_api_key:
+        return get_patch_provider("claude")
 
-    # No BYOK key — fall back to hosted Gemini (Phase 7.8 requirement)
-    return get_patch_provider("gemini")
+    # Fall back to default platform provider
+    default_prov = (settings.llm_provider_default or "gemini").lower().strip()
+    if default_prov == "gemini" and settings.gemini_api_key:
+        return get_patch_provider("gemini")
+    if default_prov in ("claude", "anthropic") and settings.anthropic_api_key:
+        return get_patch_provider("claude")
+
+    # If neither user BYOK key nor platform key exists: fail closed!
+    raise RuntimeError(
+        f"No usable LLM provider credentials found for provider '{provider_name}' "
+        f"(user={user_id}). Configure a BYOK key in Settings or configure platform credentials."
+    )

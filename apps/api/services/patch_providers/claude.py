@@ -17,6 +17,7 @@ class ClaudeProvider(PatchProvider):
     """
 
     def __init__(self, api_key: str, model: str = "claude-sonnet-4-5"):
+        self._model_name = model
         if not api_key:
             raise RuntimeError(
                 "ClaudeProvider requires ANTHROPIC_API_KEY — "
@@ -28,7 +29,9 @@ class ClaudeProvider(PatchProvider):
             raise RuntimeError("anthropic package not installed — run: pip install anthropic")
 
         self.client = AsyncAnthropic(api_key=api_key)  # type: ignore[assignment]
-        self._model_name = model
+
+    def __repr__(self) -> str:
+        return f"<ClaudeProvider model={self._model_name!r}>"
 
     @property
     def model_name(self) -> str:

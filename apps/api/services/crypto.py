@@ -36,20 +36,25 @@ def _get_master_key() -> bytes:
     """
     Retrieve the Fernet master key.
 
-    Current implementation: reads TELEX_ENCRYPTION_KEY from the environment.
-    To swap in a KMS: replace this function body. All call sites are unchanged.
+    Priority:
+      1. Live environment variable TELEX_ENCRYPTION_KEY (allows process overrides and test isolation)
+      2. Centralized settings.telex_encryption_key from config
 
-    Raises RuntimeError if the key is absent (unless TELEX_TEST_MODE=1).
+    Raises RuntimeError if the key is absent or invalid (unless TELEX_TEST_MODE=1).
     """
     raw = os.environ.get(_ENCRYPTION_KEY_ENV, "").strip()
     if not raw:
+        try:
+            from config import settings
+
+            raw = getattr(settings, "telex_encryption_key", "").strip()
+        except Exception:
+            raw = ""
+
+    if not raw:
         # Fail closed — no silent fallback.
-        # TELEX_TEST_MODE=1 is only set by the automated test suite which
-        # injects a real generated key via conftest.py/environment setup.
-        # This branch should never be reached in production or staging.
         test_mode = os.environ.get(_TEST_MODE_ENV, "").strip() == "1"
         if test_mode:
-            # Tests must also supply a real key; this is just a guard message.
             raise RuntimeError(
                 f"{_ENCRYPTION_KEY_ENV} must be set in test mode. "
                 "Add it to conftest.py: "
@@ -78,9 +83,12 @@ def encrypt_key(plaintext: str) -> str:
     """
     Encrypt a plaintext API key and return a Fernet ciphertext string.
     The ciphertext is safe to store in the database.
+    Plaintext is discarded immediately and never logged.
     """
+    if not plaintext or not plaintext.strip():
+        raise ValueError("Cannot encrypt an empty key")
     master_key = _get_master_key()
-    ciphertext = Fernet(master_key).encrypt(plaintext.encode()).decode()
+    ciphertext = Fernet(master_key).encrypt(plaintext.strip().encode()).decode()
     return ciphertext
 
 
@@ -92,9 +100,11 @@ def decrypt_key(ciphertext: str) -> str:
         cryptography.fernet.InvalidToken — if the ciphertext is corrupt or
             the master key has rotated since encryption.
     """
+    if not ciphertext or not ciphertext.strip():
+        raise ValueError("Cannot decrypt an empty ciphertext")
     master_key = _get_master_key()
     try:
-        return Fernet(master_key).decrypt(ciphertext.encode()).decode()
+        return Fernet(master_key).decrypt(ciphertext.strip().encode()).decode()
     except InvalidToken:
         logger.error(
             "crypto.decrypt_key: InvalidToken — key may have rotated or ciphertext is corrupt"

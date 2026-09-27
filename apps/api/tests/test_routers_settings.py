@@ -219,3 +219,63 @@ async def test_delete_api_key_success_and_not_found():
                 assert resp.json()["connected"] is False
     finally:
         app.dependency_overrides.pop(require_auth, None)
+
+
+@pytest.mark.asyncio
+async def test_store_api_key_too_short_rejected():
+    user_id = str(uuid.uuid4())
+
+    async def override_require_auth():
+        return {"user_id": user_id}
+
+    app.dependency_overrides[require_auth] = override_require_auth
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/settings/api-keys",
+                json={"provider": "openai", "key": "short"},
+            )
+            assert resp.status_code == 422
+    finally:
+        app.dependency_overrides.pop(require_auth, None)
+
+
+@pytest.mark.asyncio
+async def test_store_api_key_whitespace_only_rejected():
+    user_id = str(uuid.uuid4())
+
+    async def override_require_auth():
+        return {"user_id": user_id}
+
+    app.dependency_overrides[require_auth] = override_require_auth
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/settings/api-keys",
+                json={"provider": "openai", "key": "          "},
+            )
+            assert resp.status_code == 422
+    finally:
+        app.dependency_overrides.pop(require_auth, None)
+
+
+@pytest.mark.asyncio
+async def test_settings_endpoints_unauthenticated_rejected():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # GET
+        get_res = await client.get("/api/settings/api-keys")
+        assert get_res.status_code == 401
+
+        # POST
+        post_res = await client.post(
+            "/api/settings/api-keys",
+            json={"provider": "openai", "key": "valid-secret-key-1234"},
+        )
+        assert post_res.status_code == 401
+
+        # DELETE
+        del_res = await client.delete("/api/settings/api-keys/openai")
+        assert del_res.status_code == 401

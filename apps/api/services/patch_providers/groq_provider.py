@@ -22,6 +22,7 @@ class GroqProvider(PatchProvider):
     """Patch provider backed by Groq (OpenAI-compatible API)."""
 
     def __init__(self, api_key: str, model: str = _DEFAULT_MODEL):
+        self._model_name = model
         if not api_key:
             raise RuntimeError(
                 "GroqProvider requires an API key — "
@@ -32,7 +33,9 @@ class GroqProvider(PatchProvider):
         except ImportError:
             raise RuntimeError("groq package not installed — run: pip install groq")
         self.client = AsyncGroq(api_key=api_key)
-        self._model_name = model
+
+    def __repr__(self) -> str:
+        return f"<GroqProvider model={self._model_name!r}>"
 
     @property
     def model_name(self) -> str:
