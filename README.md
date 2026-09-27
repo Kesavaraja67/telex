@@ -171,9 +171,18 @@ Telex is built for:
 - **Maintainers of Mission-Critical Services**: Protect systems with strict, evidence-bound verification where passing tests on the exact commit SHA are required before any code is approved.
 
 **Supported Ecosystems & Languages:**
-- **Automated Dependency Repair Pipeline**:
-  - Package Registries: **npm**, **PyPI**
-  - AST Call-Site Scanner: **TypeScript** (`.ts`, `.mts`, `.cts`), **TSX** (`.tsx`), **JavaScript** (`.js`, `.jsx`, `.mjs`, `.cjs`), **Python** (`.py`)
+- **Automated Dependency Repair & AST Scanner (9 Languages)**:
+  - **Node / TypeScript**: `.ts`, `.tsx`, `.mts`, `.cts` (`package.json`)
+  - **JavaScript**: `.js`, `.jsx`, `.mjs`, `.cjs`
+  - **Python**: `.py` (`pyproject.toml`, `requirements.txt`, `setup.py`)
+  - **Go**: `.go` (`go.mod`, `go.sum`)
+  - **Rust**: `.rs` (`Cargo.toml`, `Cargo.lock`)
+  - **Java**: `.java` (`pom.xml`, `build.gradle`)
+  - **Ruby**: `.rb` (`Gemfile`)
+  - **C# / .NET**: `.cs` (`.csproj`, `.sln`)
+- **Package Registry Surveillance**:
+  - Live Continuous Polling: **npm**, **PyPI**
+  - Registry Hooks & Offline Manifests: **crates.io**, **Go Proxy**, **Maven**, **RubyGems**, **NuGet**
 - **Repo Atlas 3D Visualization & Cartography**:
   - Full import-graph cartography supports **21 languages** including Go, Rust, Java, C/C++, Ruby, PHP, and more.
 
