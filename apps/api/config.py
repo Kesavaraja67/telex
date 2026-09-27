@@ -68,20 +68,27 @@ def get_settings() -> Settings:
 settings = get_settings()
 
 
+def collect_missing_secrets(s: Settings) -> list[str]:
+    missing: list[str] = []
+    if not s.nextauth_secret or s.nextauth_secret == _DEFAULT_SECRET:
+        missing.append("NEXTAUTH_SECRET")
+    if not s.github_app_id:
+        missing.append("GITHUB_APP_ID")
+    if not s.github_app_private_key:
+        missing.append("GITHUB_APP_PRIVATE_KEY")
+    if not s.telex_encryption_key:
+        missing.append("TELEX_ENCRYPTION_KEY")
+    return missing
+
+
 # P1-3: Fail loudly at startup if running in production without real secrets.
 # Uses normalized predicate (checks RENDER or case-insensitive ENVIRONMENT=production).
-_is_production = bool(os.getenv("RENDER") or settings.environment.strip().lower() == "production")
+_is_production = bool(
+    os.getenv("RENDER") or settings.environment.strip().lower() == "production"
+)
 
 if _is_production:
-    _missing: list[str] = []
-    if not settings.nextauth_secret or settings.nextauth_secret == _DEFAULT_SECRET:
-        _missing.append("NEXTAUTH_SECRET")
-    if not settings.github_app_id:
-        _missing.append("GITHUB_APP_ID")
-    if not settings.github_app_private_key:
-        _missing.append("GITHUB_APP_PRIVATE_KEY")
-    if not settings.telex_encryption_key:
-        _missing.append("TELEX_ENCRYPTION_KEY")
+    _missing = collect_missing_secrets(settings)
     if _missing:
         raise RuntimeError(
             f"Production startup blocked — the following secrets are missing or have default values: "

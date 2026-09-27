@@ -29,11 +29,11 @@ def apply_diff_to_content(
 
     orig_lines = original_content.splitlines(keepends=True)
     # Normalize CRLF in original lines to LF for uniform hunk matching
-    orig_lines_normalized = [line_item.replace("\r\n", "\n") for line_item in orig_lines]
+    orig_lines_normalized = [
+        line_item.replace("\r\n", "\n") for line_item in orig_lines
+    ]
 
-    hunk_header_re = re.compile(
-        r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@"
-    )
+    hunk_header_re = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 
     lines = diff_text.splitlines()
     hunks = []
@@ -54,9 +54,23 @@ def apply_diff_to_content(
                 "new_start": new_start,
                 "new_count": new_count,
                 "lines": [],
+                "seen_old": 0,
+                "seen_new": 0,
             }
         elif current_hunk is not None:
+            if (
+                current_hunk["seen_old"] >= current_hunk["old_count"]
+                and current_hunk["seen_new"] >= current_hunk["new_count"]
+            ):
+                continue
             if line.startswith(("+", "-", " ", "\\")):
+                if line.startswith("-"):
+                    current_hunk["seen_old"] += 1
+                elif line.startswith("+"):
+                    current_hunk["seen_new"] += 1
+                elif line.startswith(" "):
+                    current_hunk["seen_old"] += 1
+                    current_hunk["seen_new"] += 1
                 current_hunk["lines"].append(line)
 
     if current_hunk:
@@ -69,7 +83,10 @@ def apply_diff_to_content(
     offset = 0
 
     for i, hunk in enumerate(hunks, 1):
-        old_start = hunk["old_start"] - 1 + offset
+        if hunk["old_count"] == 0:
+            old_start = hunk["old_start"]
+        else:
+            old_start = hunk["old_start"] - 1 + offset
         expected_old_lines = []
         replacement_lines = []
 
@@ -82,6 +99,18 @@ def apply_diff_to_content(
                 expected_old_lines.append(hline[1:] + "\n")
                 replacement_lines.append(hline[1:] + "\n")
 
+        # Reject hunks whose collected removal or addition lines do not match declared counts
+        if (
+            len(expected_old_lines) != hunk["old_count"]
+            or len(replacement_lines) != hunk["new_count"]
+        ):
+            return (
+                False,
+                original_content,
+                f"Hunk #{i} failed: line count mismatch (expected old={hunk['old_count']}, new={hunk['new_count']}; "
+                f"got old={len(expected_old_lines)}, new={len(replacement_lines)})",
+            )
+
         # Find match position
         target_pos = old_start
         found_pos = None
@@ -89,9 +118,10 @@ def apply_diff_to_content(
         # Check exact target position first
         if 0 <= target_pos <= len(result_lines):
             slice_end = target_pos + len(expected_old_lines)
-            if [line_item.rstrip("\r\n") for line_item in result_lines[target_pos:slice_end]] == [
-                line_item.rstrip("\r\n") for line_item in expected_old_lines
-            ]:
+            if [
+                line_item.rstrip("\r\n")
+                for line_item in result_lines[target_pos:slice_end]
+            ] == [line_item.rstrip("\r\n") for line_item in expected_old_lines]:
                 found_pos = target_pos
 
         # If not at exact position, scan with small window
@@ -101,12 +131,16 @@ def apply_diff_to_content(
             min_dist = float("inf")
             for pos in range(
                 max(0, target_pos - max_drift),
-                min(len(result_lines) - len(expected_old_lines) + 1, target_pos + max_drift),
+                min(
+                    len(result_lines) - len(expected_old_lines) + 1,
+                    target_pos + max_drift,
+                ),
             ):
                 slice_end = pos + len(expected_old_lines)
-                if [line_item.rstrip("\r\n") for line_item in result_lines[pos:slice_end]] == [
-                    line_item.rstrip("\r\n") for line_item in expected_old_lines
-                ]:
+                if [
+                    line_item.rstrip("\r\n")
+                    for line_item in result_lines[pos:slice_end]
+                ] == [line_item.rstrip("\r\n") for line_item in expected_old_lines]:
                     dist = abs(pos - target_pos)
                     if dist < min_dist:
                         min_dist = dist

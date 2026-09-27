@@ -74,15 +74,54 @@ def get_demo_engine(sqlite_mode: bool = False, custom_url: str | None = None):
     return create_async_engine(db_url, **engine_kwargs), db_url
 
 
-async def seed_demo_data(engine, clean: bool = False) -> None:
+async def get_or_create_pkg(
+    session: AsyncSession, ecosystem: str, name: str
+) -> Package:
+    res = await session.execute(
+        select(Package).where(Package.ecosystem == ecosystem, Package.name == name)
+    )
+    pkg = res.scalar_one_or_none()
+    if not pkg:
+        pkg = Package(id=uuid.uuid4(), ecosystem=ecosystem, name=name)
+        session.add(pkg)
+        await session.flush()
+    return pkg
+
+
+async def get_or_create_pv(
+    session: AsyncSession, package_id: uuid.UUID, version: str
+) -> PackageVersion:
+    res = await session.execute(
+        select(PackageVersion).where(
+            PackageVersion.package_id == package_id,
+            PackageVersion.version == version,
+        )
+    )
+    pv = res.scalar_one_or_none()
+    if not pv:
+        pv = PackageVersion(id=uuid.uuid4(), package_id=package_id, version=version)
+        session.add(pv)
+        await session.flush()
+    return pv
+
+
+async def seed_demo_data(engine, clean: bool = False, db_url: str = "") -> None:
     # 1. Ensure all tables exist
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    session_factory = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
 
     async with session_factory() as session:
         if clean:
+            is_demo_db = "demo" in db_url.lower() or "sqlite" in db_url.lower()
+            if not is_demo_db:
+                raise RuntimeError(
+                    f"Refusing to wipe database: connection URL '{db_url}' does not appear to be a demo database. "
+                    "Expected 'demo' in URL or a SQLite database."
+                )
             print("Wiping existing demo data...")
             await session.execute(delete(IncidentEvent))
             await session.execute(delete(PullRequest))
@@ -142,15 +181,9 @@ async def seed_demo_data(engine, clean: bool = False) -> None:
         )
         session.add(repo_web)
 
-        pkg_openai = Package(id=uuid.uuid4(), ecosystem="npm", name="openai")
-        session.add(pkg_openai)
-        pv_openai_old = PackageVersion(
-            id=uuid.uuid4(), package_id=pkg_openai.id, version="3.3.0"
-        )
-        pv_openai_new = PackageVersion(
-            id=uuid.uuid4(), package_id=pkg_openai.id, version="4.0.0"
-        )
-        session.add_all([pv_openai_old, pv_openai_new])
+        pkg_openai = await get_or_create_pkg(session, "npm", "openai")
+        pv_openai_old = await get_or_create_pv(session, pkg_openai.id, "3.3.0")
+        pv_openai_new = await get_or_create_pv(session, pkg_openai.id, "4.0.0")
 
         dc_openai = DetectedChange(
             id=uuid.uuid4(),
@@ -237,7 +270,10 @@ async def seed_demo_data(engine, clean: bool = False) -> None:
             ("usage_found", {"file": "src/pages/api/ai.ts", "line": 18}),
             ("patch_generated", {"model": "gemini-2.5-flash"}),
             ("validation_passed", {"mode": "full", "tests": True, "types": True}),
-            ("pr_opened", {"github_pr_number": 142, "github_pr_url": pr_openai.github_pr_url}),
+            (
+                "pr_opened",
+                {"github_pr_number": 142, "github_pr_url": pr_openai.github_pr_url},
+            ),
         ]
         for etype, payload in events_openai:
             session.add(
@@ -265,15 +301,9 @@ async def seed_demo_data(engine, clean: bool = False) -> None:
         )
         session.add(repo_data)
 
-        pkg_pydantic = Package(id=uuid.uuid4(), ecosystem="pypi", name="pydantic")
-        session.add(pkg_pydantic)
-        pv_pydantic_old = PackageVersion(
-            id=uuid.uuid4(), package_id=pkg_pydantic.id, version="1.10.8"
-        )
-        pv_pydantic_new = PackageVersion(
-            id=uuid.uuid4(), package_id=pkg_pydantic.id, version="2.0.0"
-        )
-        session.add_all([pv_pydantic_old, pv_pydantic_new])
+        pkg_pydantic = await get_or_create_pkg(session, "pypi", "pydantic")
+        pv_pydantic_old = await get_or_create_pv(session, pkg_pydantic.id, "1.10.8")
+        pv_pydantic_new = await get_or_create_pv(session, pkg_pydantic.id, "2.0.0")
 
         dc_pydantic = DetectedChange(
             id=uuid.uuid4(),
@@ -348,10 +378,16 @@ async def seed_demo_data(engine, clean: bool = False) -> None:
 
         events_pydantic = [
             ("change_detected", {"package": "pydantic", "version": "2.0.0"}),
-            ("usage_found", {"file": "pipeline/transformers/user_cleaner.py", "line": 34}),
+            (
+                "usage_found",
+                {"file": "pipeline/transformers/user_cleaner.py", "line": 34},
+            ),
             ("patch_generated", {"model": "gemini-2.5-flash"}),
             ("validation_passed", {"mode": "full", "tests": True, "types": True}),
-            ("pr_opened", {"github_pr_number": 88, "github_pr_url": pr_pydantic.github_pr_url}),
+            (
+                "pr_opened",
+                {"github_pr_number": 88, "github_pr_url": pr_pydantic.github_pr_url},
+            ),
             ("pr_merged", {"github_pr_number": 88}),
         ]
         for etype, payload in events_pydantic:
@@ -380,15 +416,9 @@ async def seed_demo_data(engine, clean: bool = False) -> None:
         )
         session.add(repo_gateway)
 
-        pkg_axios = Package(id=uuid.uuid4(), ecosystem="npm", name="axios")
-        session.add(pkg_axios)
-        pv_axios_old = PackageVersion(
-            id=uuid.uuid4(), package_id=pkg_axios.id, version="0.27.2"
-        )
-        pv_axios_new = PackageVersion(
-            id=uuid.uuid4(), package_id=pkg_axios.id, version="1.6.0"
-        )
-        session.add_all([pv_axios_old, pv_axios_new])
+        pkg_axios = await get_or_create_pkg(session, "npm", "axios")
+        pv_axios_old = await get_or_create_pv(session, pkg_axios.id, "0.27.2")
+        pv_axios_new = await get_or_create_pv(session, pkg_axios.id, "1.6.0")
 
         dc_axios = DetectedChange(
             id=uuid.uuid4(),
@@ -467,7 +497,10 @@ async def seed_demo_data(engine, clean: bool = False) -> None:
             ("usage_found", {"file": "middleware/proxy.js", "line": 12}),
             ("patch_generated", {"model": "gemini-2.5-flash"}),
             ("validation_passed", {"mode": "full", "tests": True}),
-            ("pr_opened", {"github_pr_number": 57, "github_pr_url": pr_axios.github_pr_url}),
+            (
+                "pr_opened",
+                {"github_pr_number": 57, "github_pr_url": pr_axios.github_pr_url},
+            ),
         ]
         for etype, payload in events_axios:
             session.add(
@@ -485,7 +518,9 @@ async def seed_demo_data(engine, clean: bool = False) -> None:
         print("\nDemo data seeded successfully!")
         print("Summary of Seeded Data:")
         print("  - User: demo-user (Organization: acme)")
-        print("  - Repositories: 3 (acme/web-app, acme/data-pipeline, acme/api-gateway)")
+        print(
+            "  - Repositories: 3 (acme/web-app, acme/data-pipeline, acme/api-gateway)"
+        )
         print("  - Breaking Changes: 3 detected (OpenAI, Pydantic, Axios)")
         print("  - Verified Patches: 3 generated with full CI validation gates")
         print("  - Pull Requests: 2 open (#142, #57), 1 merged (#88)")
@@ -493,16 +528,28 @@ async def seed_demo_data(engine, clean: bool = False) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Seed Telex database with realistic demo repositories.")
-    parser.add_argument("--clean", action="store_true", help="Wipe existing demo data before seeding")
-    parser.add_argument("--sqlite", action="store_true", help="Use local SQLite database (zero-Docker)")
-    parser.add_argument("--database-url", default=None, help="Custom database connection string")
+    parser = argparse.ArgumentParser(
+        description="Seed Telex database with realistic demo repositories."
+    )
+    parser.add_argument(
+        "--clean", action="store_true", help="Wipe existing demo data before seeding"
+    )
+    parser.add_argument(
+        "--sqlite", action="store_true", help="Use local SQLite database (zero-Docker)"
+    )
+    parser.add_argument(
+        "--database-url", default=None, help="Custom database connection string"
+    )
     args = parser.parse_args()
 
-    engine, db_url = get_demo_engine(sqlite_mode=args.sqlite, custom_url=args.database_url)
-    print(f"Connecting to database: {db_url.split('@')[-1] if '@' in db_url else db_url}")
+    engine, db_url = get_demo_engine(
+        sqlite_mode=args.sqlite, custom_url=args.database_url
+    )
+    print(
+        f"Connecting to database: {db_url.split('@')[-1] if '@' in db_url else db_url}"
+    )
 
-    asyncio.run(seed_demo_data(engine, clean=args.clean))
+    asyncio.run(seed_demo_data(engine, clean=args.clean, db_url=db_url))
 
 
 if __name__ == "__main__":

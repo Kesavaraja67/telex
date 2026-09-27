@@ -100,9 +100,7 @@ async def get_repo_details(
                 else db_repo.full_name
             ),
             "owner": (
-                db_repo.full_name.split("/")[0]
-                if "/" in db_repo.full_name
-                else "owner"
+                db_repo.full_name.split("/")[0] if "/" in db_repo.full_name else "owner"
             ),
             "description": None,
             "default_branch": db_repo.default_branch,
@@ -133,6 +131,13 @@ async def ai_explain_repo(
 
     user_id = str(auth_data.get("user_id", "anon"))
     now = time.time()
+
+    # Evict expired entries older than the 10-second cooldown window
+    cutoff = now - 10.0
+    for k in list(_AI_EXPLAIN_COOLDOWN.keys()):
+        if _AI_EXPLAIN_COOLDOWN[k] < cutoff:
+            _AI_EXPLAIN_COOLDOWN.pop(k, None)
+
     last_req = _AI_EXPLAIN_COOLDOWN.get((user_id, str(db_repo.id)), 0)
     if now - last_req < 10.0:
         raise HTTPException(

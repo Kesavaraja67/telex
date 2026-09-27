@@ -107,7 +107,9 @@ def get_patch_provider(
         from .extra_providers import XAIProvider
 
         if not api_key:
-            raise RuntimeError("xAI is a BYOK-only provider — add your key in Settings → API Keys.")
+            raise RuntimeError(
+                "xAI is a BYOK-only provider — add your key in Settings → API Keys."
+            )
         return XAIProvider(api_key)
 
     if provider_name == "deepseek":
@@ -173,7 +175,9 @@ async def get_patch_provider_for_user(
 
     logger = logging.getLogger(__name__)
 
-    provider_name = (preferred_provider or settings.llm_provider_default).lower().strip()
+    provider_name = (
+        (preferred_provider or settings.llm_provider_default).lower().strip()
+    )
 
     uid = None
     try:
@@ -194,11 +198,6 @@ async def get_patch_provider_for_user(
             if row is not None:
                 try:
                     plaintext_key = decrypt_key(row.encrypted_key)
-                    row.last_used_at = datetime.now(timezone.utc)
-                    await session.commit()
-                    provider = get_patch_provider(provider_name, api_key=plaintext_key)
-                    del plaintext_key
-                    return provider
                 except Exception as exc:
                     logger.warning(
                         "get_patch_provider_for_user: failed to decrypt BYOK key for user=%s provider=%s: %s",
@@ -206,7 +205,14 @@ async def get_patch_provider_for_user(
                         provider_name,
                         exc,
                     )
-                    # Proceed to platform fallback
+                    plaintext_key = None
+
+                if plaintext_key is not None:
+                    provider = get_patch_provider(provider_name, api_key=plaintext_key)
+                    row.last_used_at = datetime.now(timezone.utc)
+                    await session.commit()
+                    del plaintext_key
+                    return provider
 
     # Check if preferred provider can be fulfilled by platform key
     if provider_name == "gemini" and settings.gemini_api_key:

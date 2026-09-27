@@ -1,8 +1,9 @@
-"""Unit tests for telex_core.verifier."""
-
+import sys
 from pathlib import Path
 
 from telex_core.verifier import run_command, verify_directory, verify_parse
+
+PY = f'"{sys.executable}"'
 
 
 def test_verify_parse_valid():
@@ -19,11 +20,11 @@ def test_verify_parse_invalid():
 
 
 def test_run_command_execution():
-    ok, out = run_command("python -c \"print('hello telex')\"")
+    ok, out = run_command(f"{PY} -c \"print('hello telex')\"")
     assert ok is True
     assert "hello telex" in out
 
-    fail_ok, _fail_out = run_command("python -c \"import sys; sys.exit(42)\"")
+    fail_ok, _fail_out = run_command(f'{PY} -c "import sys; sys.exit(42)"')
     assert fail_ok is False
 
 
@@ -33,7 +34,7 @@ def test_verify_directory_pipeline(tmp_path: Path):
 
     receipt = verify_directory(
         target_path=str(tmp_path),
-        test_cmd="python -c \"print('tests passed')\"",
+        test_cmd=f"{PY} -c \"print('tests passed')\"",
     )
     assert receipt["all_passed"] is True
     assert receipt["files_checked"] == 1

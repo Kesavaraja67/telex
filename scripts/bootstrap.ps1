@@ -34,20 +34,23 @@ if (-not (Test-Path $envPath)) {
     Write-Host "Creating .env from .env.example with secure random secrets..."
     $content = Get-Content $envExamplePath -Raw
 
-    # Generate secure keys via Python
+    # Generate secure keys via Python stdlib
     $keygenScript = @"
-import secrets
-from cryptography.fernet import Fernet
-print(f"{secrets.token_urlsafe(32)}|{Fernet.generate_key().decode()}")
+import base64, secrets
+print(f"{secrets.token_urlsafe(32)}|{base64.urlsafe_b64encode(secrets.token_bytes(32)).decode()}")
 "@
     $keys = python -c $keygenScript
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to generate security keys via Python."
+        exit 1
+    }
     $secretParts = $keys.Split('|')
     $jwtSecret = $secretParts[0].Trim()
     $encKey = $secretParts[1].Trim()
 
     $content = $content -replace "NEXTAUTH_SECRET=.*", "NEXTAUTH_SECRET=$jwtSecret"
     $content = $content -replace "TELEX_ENCRYPTION_KEY=.*", "TELEX_ENCRYPTION_KEY=$encKey"
-    $content = $content -replace "DATABASE_URL=.*", "DATABASE_URL=sqlite+aiosqlite:///telex.db"
+    $content = $content -replace "DATABASE_URL=.*", "DATABASE_URL=sqlite+aiosqlite:///telex_demo.db"
 
     Set-Content -Path $envPath -Value $content -Encoding utf8
     Write-Host "Generated .env configured for local zero-Docker SQLite." -ForegroundColor Green
@@ -58,8 +61,11 @@ print(f"{secrets.token_urlsafe(32)}|{Fernet.generate_key().decode()}")
 # 4. Install Python dependencies
 Write-Host "`n[4/6] Installing Python dependencies..." -ForegroundColor Yellow
 python -m pip install --upgrade pip
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 python -m pip install -r (Join-Path $PSScriptRoot "..\apps\api\requirements.txt")
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 python -m pip install -e (Join-Path $PSScriptRoot "..\packages\telex-core")
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Host "Python dependencies installed successfully." -ForegroundColor Green
 
 # 5. Install Node dependencies
@@ -68,6 +74,7 @@ $webDir = Join-Path $PSScriptRoot "..\apps\web"
 Push-Location $webDir
 try {
     npm install
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     Write-Host "Node dependencies installed successfully." -ForegroundColor Green
 } finally {
     Pop-Location
@@ -76,13 +83,15 @@ try {
 # 6. Initialize database and verify test suite
 Write-Host "`n[6/6] Initializing database and running test suite..." -ForegroundColor Yellow
 python (Join-Path $PSScriptRoot "seed_demo.py") --sqlite
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "`nRunning test verification..." -ForegroundColor Yellow
 python -m pytest (Join-Path $PSScriptRoot "..\packages\telex-core\tests")
 if ($LASTEXITCODE -eq 0) {
     Write-Host "Core verification tests passed!" -ForegroundColor Green
 } else {
-    Write-Warning "Some tests failed. Please review the output above."
+    Write-Error "Some tests failed. Please review the output above."
+    exit $LASTEXITCODE
 }
 
 Write-Host "`n==========================================================" -ForegroundColor Cyan

@@ -15,11 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 def fetch_npm_metadata(package_name: str, timeout: float = 10.0) -> dict[str, Any]:
-    """Fetch package metadata from npm registry."""
+    """Fetch package metadata from npm registry (full packument without abbreviated Accept header)."""
     url = f"https://registry.npmjs.org/{package_name}"
     try:
         with httpx.Client(timeout=timeout) as client:
-            resp = client.get(url, headers={"Accept": "application/vnd.npm.install-v1+json"})
+            resp = client.get(url)
             if resp.status_code == 200:
                 return resp.json()
     except Exception as exc:
@@ -27,9 +27,14 @@ def fetch_npm_metadata(package_name: str, timeout: float = 10.0) -> dict[str, An
     return {}
 
 
-def fetch_pypi_metadata(package_name: str, timeout: float = 10.0) -> dict[str, Any]:
-    """Fetch package metadata from PyPI."""
-    url = f"https://pypi.org/pypi/{package_name}/json"
+def fetch_pypi_metadata(
+    package_name: str, version: str | None = None, timeout: float = 10.0
+) -> dict[str, Any]:
+    """Fetch package metadata from PyPI, using the release-specific endpoint when version is given."""
+    if version:
+        url = f"https://pypi.org/pypi/{package_name}/{version}/json"
+    else:
+        url = f"https://pypi.org/pypi/{package_name}/json"
     try:
         with httpx.Client(timeout=timeout) as client:
             resp = client.get(url)
@@ -62,7 +67,10 @@ def parse_changelog_changes(changelog_text: str) -> list[dict[str, Any]]:
         lower_line = line_clean.lower()
 
         # Section detection
-        if any(h in lower_line for h in ["### breaking", "## breaking", "breaking changes", "breaking:"]):
+        if any(
+            h in lower_line
+            for h in ["### breaking", "## breaking", "breaking changes", "breaking:"]
+        ):
             in_breaking_section = True
             continue
         elif lower_line.startswith("#") and "breaking" not in lower_line:
@@ -91,7 +99,9 @@ def parse_changelog_changes(changelog_text: str) -> list[dict[str, Any]]:
             continue
 
         # Arrow rename: `old` -> `new`
-        arrow_match = re.search(r"[`']([a-zA-Z0-9_\.]+)['`]\s*->\s*[`']([a-zA-Z0-9_\.]+)['`]", line_clean)
+        arrow_match = re.search(
+            r"[`']([a-zA-Z0-9_\.]+)['`]\s*->\s*[`']([a-zA-Z0-9_\.]+)['`]", line_clean
+        )
         if arrow_match:
             old_sym, new_sym = arrow_match.group(1), arrow_match.group(2)
             changes.append(
@@ -107,9 +117,21 @@ def parse_changelog_changes(changelog_text: str) -> list[dict[str, Any]]:
 
         # Detect Removed / Dropped
         if any(k in lower_line for k in ["remove", "dropped", "delete"]):
-            syms = [m.group(1) or m.group(2) for m in symbol_pat.finditer(line_clean) if (m.group(1) or m.group(2))]
+            syms = [
+                m.group(1) or m.group(2)
+                for m in symbol_pat.finditer(line_clean)
+                if (m.group(1) or m.group(2))
+            ]
             for sym in syms:
-                if sym.lower() not in {"the", "a", "an", "all", "none", "deprecated", "removed"}:
+                if sym.lower() not in {
+                    "the",
+                    "a",
+                    "an",
+                    "all",
+                    "none",
+                    "deprecated",
+                    "removed",
+                }:
                     changes.append(
                         {
                             "symbol": sym,
@@ -124,7 +146,11 @@ def parse_changelog_changes(changelog_text: str) -> list[dict[str, Any]]:
 
         # Detect Deprecated
         if "deprecat" in lower_line:
-            syms = [m.group(1) or m.group(2) for m in symbol_pat.finditer(line_clean) if (m.group(1) or m.group(2))]
+            syms = [
+                m.group(1) or m.group(2)
+                for m in symbol_pat.finditer(line_clean)
+                if (m.group(1) or m.group(2))
+            ]
             for sym in syms:
                 if sym.lower() not in {"the", "a", "an", "all", "none", "deprecated"}:
                     changes.append(
@@ -140,15 +166,37 @@ def parse_changelog_changes(changelog_text: str) -> list[dict[str, Any]]:
                 continue
 
         # Detect Signature Change or In-Breaking Section Symbol Changes
-        if in_breaking_section or any(k in lower_line for k in ["signature", "parameter", "argument", "now returns"]):
-            syms = [m.group(1) or m.group(2) for m in symbol_pat.finditer(line_clean) if (m.group(1) or m.group(2))]
+        if in_breaking_section or any(
+            k in lower_line
+            for k in ["signature", "parameter", "argument", "now returns"]
+        ):
+            syms = [
+                m.group(1) or m.group(2)
+                for m in symbol_pat.finditer(line_clean)
+                if (m.group(1) or m.group(2))
+            ]
             for sym in syms:
-                if sym.lower() not in {"the", "a", "an", "all", "none", "breaking", "change"}:
+                if sym.lower() not in {
+                    "the",
+                    "a",
+                    "an",
+                    "all",
+                    "none",
+                    "breaking",
+                    "change",
+                }:
                     changes.append(
                         {
                             "symbol": sym,
                             "symbol_new": sym,
-                            "change_type": "signature_change" if any(k in lower_line for k in ["param", "arg", "signature"]) else "behavior_change",
+                            "change_type": (
+                                "signature_change"
+                                if any(
+                                    k in lower_line
+                                    for k in ["param", "arg", "signature"]
+                                )
+                                else "behavior_change"
+                            ),
                             "description": line_clean,
                             "confidence": 0.8,
                         }
@@ -181,12 +229,20 @@ def extract_breaking_changes(
     if not raw_changelog:
         if ecosystem == "npm":
             meta = fetch_npm_metadata(package_name)
+            if not meta:
+                raise RuntimeError(
+                    f"Failed to fetch npm metadata for package '{package_name}'"
+                )
             versions = meta.get("versions", {})
             v_meta = versions.get(new_version, {})
             # Look for release notes in description or readme
             raw_changelog = v_meta.get("description", "") or meta.get("readme", "")
         elif ecosystem == "pypi":
-            meta = fetch_pypi_metadata(package_name)
+            meta = fetch_pypi_metadata(package_name, version=new_version)
+            if not meta:
+                raise RuntimeError(
+                    f"Failed to fetch PyPI metadata for package '{package_name}' at version '{new_version}'"
+                )
             info = meta.get("info", {})
             raw_changelog = info.get("description", "")
 
@@ -197,6 +253,8 @@ def extract_breaking_changes(
             old_version,
             new_version,
         )
-        return []
+        raise ValueError(
+            f"No changelog or release text available for {package_name} ({old_version} -> {new_version})"
+        )
 
     return parse_changelog_changes(raw_changelog)

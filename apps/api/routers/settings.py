@@ -50,9 +50,14 @@ SUPPORTED_PROVIDERS = frozenset(
 
 
 class StoreKeyRequest(BaseModel):
-    provider: str = Field(..., min_length=2, max_length=64, description="Provider ID, e.g. 'openai'")
+    provider: str = Field(
+        ..., min_length=2, max_length=64, description="Provider ID, e.g. 'openai'"
+    )
     key: str = Field(
-        ..., min_length=8, max_length=512, description="Plaintext API key (POST only — never returned)"
+        ...,
+        min_length=8,
+        max_length=512,
+        description="Plaintext API key (POST only — never returned)",
     )
 
     @field_validator("provider")
@@ -127,12 +132,12 @@ async def store_api_key(
 
     user_id = _parse_user_id(auth)
     if user_id is None:
-        raise HTTPException(status_code=403, detail="Demo accounts cannot store API keys")
+        raise HTTPException(
+            status_code=403, detail="Demo accounts cannot store API keys"
+        )
 
     # Encrypt key — plaintext is only in memory during this call
     ciphertext = encrypt_key(body.key)
-    # Discard plaintext reference immediately
-    del body.key
 
     now = datetime.now(timezone.utc)
 
@@ -200,7 +205,9 @@ async def store_api_key(
     if row is None:
         raise HTTPException(status_code=500, detail="Failed to store API key")
 
-    logger.info("settings: stored BYOK key for provider=%s user=%s", body.provider, user_id)
+    logger.info(
+        "settings: stored BYOK key for provider=%s user=%s", body.provider, user_id
+    )
     return StoreKeyResponse(
         provider=row.provider,
         connected=True,
@@ -219,7 +226,9 @@ async def list_api_keys(auth: dict = Depends(require_auth)):
         return ListKeysResponse(keys=[])
 
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(UserApiKey).where(UserApiKey.user_id == user_id))
+        result = await session.execute(
+            select(UserApiKey).where(UserApiKey.user_id == user_id)
+        )
         rows = result.scalars().all()
 
     keys = [
@@ -245,11 +254,15 @@ async def delete_api_key(
     """
     provider_norm = provider.strip().lower()
     if provider_norm not in SUPPORTED_PROVIDERS:
-        raise HTTPException(status_code=404, detail=f"No key found for provider '{provider_norm}'")
+        raise HTTPException(
+            status_code=404, detail=f"No key found for provider '{provider_norm}'"
+        )
 
     user_id = _parse_user_id(auth)
     if user_id is None:
-        raise HTTPException(status_code=403, detail="Demo accounts cannot manage API keys")
+        raise HTTPException(
+            status_code=403, detail="Demo accounts cannot manage API keys"
+        )
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(
@@ -260,9 +273,13 @@ async def delete_api_key(
         )
         row = result.scalar_one_or_none()
         if row is None:
-            raise HTTPException(status_code=404, detail=f"No key found for provider '{provider_norm}'")
+            raise HTTPException(
+                status_code=404, detail=f"No key found for provider '{provider_norm}'"
+            )
         await session.delete(row)
         await session.commit()
 
-    logger.info("settings: deleted BYOK key for provider=%s user=%s", provider_norm, user_id)
+    logger.info(
+        "settings: deleted BYOK key for provider=%s user=%s", provider_norm, user_id
+    )
     return DeleteKeyResponse(provider=provider_norm, connected=False)

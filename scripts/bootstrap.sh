@@ -38,18 +38,18 @@ if [ ! -f "$ENV_PATH" ]; then
     echo "Creating .env from .env.example with secure random secrets..."
     cp "$ENV_EXAMPLE" "$ENV_PATH"
 
-    KEYS=$(python3 -c "import secrets; from cryptography.fernet import Fernet; print(f'{secrets.token_urlsafe(32)}|{Fernet.generate_key().decode()}')")
+    KEYS=$(python3 -c "import base64, secrets; print(f'{secrets.token_urlsafe(32)}|{base64.urlsafe_b64encode(secrets.token_bytes(32)).decode()}')")
     JWT_SECRET=$(echo "$KEYS" | cut -d'|' -f1)
     ENC_KEY=$(echo "$KEYS" | cut -d'|' -f2)
 
     if [[ "$OSTYPE" == "darwin"* ]]; then
         sed -i '' "s|NEXTAUTH_SECRET=.*|NEXTAUTH_SECRET=$JWT_SECRET|" "$ENV_PATH"
         sed -i '' "s|TELEX_ENCRYPTION_KEY=.*|TELEX_ENCRYPTION_KEY=$ENC_KEY|" "$ENV_PATH"
-        sed -i '' "s|DATABASE_URL=.*|DATABASE_URL=sqlite+aiosqlite:///telex.db|" "$ENV_PATH"
+        sed -i '' "s|DATABASE_URL=.*|DATABASE_URL=sqlite+aiosqlite:///telex_demo.db|" "$ENV_PATH"
     else
         sed -i "s|NEXTAUTH_SECRET=.*|NEXTAUTH_SECRET=$JWT_SECRET|" "$ENV_PATH"
         sed -i "s|TELEX_ENCRYPTION_KEY=.*|TELEX_ENCRYPTION_KEY=$ENC_KEY|" "$ENV_PATH"
-        sed -i "s|DATABASE_URL=.*|DATABASE_URL=sqlite+aiosqlite:///telex.db|" "$ENV_PATH"
+        sed -i "s|DATABASE_URL=.*|DATABASE_URL=sqlite+aiosqlite:///telex_demo.db|" "$ENV_PATH"
     fi
     echo -e "\033[1;32mGenerated .env configured for local zero-Docker SQLite.\033[0m"
 else

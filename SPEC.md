@@ -79,10 +79,10 @@ The automated self-healing pipeline follows a strict, type-safe data contract th
   ```python
   class ExtractedChangeSchema(BaseModel):
       change_type: Literal["signature_change", "removed", "renamed", "deprecated", "behavior_change"]
-      symbol_old: Field(str, min_length=1, max_length=256)
-      symbol_new: Optional[Field(str, max_length=256)] = None
-      description: Field(str, min_length=5, max_length=1000)
-      confidence: Field(float, ge=0.0, le=1.0)
+      symbol_old: str = Field(..., min_length=1, max_length=256)
+      symbol_new: str | None = Field(default=None, max_length=256)
+      description: str = Field(..., min_length=5, max_length=1000)
+      confidence: float = Field(..., ge=0.0, le=1.0)
   ```
 - **Bounds**:
   - Max changelog input: 8,000 characters.
@@ -141,7 +141,7 @@ The automated self-healing pipeline follows a strict, type-safe data contract th
   5. Atomically commit verification bundle: patched file + dynamic verification workflow `.github/workflows/telex-verify.yml`.
   6. Capture `verification_commit_sha`.
   7. Poll GitHub check runs:
-     - ONLY observe check runs matching `telex-verify` or `expected_workflow_name`.
+     - ONLY observe check runs matching exact generated workflow identity `expected_workflow_name`.
      - NEVER fall back to unrelated repository check runs.
      - Conclusions:
        - `success` → eligible as passing evidence.
@@ -204,7 +204,7 @@ The automated self-healing pipeline follows a strict, type-safe data contract th
 
 ## 4. Standalone `telex-core` Architecture & Boundaries
 
-`telex-core` is a zero-dependency (no database, no GitHub App, no LLM provider) Python package for AST scanning:
+`telex-core` is a zero-infrastructure (no database, no GitHub App, no LLM provider) Python package for AST scanning:
 
 - **Directory**: `packages/telex-core` or `apps/api/core`
 - **CLI Command**:
@@ -218,7 +218,7 @@ The automated self-healing pipeline follows a strict, type-safe data contract th
   - Import tracking and call-site extraction.
   - JSON and human-readable terminal output.
 - **Platform Sharing**:
-  `apps/api/services/code_scanner.py` directly imports and uses the `telex-core` scanner engine. Zero divergence between CLI and cloud platform.
+  `apps/api/services/code_scanner.py` and `telex-core` are separate, mirrored scanner modules implementing identical Tree-sitter import resolution across all supported languages (the API scanner operates on multi-file repo trees in background worker jobs, while the core CLI scanner operates standalone in local CLI environments).
 
 ---
 

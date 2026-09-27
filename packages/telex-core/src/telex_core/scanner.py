@@ -78,7 +78,9 @@ DEFAULT_IGNORE_DIRS = {
 }
 
 
-def _extract_bindings_js_ts(root, source_bytes: bytes, target_pkg: str, target_symbol: str):
+def _extract_bindings_js_ts(
+    root, source_bytes: bytes, target_pkg: str, target_symbol: str
+):
     direct_bindings = set()
     namespace_bindings = set()
     foreign_bindings = set()
@@ -94,14 +96,22 @@ def _extract_bindings_js_ts(root, source_bytes: bytes, target_pkg: str, target_s
                     break
             if not source_node:
                 continue
-            mod_name = source_bytes[source_node.start_byte : source_node.end_byte].decode("utf-8").strip("'\"")
-            is_target = (mod_name == target_pkg) or mod_name.startswith(f"{target_pkg}/")
+            mod_name = (
+                source_bytes[source_node.start_byte : source_node.end_byte]
+                .decode("utf-8")
+                .strip("'\"")
+            )
+            is_target = (mod_name == target_pkg) or mod_name.startswith(
+                f"{target_pkg}/"
+            )
 
             for c in child.children:
                 if c.type == "import_clause":
                     for clause_child in c.children:
                         if clause_child.type == "identifier":
-                            local_name = source_bytes[clause_child.start_byte : clause_child.end_byte].decode("utf-8")
+                            local_name = source_bytes[
+                                clause_child.start_byte : clause_child.end_byte
+                            ].decode("utf-8")
                             if is_target:
                                 if mod_name == f"{target_pkg}/{target_symbol}":
                                     direct_bindings.add(local_name)
@@ -112,7 +122,9 @@ def _extract_bindings_js_ts(root, source_bytes: bytes, target_pkg: str, target_s
                         elif clause_child.type == "namespace_import":
                             for ns_c in clause_child.children:
                                 if ns_c.type == "identifier":
-                                    local_name = source_bytes[ns_c.start_byte : ns_c.end_byte].decode("utf-8")
+                                    local_name = source_bytes[
+                                        ns_c.start_byte : ns_c.end_byte
+                                    ].decode("utf-8")
                                     if is_target:
                                         namespace_bindings.add(local_name)
                                     else:
@@ -123,21 +135,29 @@ def _extract_bindings_js_ts(root, source_bytes: bytes, target_pkg: str, target_s
                                     name_node = spec.child_by_field_name("name")
                                     alias_node = spec.child_by_field_name("alias")
                                     orig_name = (
-                                        source_bytes[name_node.start_byte : name_node.end_byte].decode("utf-8")
+                                        source_bytes[
+                                            name_node.start_byte : name_node.end_byte
+                                        ].decode("utf-8")
                                         if name_node
                                         else None
                                     )
                                     local_name = (
-                                        source_bytes[alias_node.start_byte : alias_node.end_byte].decode("utf-8")
+                                        source_bytes[
+                                            alias_node.start_byte : alias_node.end_byte
+                                        ].decode("utf-8")
                                         if alias_node
                                         else orig_name
                                     )
                                     if is_target:
                                         if orig_name == target_symbol:
                                             direct_bindings.add(local_name)
-                                        namespace_bindings.add(local_name)
+                                        else:
+                                            namespace_bindings.add(local_name)
                                     else:
-                                        if orig_name == target_symbol or local_name == target_symbol:
+                                        if (
+                                            orig_name == target_symbol
+                                            or local_name == target_symbol
+                                        ):
                                             foreign_bindings.add(local_name)
                                         foreign_bindings.add(local_name)
 
@@ -152,7 +172,11 @@ def _extract_bindings_js_ts(root, source_bytes: bytes, target_pkg: str, target_s
                     if val_node.type == "call_expression":
                         fn_node = val_node.child_by_field_name("function")
                         fn_text = (
-                            source_bytes[fn_node.start_byte : fn_node.end_byte].decode("utf-8") if fn_node else ""
+                            source_bytes[fn_node.start_byte : fn_node.end_byte].decode(
+                                "utf-8"
+                            )
+                            if fn_node
+                            else ""
                         )
                         if fn_text == "require":
                             args_node = val_node.child_by_field_name("arguments")
@@ -160,11 +184,19 @@ def _extract_bindings_js_ts(root, source_bytes: bytes, target_pkg: str, target_s
                             if args_node:
                                 for arg in args_node.children:
                                     if arg.type == "string":
-                                        mod_name = source_bytes[arg.start_byte : arg.end_byte].decode("utf-8").strip("'\"")
+                                        mod_name = (
+                                            source_bytes[arg.start_byte : arg.end_byte]
+                                            .decode("utf-8")
+                                            .strip("'\"")
+                                        )
                                         break
-                            is_target = (mod_name == target_pkg) or mod_name.startswith(f"{target_pkg}/")
+                            is_target = (mod_name == target_pkg) or mod_name.startswith(
+                                f"{target_pkg}/"
+                            )
                             if name_node.type == "identifier":
-                                local_name = source_bytes[name_node.start_byte : name_node.end_byte].decode("utf-8")
+                                local_name = source_bytes[
+                                    name_node.start_byte : name_node.end_byte
+                                ].decode("utf-8")
                                 if is_target:
                                     if mod_name == f"{target_pkg}/{target_symbol}":
                                         direct_bindings.add(local_name)
@@ -178,12 +210,16 @@ def _extract_bindings_js_ts(root, source_bytes: bytes, target_pkg: str, target_s
                                         k_node = pat.child_by_field_name("key")
                                         v_node = pat.child_by_field_name("value")
                                         k_text = (
-                                            source_bytes[k_node.start_byte : k_node.end_byte].decode("utf-8")
+                                            source_bytes[
+                                                k_node.start_byte : k_node.end_byte
+                                            ].decode("utf-8")
                                             if k_node
                                             else ""
                                         )
                                         v_text = (
-                                            source_bytes[v_node.start_byte : v_node.end_byte].decode("utf-8")
+                                            source_bytes[
+                                                v_node.start_byte : v_node.end_byte
+                                            ].decode("utf-8")
                                             if v_node
                                             else ""
                                         )
@@ -191,8 +227,13 @@ def _extract_bindings_js_ts(root, source_bytes: bytes, target_pkg: str, target_s
                                             direct_bindings.add(v_text)
                                         elif not is_target:
                                             foreign_bindings.add(v_text)
-                                    elif pat.type in ("shorthand_property_identifier_pattern", "identifier"):
-                                        t = source_bytes[pat.start_byte : pat.end_byte].decode("utf-8")
+                                    elif pat.type in (
+                                        "shorthand_property_identifier_pattern",
+                                        "identifier",
+                                    ):
+                                        t = source_bytes[
+                                            pat.start_byte : pat.end_byte
+                                        ].decode("utf-8")
                                         if is_target and t == target_symbol:
                                             direct_bindings.add(t)
                                         elif not is_target:
@@ -200,28 +241,41 @@ def _extract_bindings_js_ts(root, source_bytes: bytes, target_pkg: str, target_s
                     elif val_node.type == "new_expression":
                         ctor = val_node.child_by_field_name("constructor")
                         ctor_text = (
-                            source_bytes[ctor.start_byte : ctor.end_byte].decode("utf-8") if ctor else ""
+                            source_bytes[ctor.start_byte : ctor.end_byte].decode(
+                                "utf-8"
+                            )
+                            if ctor
+                            else ""
                         )
+                        ctor_base = ctor_text.split(".")[-1].strip()
                         if (
-                            any(ns in ctor_text for ns in namespace_bindings)
+                            (
+                                ctor_text in namespace_bindings
+                                or ctor_base in namespace_bindings
+                            )
                             and name_node
                             and name_node.type == "identifier"
                         ):
-                            var_name = source_bytes[name_node.start_byte : name_node.end_byte].decode("utf-8")
+                            var_name = source_bytes[
+                                name_node.start_byte : name_node.end_byte
+                            ].decode("utf-8")
                             namespace_bindings.add(var_name)
 
         # Local function declarations: function get(x) { ... }
         elif child.type == "function_declaration":
             fn_name_node = child.child_by_field_name("name")
             if fn_name_node:
-                local_definitions.add(
-                    source_bytes[fn_name_node.start_byte : fn_name_node.end_byte].decode("utf-8")
-                )
+                fn_name = source_bytes[
+                    fn_name_node.start_byte : fn_name_node.end_byte
+                ].decode("utf-8")
+                local_definitions.add((fn_name, child.start_byte, child.end_byte))
 
     return direct_bindings, namespace_bindings, foreign_bindings, local_definitions
 
 
-def _extract_bindings_python(root, source_bytes: bytes, target_pkg: str, target_symbol: str):
+def _extract_bindings_python(
+    root, source_bytes: bytes, target_pkg: str, target_symbol: str
+):
     direct_bindings = set()
     namespace_bindings = set()
     foreign_bindings = set()
@@ -240,12 +294,16 @@ def _extract_bindings_python(root, source_bytes: bytes, target_pkg: str, target_
                     name_node = c.child_by_field_name("name")
                     alias_node = c.child_by_field_name("alias")
                     mod = (
-                        source_bytes[name_node.start_byte : name_node.end_byte].decode("utf-8")
+                        source_bytes[name_node.start_byte : name_node.end_byte].decode(
+                            "utf-8"
+                        )
                         if name_node
                         else ""
                     )
                     alias = (
-                        source_bytes[alias_node.start_byte : alias_node.end_byte].decode("utf-8")
+                        source_bytes[
+                            alias_node.start_byte : alias_node.end_byte
+                        ].decode("utf-8")
                         if alias_node
                         else ""
                     )
@@ -256,7 +314,11 @@ def _extract_bindings_python(root, source_bytes: bytes, target_pkg: str, target_
 
         elif child.type == "import_from_statement":
             mod_node = child.child_by_field_name("module_name")
-            mod = source_bytes[mod_node.start_byte : mod_node.end_byte].decode("utf-8") if mod_node else ""
+            mod = (
+                source_bytes[mod_node.start_byte : mod_node.end_byte].decode("utf-8")
+                if mod_node
+                else ""
+            )
             is_target = (mod == target_pkg) or mod.startswith(f"{target_pkg}.")
             for c in child.children:
                 if c.type == "dotted_name" and c != mod_node:
@@ -264,40 +326,49 @@ def _extract_bindings_python(root, source_bytes: bytes, target_pkg: str, target_
                     if is_target:
                         if sym == target_symbol:
                             direct_bindings.add(sym)
-                        namespace_bindings.add(sym)
+                        else:
+                            namespace_bindings.add(sym)
                     else:
                         foreign_bindings.add(sym)
                 elif c.type == "aliased_import":
                     name_node = c.child_by_field_name("name")
                     alias_node = c.child_by_field_name("alias")
                     sym = (
-                        source_bytes[name_node.start_byte : name_node.end_byte].decode("utf-8")
+                        source_bytes[name_node.start_byte : name_node.end_byte].decode(
+                            "utf-8"
+                        )
                         if name_node
                         else ""
                     )
                     alias = (
-                        source_bytes[alias_node.start_byte : alias_node.end_byte].decode("utf-8")
+                        source_bytes[
+                            alias_node.start_byte : alias_node.end_byte
+                        ].decode("utf-8")
                         if alias_node
                         else ""
                     )
                     if is_target:
                         if sym == target_symbol:
                             direct_bindings.add(alias)
-                        namespace_bindings.add(alias)
+                        else:
+                            namespace_bindings.add(alias)
                     else:
                         foreign_bindings.add(alias)
 
         elif child.type == "function_definition":
             fn_name_node = child.child_by_field_name("name")
             if fn_name_node:
-                local_definitions.add(
-                    source_bytes[fn_name_node.start_byte : fn_name_node.end_byte].decode("utf-8")
-                )
+                fn_name = source_bytes[
+                    fn_name_node.start_byte : fn_name_node.end_byte
+                ].decode("utf-8")
+                local_definitions.add((fn_name, child.start_byte, child.end_byte))
 
     return direct_bindings, namespace_bindings, foreign_bindings, local_definitions
 
 
-def _extract_bindings_go(root, source_bytes: bytes, target_pkg: str, target_symbol: str):
+def _extract_bindings_go(
+    root, source_bytes: bytes, target_pkg: str, target_symbol: str
+):
     """Extract bindings for Go (import specs and local funcs)."""
     direct_bindings = set()
     namespace_bindings = set()
@@ -306,15 +377,32 @@ def _extract_bindings_go(root, source_bytes: bytes, target_pkg: str, target_symb
 
     for child in root.children:
         if child.type == "import_declaration":
+
             def process_import_spec(spec_node):
                 alias_node = spec_node.child_by_field_name("name")
-                path_node = spec_node.child_by_field_name("path") or (spec_node.children[-1] if spec_node.children else None)
+                path_node = spec_node.child_by_field_name("path") or (
+                    spec_node.children[-1] if spec_node.children else None
+                )
                 if not path_node:
                     return
-                path_val = source_bytes[path_node.start_byte : path_node.end_byte].decode("utf-8").strip('"\'')
+                path_val = (
+                    source_bytes[path_node.start_byte : path_node.end_byte]
+                    .decode("utf-8")
+                    .strip("\"'")
+                )
                 base_pkg = path_val.split("/")[-1]
-                alias = source_bytes[alias_node.start_byte : alias_node.end_byte].decode("utf-8") if alias_node else base_pkg
-                is_target = (path_val == target_pkg) or (base_pkg == target_pkg) or path_val.endswith(f"/{target_pkg}")
+                alias = (
+                    source_bytes[alias_node.start_byte : alias_node.end_byte].decode(
+                        "utf-8"
+                    )
+                    if alias_node
+                    else base_pkg
+                )
+                is_target = (
+                    (path_val == target_pkg)
+                    or (base_pkg == target_pkg)
+                    or path_val.endswith(f"/{target_pkg}")
+                )
                 if is_target:
                     if alias == ".":
                         direct_bindings.add(target_symbol)
@@ -335,12 +423,18 @@ def _extract_bindings_go(root, source_bytes: bytes, target_pkg: str, target_symb
         elif child.type == "function_declaration":
             fn_name_node = child.child_by_field_name("name")
             if fn_name_node:
-                local_definitions.add(source_bytes[fn_name_node.start_byte : fn_name_node.end_byte].decode("utf-8"))
+                local_definitions.add(
+                    source_bytes[
+                        fn_name_node.start_byte : fn_name_node.end_byte
+                    ].decode("utf-8")
+                )
 
     return direct_bindings, namespace_bindings, foreign_bindings, local_definitions
 
 
-def _extract_bindings_rust(root, source_bytes: bytes, target_pkg: str, target_symbol: str):
+def _extract_bindings_rust(
+    root, source_bytes: bytes, target_pkg: str, target_symbol: str
+):
     """Extract bindings for Rust (use declarations and functions)."""
     direct_bindings = set()
     namespace_bindings = set()
@@ -349,7 +443,13 @@ def _extract_bindings_rust(root, source_bytes: bytes, target_pkg: str, target_sy
 
     for child in root.children:
         if child.type == "use_declaration":
-            raw_use = source_bytes[child.start_byte : child.end_byte].decode("utf-8").replace("use", "").replace(";", "").strip()
+            raw_use = (
+                source_bytes[child.start_byte : child.end_byte]
+                .decode("utf-8")
+                .replace("use", "")
+                .replace(";", "")
+                .strip()
+            )
             is_target = target_pkg in raw_use
             if is_target:
                 if "::" in raw_use:
@@ -377,12 +477,18 @@ def _extract_bindings_rust(root, source_bytes: bytes, target_pkg: str, target_sy
         elif child.type == "function_item":
             fn_name_node = child.child_by_field_name("name")
             if fn_name_node:
-                local_definitions.add(source_bytes[fn_name_node.start_byte : fn_name_node.end_byte].decode("utf-8"))
+                local_definitions.add(
+                    source_bytes[
+                        fn_name_node.start_byte : fn_name_node.end_byte
+                    ].decode("utf-8")
+                )
 
     return direct_bindings, namespace_bindings, foreign_bindings, local_definitions
 
 
-def _extract_bindings_java(root, source_bytes: bytes, target_pkg: str, target_symbol: str):
+def _extract_bindings_java(
+    root, source_bytes: bytes, target_pkg: str, target_symbol: str
+):
     """Extract bindings for Java (import declarations and methods)."""
     direct_bindings = set()
     namespace_bindings = set()
@@ -391,7 +497,14 @@ def _extract_bindings_java(root, source_bytes: bytes, target_pkg: str, target_sy
 
     for child in root.children:
         if child.type == "import_declaration":
-            raw_import = source_bytes[child.start_byte : child.end_byte].decode("utf-8").replace("import", "").replace("static", "").replace(";", "").strip()
+            raw_import = (
+                source_bytes[child.start_byte : child.end_byte]
+                .decode("utf-8")
+                .replace("import", "")
+                .replace("static", "")
+                .replace(";", "")
+                .strip()
+            )
             is_target = target_pkg.lower() in raw_import.lower()
             last_part = raw_import.split(".")[-1]
             if is_target:
@@ -406,17 +519,27 @@ def _extract_bindings_java(root, source_bytes: bytes, target_pkg: str, target_sy
     def walk_java_vars(node):
         if node.type in ("local_variable_declaration", "field_declaration"):
             t_node = node.child_by_field_name("type")
-            t_text = source_bytes[t_node.start_byte : t_node.end_byte].decode("utf-8") if t_node else ""
+            t_text = (
+                source_bytes[t_node.start_byte : t_node.end_byte].decode("utf-8")
+                if t_node
+                else ""
+            )
             if any(ns.lower() == t_text.lower() for ns in namespace_bindings):
                 for c in node.children:
                     if c.type == "variable_declarator":
                         v_name = c.child_by_field_name("name")
                         if v_name:
-                            namespace_bindings.add(source_bytes[v_name.start_byte : v_name.end_byte].decode("utf-8"))
+                            namespace_bindings.add(
+                                source_bytes[
+                                    v_name.start_byte : v_name.end_byte
+                                ].decode("utf-8")
+                            )
         elif node.type == "method_declaration":
             m_name = node.child_by_field_name("name")
             if m_name:
-                local_definitions.add(source_bytes[m_name.start_byte : m_name.end_byte].decode("utf-8"))
+                local_definitions.add(
+                    source_bytes[m_name.start_byte : m_name.end_byte].decode("utf-8")
+                )
 
         for c in node.children:
             walk_java_vars(c)
@@ -425,7 +548,9 @@ def _extract_bindings_java(root, source_bytes: bytes, target_pkg: str, target_sy
     return direct_bindings, namespace_bindings, foreign_bindings, local_definitions
 
 
-def _extract_bindings_ruby(root, source_bytes: bytes, target_pkg: str, target_symbol: str):
+def _extract_bindings_ruby(
+    root, source_bytes: bytes, target_pkg: str, target_symbol: str
+):
     """Extract bindings for Ruby (require calls and methods)."""
     direct_bindings = set()
     namespace_bindings = set()
@@ -444,12 +569,16 @@ def _extract_bindings_ruby(root, source_bytes: bytes, target_pkg: str, target_sy
         elif child.type in ("method", "singleton_method"):
             m_name = child.child_by_field_name("name")
             if m_name:
-                local_definitions.add(source_bytes[m_name.start_byte : m_name.end_byte].decode("utf-8"))
+                local_definitions.add(
+                    source_bytes[m_name.start_byte : m_name.end_byte].decode("utf-8")
+                )
 
     return direct_bindings, namespace_bindings, foreign_bindings, local_definitions
 
 
-def _extract_bindings_csharp(root, source_bytes: bytes, target_pkg: str, target_symbol: str):
+def _extract_bindings_csharp(
+    root, source_bytes: bytes, target_pkg: str, target_symbol: str
+):
     """Extract bindings for C# (using directives and methods)."""
     direct_bindings = set()
     namespace_bindings = set()
@@ -458,7 +587,14 @@ def _extract_bindings_csharp(root, source_bytes: bytes, target_pkg: str, target_
 
     for child in root.children:
         if child.type == "using_directive":
-            raw_using = source_bytes[child.start_byte : child.end_byte].decode("utf-8").replace("using", "").replace("static", "").replace(";", "").strip()
+            raw_using = (
+                source_bytes[child.start_byte : child.end_byte]
+                .decode("utf-8")
+                .replace("using", "")
+                .replace("static", "")
+                .replace(";", "")
+                .strip()
+            )
             is_target = target_pkg.lower() in raw_using.lower()
             last_part = raw_using.split(".")[-1]
             if is_target:
@@ -519,19 +655,33 @@ def find_usages(
 
     if target_pkg:
         if lang_name in ("typescript", "tsx", "javascript"):
-            direct, ns, foreign, local = _extract_bindings_js_ts(root, source, target_pkg, target_symbol)
+            direct, ns, foreign, local = _extract_bindings_js_ts(
+                root, source, target_pkg, target_symbol
+            )
         elif lang_name == "python":
-            direct, ns, foreign, local = _extract_bindings_python(root, source, target_pkg, target_symbol)
+            direct, ns, foreign, local = _extract_bindings_python(
+                root, source, target_pkg, target_symbol
+            )
         elif lang_name == "go":
-            direct, ns, foreign, local = _extract_bindings_go(root, source, target_pkg, target_symbol)
+            direct, ns, foreign, local = _extract_bindings_go(
+                root, source, target_pkg, target_symbol
+            )
         elif lang_name == "rust":
-            direct, ns, foreign, local = _extract_bindings_rust(root, source, target_pkg, target_symbol)
+            direct, ns, foreign, local = _extract_bindings_rust(
+                root, source, target_pkg, target_symbol
+            )
         elif lang_name == "java":
-            direct, ns, foreign, local = _extract_bindings_java(root, source, target_pkg, target_symbol)
+            direct, ns, foreign, local = _extract_bindings_java(
+                root, source, target_pkg, target_symbol
+            )
         elif lang_name == "ruby":
-            direct, ns, foreign, local = _extract_bindings_ruby(root, source, target_pkg, target_symbol)
+            direct, ns, foreign, local = _extract_bindings_ruby(
+                root, source, target_pkg, target_symbol
+            )
         elif lang_name == "c_sharp":
-            direct, ns, foreign, local = _extract_bindings_csharp(root, source, target_pkg, target_symbol)
+            direct, ns, foreign, local = _extract_bindings_csharp(
+                root, source, target_pkg, target_symbol
+            )
         else:
             direct, ns, foreign, local = set(), set(), set(), set()
 
@@ -545,6 +695,16 @@ def find_usages(
 
     usages: list[dict] = []
 
+    def _is_locally_shadowed(fn_name: str, call_node) -> bool:
+        for item in local:
+            if isinstance(item, tuple) and len(item) == 3:
+                name, s_byte, e_byte = item
+                if name == fn_name and s_byte <= call_node.start_byte <= e_byte:
+                    return True
+            elif isinstance(item, str) and item == fn_name:
+                return True
+        return False
+
     def check_call(node):
         call_type = selected_config.get("call_node_type", "call_expression")
         if node.type == call_type:
@@ -556,75 +716,188 @@ def find_usages(
                 fn_child = node.child_by_field_name("function")
                 if fn_child:
                     if fn_child.type == "identifier":
-                        fn_text = source[fn_child.start_byte : fn_child.end_byte].decode("utf-8", errors="replace")
+                        fn_text = source[
+                            fn_child.start_byte : fn_child.end_byte
+                        ].decode("utf-8", errors="replace")
                     elif fn_child.type == "member_expression":
                         p = fn_child.child_by_field_name("property")
                         o = fn_child.child_by_field_name("object")
-                        prop_text = source[p.start_byte : p.end_byte].decode("utf-8", errors="replace") if p else ""
-                        receiver_text = source[o.start_byte : o.end_byte].decode("utf-8", errors="replace") if o else ""
+                        prop_text = (
+                            source[p.start_byte : p.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
+                            if p
+                            else ""
+                        )
+                        receiver_text = (
+                            source[o.start_byte : o.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
+                            if o
+                            else ""
+                        )
             elif lang_name == "python":
                 fn_child = node.child_by_field_name("function")
                 if fn_child:
                     if fn_child.type == "identifier":
-                        fn_text = source[fn_child.start_byte : fn_child.end_byte].decode("utf-8", errors="replace")
+                        fn_text = source[
+                            fn_child.start_byte : fn_child.end_byte
+                        ].decode("utf-8", errors="replace")
                     elif fn_child.type == "attribute":
                         p = fn_child.child_by_field_name("attribute")
                         o = fn_child.child_by_field_name("object")
-                        prop_text = source[p.start_byte : p.end_byte].decode("utf-8", errors="replace") if p else ""
-                        receiver_text = source[o.start_byte : o.end_byte].decode("utf-8", errors="replace") if o else ""
+                        prop_text = (
+                            source[p.start_byte : p.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
+                            if p
+                            else ""
+                        )
+                        receiver_text = (
+                            source[o.start_byte : o.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
+                            if o
+                            else ""
+                        )
             elif lang_name == "go":
                 fn_child = node.child_by_field_name("function")
                 if fn_child:
                     if fn_child.type == "identifier":
-                        fn_text = source[fn_child.start_byte : fn_child.end_byte].decode("utf-8", errors="replace")
+                        fn_text = source[
+                            fn_child.start_byte : fn_child.end_byte
+                        ].decode("utf-8", errors="replace")
                     elif fn_child.type == "selector_expression":
                         o = fn_child.child_by_field_name("operand")
                         p = fn_child.child_by_field_name("field")
-                        receiver_text = source[o.start_byte : o.end_byte].decode("utf-8", errors="replace") if o else ""
-                        prop_text = source[p.start_byte : p.end_byte].decode("utf-8", errors="replace") if p else ""
+                        receiver_text = (
+                            source[o.start_byte : o.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
+                            if o
+                            else ""
+                        )
+                        prop_text = (
+                            source[p.start_byte : p.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
+                            if p
+                            else ""
+                        )
             elif lang_name == "rust":
                 fn_child = node.child_by_field_name("function")
                 if fn_child:
                     if fn_child.type == "identifier":
-                        fn_text = source[fn_child.start_byte : fn_child.end_byte].decode("utf-8", errors="replace")
+                        fn_text = source[
+                            fn_child.start_byte : fn_child.end_byte
+                        ].decode("utf-8", errors="replace")
                     elif fn_child.type == "scoped_identifier":
                         path_node = fn_child.child_by_field_name("path")
                         name_node = fn_child.child_by_field_name("name")
-                        receiver_text = source[path_node.start_byte : path_node.end_byte].decode("utf-8", errors="replace") if path_node else ""
-                        prop_text = source[name_node.start_byte : name_node.end_byte].decode("utf-8", errors="replace") if name_node else ""
+                        receiver_text = (
+                            source[path_node.start_byte : path_node.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
+                            if path_node
+                            else ""
+                        )
+                        prop_text = (
+                            source[name_node.start_byte : name_node.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
+                            if name_node
+                            else ""
+                        )
                     elif fn_child.type == "field_expression":
                         o = fn_child.child_by_field_name("value")
                         p = fn_child.child_by_field_name("field")
-                        receiver_text = source[o.start_byte : o.end_byte].decode("utf-8", errors="replace") if o else ""
-                        prop_text = source[p.start_byte : p.end_byte].decode("utf-8", errors="replace") if p else ""
+                        receiver_text = (
+                            source[o.start_byte : o.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
+                            if o
+                            else ""
+                        )
+                        prop_text = (
+                            source[p.start_byte : p.end_byte].decode(
+                                "utf-8", errors="replace"
+                            )
+                            if p
+                            else ""
+                        )
             elif lang_name == "java":
                 name_node = node.child_by_field_name("name")
                 obj_node = node.child_by_field_name("object")
-                prop_text = source[name_node.start_byte : name_node.end_byte].decode("utf-8", errors="replace") if name_node else ""
-                receiver_text = source[obj_node.start_byte : obj_node.end_byte].decode("utf-8", errors="replace") if obj_node else ""
+                prop_text = (
+                    source[name_node.start_byte : name_node.end_byte].decode(
+                        "utf-8", errors="replace"
+                    )
+                    if name_node
+                    else ""
+                )
+                receiver_text = (
+                    source[obj_node.start_byte : obj_node.end_byte].decode(
+                        "utf-8", errors="replace"
+                    )
+                    if obj_node
+                    else ""
+                )
                 if not receiver_text:
                     fn_text = prop_text
             elif lang_name == "ruby":
                 m_node = node.child_by_field_name("method")
                 r_node = node.child_by_field_name("receiver")
-                prop_text = source[m_node.start_byte : m_node.end_byte].decode("utf-8", errors="replace") if m_node else ""
-                receiver_text = source[r_node.start_byte : r_node.end_byte].decode("utf-8", errors="replace") if r_node else ""
+                prop_text = (
+                    source[m_node.start_byte : m_node.end_byte].decode(
+                        "utf-8", errors="replace"
+                    )
+                    if m_node
+                    else ""
+                )
+                receiver_text = (
+                    source[r_node.start_byte : r_node.end_byte].decode(
+                        "utf-8", errors="replace"
+                    )
+                    if r_node
+                    else ""
+                )
                 if not prop_text and not receiver_text:
                     c0 = node.children[0] if node.children else None
                     if c0 and c0.type == "identifier":
-                        fn_text = source[c0.start_byte : c0.end_byte].decode("utf-8", errors="replace")
+                        fn_text = source[c0.start_byte : c0.end_byte].decode(
+                            "utf-8", errors="replace"
+                        )
             elif lang_name == "c_sharp":
-                expr_node = node.child_by_field_name("expression") or (node.children[0] if node.children else None)
+                expr_node = node.child_by_field_name("expression") or (
+                    node.children[0] if node.children else None
+                )
                 if expr_node:
                     if expr_node.type == "identifier":
-                        fn_text = source[expr_node.start_byte : expr_node.end_byte].decode("utf-8", errors="replace")
-                    elif expr_node.type == "member_access_expression" and len(expr_node.children) >= 3:
-                        receiver_text = source[expr_node.children[0].start_byte : expr_node.children[0].end_byte].decode("utf-8", errors="replace")
-                        prop_text = source[expr_node.children[2].start_byte : expr_node.children[2].end_byte].decode("utf-8", errors="replace")
+                        fn_text = source[
+                            expr_node.start_byte : expr_node.end_byte
+                        ].decode("utf-8", errors="replace")
+                    elif (
+                        expr_node.type == "member_access_expression"
+                        and len(expr_node.children) >= 3
+                    ):
+                        receiver_text = source[
+                            expr_node.children[0]
+                            .start_byte : expr_node.children[0]
+                            .end_byte
+                        ].decode("utf-8", errors="replace")
+                        prop_text = source[
+                            expr_node.children[2]
+                            .start_byte : expr_node.children[2]
+                            .end_byte
+                        ].decode("utf-8", errors="replace")
 
             if fn_text:
                 if target_pkg:
-                    if fn_text in direct and fn_text not in foreign and fn_text not in local:
+                    if (
+                        fn_text in direct
+                        and fn_text not in foreign
+                        and not _is_locally_shadowed(fn_text, node)
+                    ):
                         _record_usage(node)
                 else:
                     if fn_text == target_symbol:
@@ -634,9 +907,11 @@ def find_usages(
                     _record_usage(node)
                 else:
                     base_obj = receiver_text.split(".")[0].split("(")[0].strip()
-                    if (receiver_text in ns or base_obj in ns or any(item in receiver_text for item in ns)) and (
-                        receiver_text not in foreign and base_obj not in foreign
-                    ):
+                    if (
+                        receiver_text in ns
+                        or base_obj in ns
+                        or any(item in receiver_text for item in ns)
+                    ) and (receiver_text not in foreign and base_obj not in foreign):
                         _record_usage(node)
 
         for c in node.children:
@@ -684,7 +959,9 @@ def scan_directory(
         logger.error("Path does not exist: %s", target_path)
         return []
 
-    valid_exts = extensions or {ext for cfg in LANGUAGE_CONFIG.values() for ext in cfg["extensions"]}
+    valid_exts = extensions or {
+        ext for cfg in LANGUAGE_CONFIG.values() for ext in cfg["extensions"]
+    }
     ignores = ignore_dirs or DEFAULT_IGNORE_DIRS
 
     all_usages: list[dict] = []
@@ -693,7 +970,9 @@ def scan_directory(
         if target.suffix.lower() in valid_exts:
             try:
                 content = target.read_bytes()
-                all_usages.extend(find_usages(str(target), content, symbol_name, package_name))
+                all_usages.extend(
+                    find_usages(str(target), content, symbol_name, package_name)
+                )
             except Exception as exc:
                 logger.warning("Could not read file %s: %s", target, exc)
         return all_usages

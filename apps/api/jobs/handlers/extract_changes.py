@@ -34,7 +34,9 @@ def _publish_change_detected(repo_id_str, dc_id_str, payload_dict):
                 }
             )
         except Exception as exc:
-            logger.warning("event_bus publish change_detected failed (non-fatal): %s", exc)
+            logger.warning(
+                "event_bus publish change_detected failed (non-fatal): %s", exc
+            )
 
     try:
         loop = asyncio.get_running_loop()
@@ -59,7 +61,9 @@ async def run(payload: dict) -> None:
     async with AsyncSessionLocal() as session:
         pv = await session.get(PackageVersion, package_version_id)
         if pv is None:
-            logger.error("extract_changes: PackageVersion %s not found", package_version_id)
+            logger.error(
+                "extract_changes: PackageVersion %s not found", package_version_id
+            )
             return
 
         # Fetch changelog if not supplied in payload
@@ -67,17 +71,26 @@ async def run(payload: dict) -> None:
         ecosystem = payload.get("ecosystem", "npm")
 
         if not changelog:
-            logger.info("extract_changes: attempting registry changelog fetch for %s@%s", package_name, pv.version)
+            logger.info(
+                "extract_changes: attempting registry changelog fetch for %s@%s",
+                package_name,
+                pv.version,
+            )
             from services.registry_watcher import fetch_latest_version
+
             reg_info = await fetch_latest_version(package_name, ecosystem=ecosystem)
-            if reg_info:
-                changelog = reg_info.get("changelog_raw") or reg_info.get("changelog_url") or ""
+            if reg_info and reg_info.get("version") == pv.version:
+                changelog = reg_info.get("changelog_raw") or ""
                 if changelog:
                     pv.changelog_raw = changelog
                     await session.commit()
 
         if not changelog:
-            logger.warning("extract_changes: no changelog available for %s@%s", package_name, pv.version)
+            logger.warning(
+                "extract_changes: no changelog available for %s@%s",
+                package_name,
+                pv.version,
+            )
 
         old_version = payload.get("old_version")
         if not old_version or old_version == "unknown":
@@ -105,12 +118,18 @@ async def run(payload: dict) -> None:
             except Exception:
                 old_version = "unknown"
 
-
         from datetime import datetime, timezone
 
         # First version ever seen for this package: treat as baseline, no prior breaking changes
-        if old_version in ("none", "unknown", None) and payload.get("old_version") == "none":
-            logger.info("extract_changes: initial version %s@%s recorded as baseline", package_name, pv.version)
+        if (
+            old_version in ("none", "unknown", None)
+            and payload.get("old_version") == "none"
+        ):
+            logger.info(
+                "extract_changes: initial version %s@%s recorded as baseline",
+                package_name,
+                pv.version,
+            )
             pv.scanned_at = datetime.now(timezone.utc)
             await session.commit()
             return
@@ -124,7 +143,9 @@ async def run(payload: dict) -> None:
 
         if not changes:
             logger.info(
-                "extract_changes: no breaking changes found in %s@%s", package_name, pv.version
+                "extract_changes: no breaking changes found in %s@%s",
+                package_name,
+                pv.version,
             )
             pv.scanned_at = datetime.now(timezone.utc)
             await session.commit()
@@ -224,5 +245,8 @@ async def run(payload: dict) -> None:
             )
 
     logger.info(
-        "extract_changes: stored %d changes for %s@%s", len(changes), package_name, pv_version
+        "extract_changes: stored %d changes for %s@%s",
+        len(changes),
+        package_name,
+        pv_version,
     )

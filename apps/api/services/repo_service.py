@@ -21,7 +21,9 @@ from services.patch_providers.gemini import GeminiProvider
 logger = logging.getLogger(__name__)
 
 # In-memory cache with 60s TTL to prevent GitHub rate limits
-WORKSPACE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+WORKSPACE_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..")
+)
 
 _CACHE: dict[str, Any] = {
     "repos": None,
@@ -93,10 +95,15 @@ def fetch_live_github_commits(
                         "email": author_obj.get("email") or "dev@github.com",
                         "relative_time": rel_time,
                         "date": rel_time,
-                        "message": commit_obj.get("message", "Update codebase").split("\n")[0],
+                        "message": commit_obj.get("message", "Update codebase").split(
+                            "\n"
+                        )[0],
                     }
                 )
-            _CACHE["commits_by_repo"][cache_key] = {"data": commits, "time": time.time()}
+            _CACHE["commits_by_repo"][cache_key] = {
+                "data": commits,
+                "time": time.time(),
+            }
             return commits
     except Exception:
         return []
@@ -104,10 +111,18 @@ def fetch_live_github_commits(
 
 def get_local_git_commits(repo_path: str, limit: int = 5) -> list[dict]:
     """Fallback local git parser."""
-    if not os.path.exists(repo_path) or not os.path.exists(os.path.join(repo_path, ".git")):
+    if not os.path.exists(repo_path) or not os.path.exists(
+        os.path.join(repo_path, ".git")
+    ):
         return []
     try:
-        cmd = ["git", "log", f"-n{limit}", "--pretty=format:%H|%an|%ae|%ad|%s", "--date=relative"]
+        cmd = [
+            "git",
+            "log",
+            f"-n{limit}",
+            "--pretty=format:%H|%an|%ae|%ad|%s",
+            "--date=relative",
+        ]
         res = subprocess.run(cmd, cwd=repo_path, capture_output=True, text=True)
         commits = []
         for line in res.stdout.strip().split("\n"):
@@ -295,7 +310,9 @@ async def sync_github_app_repositories_async(user_id: str | None = None) -> None
     try:
         private_key = settings.github_app_private_key.replace("\\n", "\n").strip("\"'")
         integration = GithubIntegration(int(settings.github_app_id), private_key)
-        installations = await asyncio.to_thread(lambda: list(integration.get_installations()))
+        installations = await asyncio.to_thread(
+            lambda: list(integration.get_installations())
+        )
 
         async with AsyncSessionLocal() as session:
             current_user = None
@@ -315,20 +332,24 @@ async def sync_github_app_repositories_async(user_id: str | None = None) -> None
                 )
 
                 res = await session.execute(
-                    select(Installation).where(Installation.github_installation_id == inst.id)
+                    select(Installation).where(
+                        Installation.github_installation_id == inst.id
+                    )
                 )
                 db_inst = res.scalar_one_or_none()
                 if not db_inst:
                     db_inst = Installation(
                         github_installation_id=inst.id,
                         account_login=account_login,
-                        account_type=inst.raw_data.get("account", {}).get("type", "User"),
+                        account_type=inst.raw_data.get("account", {}).get(
+                            "type", "User"
+                        ),
                     )
                     session.add(db_inst)
                     await session.flush()
 
-                if current_user:
-                    if account_login.lower() == current_user.github_login.lower() or db_inst.installed_by is None:
+                if current_user and current_user.github_login:
+                    if account_login.lower() == current_user.github_login.lower():
                         db_inst.installed_by = current_user.id
 
                 async with httpx.AsyncClient(timeout=15.0) as client:
@@ -366,7 +387,9 @@ async def sync_github_app_repositories_async(user_id: str | None = None) -> None
                                 db_repo.installation_id = db_inst.id
                                 db_repo.is_active = True
                                 db_repo.full_name = gr["full_name"]
-                                db_repo.default_branch = gr.get("default_branch", "main")
+                                db_repo.default_branch = gr.get(
+                                    "default_branch", "main"
+                                )
                             else:
                                 db_repo = Repo(
                                     installation_id=db_inst.id,
@@ -381,7 +404,9 @@ async def sync_github_app_repositories_async(user_id: str | None = None) -> None
                         all_inst_repos = (
                             (
                                 await session.execute(
-                                    select(Repo).where(Repo.installation_id == db_inst.id)
+                                    select(Repo).where(
+                                        Repo.installation_id == db_inst.id
+                                    )
                                 )
                             )
                             .scalars()
@@ -424,13 +449,17 @@ async def get_core_repositories_async(
             stmt = select(Repo).where(Repo.is_active == True)
             if user_id:
                 user_uuid = uuid.UUID(user_id)
-                user_res = await session.execute(select(User).where(User.id == user_uuid))
+                user_res = await session.execute(
+                    select(User).where(User.id == user_uuid)
+                )
                 cur_user = user_res.scalar_one_or_none()
                 user_login = cur_user.github_login.lower() if cur_user else None
 
                 conditions = [Installation.installed_by == user_uuid]
                 if user_login:
-                    conditions.append(func.lower(Installation.account_login) == user_login)
+                    conditions.append(
+                        func.lower(Installation.account_login) == user_login
+                    )
 
                 user_inst_res = await session.execute(
                     select(Installation.id).where(or_(*conditions))
@@ -454,7 +483,9 @@ async def get_core_repositories_async(
                     inst_records = (
                         (
                             await session.execute(
-                                select(Installation).where(Installation.id.in_(inst_ids))
+                                select(Installation).where(
+                                    Installation.id.in_(inst_ids)
+                                )
                             )
                         )
                         .scalars()
@@ -465,7 +496,8 @@ async def get_core_repositories_async(
                             from services.github_service import get_installation_token
 
                             token = await asyncio.to_thread(
-                                get_installation_token, inst_record.github_installation_id
+                                get_installation_token,
+                                inst_record.github_installation_id,
                             )
                             if token:
                                 inst_token_map[inst_record.id] = token
@@ -531,7 +563,9 @@ async def get_core_repositories_async(
                 hydrated = await asyncio.gather(*(hydrate_repo(r) for r in db_repos))
                 personal_repos = [h for h in hydrated if isinstance(h, dict)]
     except Exception as exc:
-        logger.exception("get_core_repositories_async failed to load repositories: %s", exc)
+        logger.exception(
+            "get_core_repositories_async failed to load repositories: %s", exc
+        )
         personal_repos = []
 
     # Only return benchmarks if explicitly requested
@@ -541,7 +575,9 @@ async def get_core_repositories_async(
     # Hydrate benchmarks with latest commits
     hydrated_benchmarks = []
     for b in BENCHMARK_REPOS:
-        commits = await asyncio.to_thread(fetch_live_github_commits, str(b["full_name"]), 3)
+        commits = await asyncio.to_thread(
+            fetch_live_github_commits, str(b["full_name"]), 3
+        )
         b_copy: dict[str, Any] = dict(b)
         b_copy["commits"] = commits
         b_copy["last_commit"] = commits[0] if commits else None

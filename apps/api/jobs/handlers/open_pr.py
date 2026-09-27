@@ -46,7 +46,9 @@ def build_classification_table(
         if is_semantic_risk
         else "[Safe] Mechanical change"
     )
-    install_scripts_str = "allowed (opt-in)" if allow_install_scripts else "blocked (default)"
+    install_scripts_str = (
+        "allowed (opt-in)" if allow_install_scripts else "blocked (default)"
+    )
     table = (
         "## Change classification\n"
         "| Field | Value |\n"
@@ -110,7 +112,11 @@ async def run(payload: dict) -> None:
     )
     from db.session import AsyncSessionLocal
     from services.change_extractor import classify_risk
-    from services.github_service import create_check_run, get_installation_client, open_patch_pr
+    from services.github_service import (
+        create_check_run,
+        get_installation_client,
+        open_patch_pr,
+    )
 
     repo_id = uuid.UUID(payload["repo_id"])
     pv_id_raw = payload.get("package_version_id")
@@ -249,6 +255,7 @@ async def run(payload: dict) -> None:
                     return
 
     import re
+
     expected_base_sha = payload.get("base_sha")
     if not expected_base_sha:
         for vr in vr_map.values():
@@ -265,7 +272,9 @@ async def run(payload: dict) -> None:
     # Change 16: Verify repository base commit has not drifted since validation
     if expected_base_sha:
         try:
-            default_branch_obj = await asyncio.to_thread(gh_repo.get_branch, repo_default_branch)
+            default_branch_obj = await asyncio.to_thread(
+                gh_repo.get_branch, repo_default_branch
+            )
             current_head_sha = default_branch_obj.commit.sha
             if current_head_sha != expected_base_sha:
                 logger.warning(
@@ -276,6 +285,7 @@ async def run(payload: dict) -> None:
                     repo_id,
                 )
                 from services.incident_events import record_event
+
                 async with AsyncSessionLocal() as session:
                     await record_event(
                         session,
@@ -290,7 +300,25 @@ async def run(payload: dict) -> None:
                     await session.commit()
                 return
         except Exception as drift_exc:
-            logger.warning("open_pr: drift check encountered exception for %s: %s", repo_full_name, drift_exc)
+            logger.warning(
+                "open_pr: drift check encountered exception for %s: %s",
+                repo_full_name,
+                drift_exc,
+            )
+            from services.incident_events import record_event
+
+            async with AsyncSessionLocal() as session:
+                await record_event(
+                    session,
+                    event_type="patch_failed",
+                    repo_id=repo_id,
+                    payload={
+                        "reason": f"drift_check_failed: {drift_exc}",
+                        "expected_base_sha": expected_base_sha,
+                    },
+                )
+                await session.commit()
+            return
 
     from services.github_service import apply_diff_to_content, get_installation_client
 
@@ -301,7 +329,9 @@ async def run(payload: dict) -> None:
             continue
         try:
             content_file = await asyncio.to_thread(
-                gh_repo.get_contents, cu.file_path, ref=repo_default_branch
+                gh_repo.get_contents,
+                cu.file_path,
+                ref=expected_base_sha or repo_default_branch,
             )
             original = content_file.decoded_content.decode("utf-8")  # type: ignore
         except Exception as exc:
@@ -312,6 +342,7 @@ async def run(payload: dict) -> None:
                 exc,
             )
             from services.incident_events import record_event
+
             async with AsyncSessionLocal() as session:
                 await record_event(
                     session,
@@ -330,7 +361,9 @@ async def run(payload: dict) -> None:
 
         # Compute patched content by applying the validated diff
         # Change 15: If apply_diff_to_content returns apply_ok=False, FAIL CLOSED.
-        apply_ok, new_content, apply_log = apply_diff_to_content(cu.file_path, original, p.diff)
+        apply_ok, new_content, apply_log = apply_diff_to_content(
+            cu.file_path, original, p.diff
+        )
         if not apply_ok:
             logger.error(
                 "open_pr: could not apply diff to %s for repo %s: %s — failing closed, aborting PR",
@@ -339,6 +372,7 @@ async def run(payload: dict) -> None:
                 apply_log,
             )
             from services.incident_events import record_event
+
             async with AsyncSessionLocal() as session:
                 await record_event(
                     session,
@@ -381,7 +415,8 @@ async def run(payload: dict) -> None:
 
     # If any included patch has no detected_change (unclassified) or triggers classify_risk, flag semantic risk
     is_semantic_risk = any(
-        dc is None or classify_risk(dc.change_type, dc.confidence) for dc in included_dcs
+        dc is None or classify_risk(dc.change_type, dc.confidence)
+        for dc in included_dcs
     )
 
     known_dcs = [dc for dc in included_dcs if dc is not None]
@@ -430,7 +465,9 @@ async def run(payload: dict) -> None:
     )
 
     base_title = f"chore(deps): auto-patch for {pkg_name}@{pv_version}"
-    repo_allow_scripts = getattr(repo, "allow_install_scripts", False) if repo else False
+    repo_allow_scripts = (
+        getattr(repo, "allow_install_scripts", False) if repo else False
+    )
 
     pr_title, classification_table = build_pr_metadata(
         change_type=dc_change_type,
@@ -459,7 +496,9 @@ async def run(payload: dict) -> None:
                 f"- **Applied Cleanly**: {'Passed' if vr.applies_cleanly else 'Failed'}"
             )
             if vr.typechecks is not None:
-                vr_evidence.append(f"- **Typecheck**: {'Passed' if vr.typechecks else 'Failed'}")
+                vr_evidence.append(
+                    f"- **Typecheck**: {'Passed' if vr.typechecks else 'Failed'}"
+                )
             else:
                 vr_evidence.append("- **Typecheck**: N/A (no config found)")
             if vr.tests_pass is not None:
@@ -471,9 +510,13 @@ async def run(payload: dict) -> None:
 
         body_lines.append(f"\n### Patch {i}: `{pd['file_path']}`\n")
         if vr_evidence:
-            body_lines.append("**Verification Gate Evidence:**\n" + "\n".join(vr_evidence) + "\n")
+            body_lines.append(
+                "**Verification Gate Evidence:**\n" + "\n".join(vr_evidence) + "\n"
+            )
         else:
-            body_lines.append("**Verification Gate Evidence:** No verification run recorded.\n")
+            body_lines.append(
+                "**Verification Gate Evidence:** No verification run recorded.\n"
+            )
         body_lines.append(f"```diff\n{pd['diff']}\n```\n")
 
     summary = "\n".join(body_lines)
@@ -524,7 +567,9 @@ async def run(payload: dict) -> None:
             fpath = pd.get("file_path", f"patch #{idx}")
             if vr is None:
                 has_missing = True
-                summary_rows.append(f"- `{fpath}`: no validation run recorded (neutral)")
+                summary_rows.append(
+                    f"- `{fpath}`: no validation run recorded (neutral)"
+                )
                 continue
 
             gate_passed = (
@@ -542,7 +587,9 @@ async def run(payload: dict) -> None:
                 )
             else:
                 mode_lbl = getattr(vr, "verification_mode", None) or "structural_only"
-                summary_rows.append(f"- `{fpath}`: passed all gates (mode: `{mode_lbl}`)")
+                summary_rows.append(
+                    f"- `{fpath}`: passed all gates (mode: `{mode_lbl}`)"
+                )
 
         if has_failure:
             check_conclusion = "failure"
@@ -552,7 +599,9 @@ async def run(payload: dict) -> None:
             check_title = "Telex: verification incomplete (missing validation run)"
         else:
             check_conclusion = "success"
-            check_title = f"Telex: all {len(patch_dicts)} patch(es) verified (all gates passed)"
+            check_title = (
+                f"Telex: all {len(patch_dicts)} patch(es) verified (all gates passed)"
+            )
 
         check_summary = "\n".join(summary_rows)
 
@@ -567,7 +616,9 @@ async def run(payload: dict) -> None:
         )
     except Exception as check_exc:
         # Non-fatal — log and continue; the PR has already been opened
-        logger.warning("open_pr: could not create Check Run for PR #%d: %s", pr_number, check_exc)
+        logger.warning(
+            "open_pr: could not create Check Run for PR #%d: %s", pr_number, check_exc
+        )
 
     # Record the PR in the database
     async with AsyncSessionLocal() as session:

@@ -171,9 +171,11 @@ Telex is built for:
 - **Maintainers of Mission-Critical Services**: Protect systems with strict, evidence-bound verification where passing tests on the exact commit SHA are required before any code is approved.
 
 **Supported Ecosystems & Languages:**
-- **Automated Dependency Repair & AST Scanner (9 Languages)**:
-  - **Node / TypeScript**: `.ts`, `.tsx`, `.mts`, `.cts` (`package.json`)
-  - **JavaScript**: `.js`, `.jsx`, `.mjs`, `.cjs`
+- **Automated Dependency Repair & AST Scanner (11 Languages with implemented import queries)**:
+  - **Node / TypeScript**: `.ts`, `.mts`, `.cts` (`package.json`)
+  - **TSX**: `.tsx`
+  - **JavaScript**: `.js`, `.mjs`, `.cjs`
+  - **JSX**: `.jsx`
   - **Python**: `.py` (`pyproject.toml`, `requirements.txt`, `setup.py`)
   - **Go**: `.go` (`go.mod`, `go.sum`)
   - **Rust**: `.rs` (`Cargo.toml`, `Cargo.lock`)
@@ -197,15 +199,15 @@ Telex is built for:
 ## <a id="concrete-example"></a>04. Concrete Before/After Example
 
 ### Scenario: Upgrading `axios` (v0.x → v1.x)
-In Axios v1.x, the legacy `CancelToken` factory and source API was deprecated and removed in favor of the standard Web API `AbortController`.
+In Axios v1.x, the legacy `CancelToken` factory and source API was deprecated (while remaining backward-compatible) in favor of the standard Web API `AbortController` as an optional modernization.
 
 #### Upstream Change Extracted by Telex:
 ```json
 {
-  "change_type": "removed",
+  "change_type": "deprecated",
   "symbol_old": "axios.CancelToken.source",
   "symbol_new": "new AbortController()",
-  "description": "CancelToken.source() removed in favor of native AbortController signal."
+  "description": "CancelToken.source() deprecated in favor of native AbortController signal."
 }
 ```
 

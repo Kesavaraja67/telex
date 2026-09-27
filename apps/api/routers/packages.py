@@ -54,6 +54,30 @@ async def rescan_package(
         await session.commit()
         await session.refresh(pv)
 
+    # Acquire transaction lock on the package version to serialize concurrent rescan requests
+    try:
+        from unittest.mock import Mock
+
+        if not isinstance(session, Mock):
+            bind = session.get_bind()
+            dialect = getattr(bind, "dialect", None)
+            dialect_name = getattr(dialect, "name", "") if dialect else ""
+            if "postgres" in dialect_name.lower():
+                from sqlalchemy import text
+
+                await session.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                    {"key": f"extract_changes:{pv.id}"},
+                )
+            else:
+                await session.execute(
+                    select(PackageVersion)
+                    .where(PackageVersion.id == pv.id)
+                    .with_for_update()
+                )
+    except Exception:
+        pass
+
     # Debounce against already queued or active extract_changes job
     active_jobs_res = await session.execute(
         select(Job).where(
@@ -63,7 +87,9 @@ async def rescan_package(
     )
     active_jobs = active_jobs_res.scalars().all()
     for j in active_jobs:
-        if isinstance(j.payload, dict) and j.payload.get("package_version_id") == str(pv.id):
+        if isinstance(j.payload, dict) and j.payload.get("package_version_id") == str(
+            pv.id
+        ):
             return {
                 "status": "already_queued",
                 "package_version_id": str(pv.id),

@@ -45,22 +45,54 @@ def verify_parse(file_path: str, source: bytes) -> bool:
         return False
 
 
-def run_command(cmd: str, cwd: str | None = None, timeout: float = 60.0) -> tuple[bool, str]:
-    """Execute a local shell command and return (success: bool, output: str)."""
+def run_command(
+    cmd: str, cwd: str | None = None, timeout: float = 60.0
+) -> tuple[bool, str]:
+    """Execute a local shell command in a dedicated process group and return (success: bool, output: str).
+
+    Security Note:
+    cmd is executed with shell=True. The command string is assumed to be trusted
+    (e.g., repository test or typecheck commands configured by the project owner).
+    Callers must not pass untrusted or externally-controlled input.
+    """
+    import signal
+    import sys
+
+    kwargs: dict[str, Any] = {
+        "cwd": cwd,
+        "shell": True,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "text": True,
+    }
+    if sys.platform == "win32":
+        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        kwargs["start_new_session"] = True
+
     try:
-        proc = subprocess.run(
-            cmd,
-            shell=True,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
-        output = proc.stdout + "\n" + proc.stderr
-        return proc.returncode == 0, output.strip()
-    except subprocess.TimeoutExpired:
-        return False, f"Command timed out after {timeout}s: {cmd}"
+        proc = subprocess.Popen(cmd, **kwargs)
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+            output = (stdout or "") + "\n" + (stderr or "")
+            return proc.returncode == 0, output.strip()
+        except subprocess.TimeoutExpired:
+            if sys.platform == "win32":
+                try:
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                        capture_output=True,
+                        check=False,
+                    )
+                except Exception:
+                    proc.kill()
+            else:
+                try:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                except Exception:
+                    proc.kill()
+            proc.communicate()
+            return False, f"Command timed out after {timeout}s: {cmd}"
     except Exception as exc:
         return False, f"Failed to execute command '{cmd}': {exc}"
 
@@ -76,6 +108,11 @@ def verify_directory(
     1. Parse verification across all source files
     2. Typecheck verification (if typecheck_cmd provided)
     3. Test verification (if test_cmd provided)
+
+    Security Note:
+    test_cmd and typecheck_cmd are executed with shell=True via run_command.
+    They must be trusted command strings configured by the project maintainer,
+    never untrusted or externally-controlled input.
     """
     target = Path(target_path)
     if not target.exists():
@@ -95,7 +132,12 @@ def verify_directory(
     else:
         valid_exts = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py"}
         for root, dirs, files in os.walk(target):
-            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("node_modules", "venv", "__pycache__")]
+            dirs[:] = [
+                d
+                for d in dirs
+                if not d.startswith(".")
+                and d not in ("node_modules", "venv", "__pycache__")
+            ]
             for f in files:
                 p = Path(root) / f
                 if p.suffix.lower() in valid_exts:
@@ -115,7 +157,9 @@ def verify_directory(
     typecheck_ok = None
     typecheck_output = ""
     if typecheck_cmd:
-        typecheck_ok, typecheck_output = run_command(typecheck_cmd, cwd=cwd, timeout=timeout)
+        typecheck_ok, typecheck_output = run_command(
+            typecheck_cmd, cwd=cwd, timeout=timeout
+        )
 
     # 3. Test check
     tests_ok = None

@@ -27,11 +27,13 @@ async def run(payload: dict) -> None:
 
     latest = await fetch_latest_version(package_name, ecosystem=ecosystem)
     if not latest or not latest.get("version"):
-        logger.warning("poll_registry: no version info for %s (%s)", package_name, ecosystem)
+        logger.warning(
+            "poll_registry: no version info for %s (%s)", package_name, ecosystem
+        )
         return
 
     new_version = latest["version"]
-    raw_changelog = latest.get("changelog_raw") or latest.get("changelog_url") or ""
+    raw_changelog = latest.get("changelog_raw") or ""
 
     async with AsyncSessionLocal() as session:
         # Idempotent: only create a new PackageVersion row if this version is new
@@ -63,7 +65,7 @@ async def run(payload: dict) -> None:
             package_id=package_id,
             version=new_version,
             published_at=latest.get("published_at"),
-            changelog_raw=raw_changelog,
+            changelog_raw=raw_changelog or None,
         )
         session.add(pv)
         await session.commit()
@@ -77,7 +79,7 @@ async def run(payload: dict) -> None:
                 "package_version_id": str(pv.id),
                 "package_name": package_name,
                 "ecosystem": ecosystem,
-                "old_version": old_version or "unknown",
+                "old_version": old_version or "none",
                 "new_version": new_version,
                 "changelog": raw_changelog,
             },
@@ -89,4 +91,3 @@ async def run(payload: dict) -> None:
         new_version,
         old_version or "none",
     )
-

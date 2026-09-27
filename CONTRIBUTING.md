@@ -102,8 +102,9 @@ cp .env.example .env
 # 2. Launch PostgreSQL and Redis
 docker compose up -d postgres redis
 
-# 3. Run database migrations
+# 3. Install API dependencies and run database migrations
 cd apps/api
+pip install -r requirements.txt
 alembic upgrade head
 
 # 4. Start the background worker
@@ -111,7 +112,7 @@ python worker.py
 
 # 5. Start API & Web servers
 uvicorn main:app --reload --port 8000
-npm --prefix ../web run dev
+npm --prefix ../web install && npm --prefix ../web run dev
 ```
 
 ---
