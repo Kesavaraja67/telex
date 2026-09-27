@@ -392,3 +392,47 @@ async def test_list_patches_populated():
                 assert p["verification_mode"] == "docker_sandbox"
                 assert p["tests_passed"] is True
                 assert p["typecheck_passed"] is True
+
+
+@pytest.mark.asyncio
+async def test_human_review_digest():
+    """Verify /api/repos/digest/human-review returns open PR summaries."""
+    from db.models import PullRequest, Repo
+
+    repo_id = uuid.uuid4()
+    pr_id = uuid.uuid4()
+    mock_db_repo = Repo(id=repo_id, full_name="org/review-repo", is_active=True)
+    mock_pr = PullRequest(
+        id=pr_id,
+        repo_id=repo_id,
+        github_pr_number=99,
+        github_pr_url="https://github.com/org/review-repo/pull/99",
+        status="open",
+        opened_at=datetime.now(timezone.utc),
+    )
+
+    with patch("routers.stats._accessible_repo_ids", AsyncMock(return_value=[repo_id])):
+        with patch("routers.repos.AsyncSessionLocal") as mock_session_ctx:
+            mock_session = AsyncMock()
+            mock_session.__aenter__.return_value = mock_session
+            mock_session.__aexit__.return_value = None
+
+            mock_res = MagicMock()
+            mock_res.all.return_value = [(mock_pr, mock_db_repo)]
+            mock_session.execute = AsyncMock(return_value=mock_res)
+            mock_session_ctx.return_value = mock_session
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                resp = await client.get(
+                    "/api/repos/digest/human-review",
+                    headers={"X-Demo-Key": "telex_demo_secret_2026"},
+                )
+                assert resp.status_code == 200
+                data = resp.json()
+                assert data["total"] == 1
+                assert len(data["open_review_prs"]) == 1
+                pr_item = data["open_review_prs"][0]
+                assert pr_item["github_pr_number"] == 99
+                assert pr_item["repo_name"] == "org/review-repo"
+

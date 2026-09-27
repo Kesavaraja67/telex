@@ -45,17 +45,21 @@ export interface DetectedChangeSummary {
   change_type: string;
   description: string;
   created_at: string;
+  confidence?: number | null;
+  is_semantic_risk?: boolean | null;
 }
 
 export interface Stats {
   repos_watched: number;
   prs_opened: number;
   patches_generated: number;
+  patches_verified?: number | null;
   merge_rate: number;
   recent_changes?: DetectedChangeSummary[];
 }
 
-export const getStats = () => apiFetch<Stats>("/api/stats");
+export const getStats = (risk?: "semantic_only" | "mechanical_only") =>
+  apiFetch<Stats>(risk ? `/api/stats?risk=${risk}` : "/api/stats");
 
 // ── Repos ──────────────────────────────────────────────────────────────────
 
@@ -79,6 +83,7 @@ export interface Repo {
   is_active: boolean;
   requires_tests?: boolean;
   requires_typecheck?: boolean;
+  allow_install_scripts?: boolean;
   created_at: string;
   github_url: string;
   languages?: string[];
@@ -134,15 +139,24 @@ export const toggleRepo = (id: string, is_active: boolean) =>
 
 export const updateRepoSettings = (
   id: string,
-  settings: { requires_tests?: boolean; requires_typecheck?: boolean; is_active?: boolean }
+  settings: {
+    requires_tests?: boolean;
+    requires_typecheck?: boolean;
+    is_active?: boolean;
+    allow_install_scripts?: boolean;
+  }
 ) =>
-  apiFetch<{ id: string; full_name: string; requires_tests: boolean; requires_typecheck: boolean; is_active: boolean }>(
-    `/api/repos/${id}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify(settings),
-    }
-  );
+  apiFetch<{
+    id: string;
+    full_name: string;
+    requires_tests: boolean;
+    requires_typecheck: boolean;
+    is_active: boolean;
+    allow_install_scripts: boolean;
+  }>(`/api/repos/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(settings),
+  });
 
 // ── Activity ───────────────────────────────────────────────────────────────
 
@@ -178,6 +192,10 @@ export interface PatchSummary {
   typecheck_passed?: boolean | null;
   change_type?: string | null;
   change_description?: string | null;
+  confidence?: number | null;
+  is_semantic_risk?: boolean | null;
+  base_sha?: string | null;
+  commit_sha?: string | null;
 }
 
 export interface RepoPatches {
@@ -185,8 +203,34 @@ export interface RepoPatches {
   patches: PatchSummary[];
 }
 
-export const getRepoPatches = (repoId: string) =>
-  apiFetch<RepoPatches>(`/api/repos/${repoId}/patches`);
+export const getRepoPatches = (
+  repoId: string,
+  risk?: "semantic_only" | "mechanical_only",
+  sortBy?: "risk_first" | "confidence_asc" | "confidence_desc"
+) => {
+  const params = new URLSearchParams();
+  if (risk) params.set("risk", risk);
+  if (sortBy) params.set("sort_by", sortBy);
+  const qs = params.toString();
+  return apiFetch<RepoPatches>(`/api/repos/${repoId}/patches${qs ? `?${qs}` : ""}`);
+};
+
+export interface HumanReviewDigestItem {
+  pr_id: string;
+  repo_name: string;
+  github_pr_number: number;
+  github_pr_url: string;
+  opened_at?: string | null;
+  status: string;
+}
+
+export interface HumanReviewDigest {
+  open_review_prs: HumanReviewDigestItem[];
+  total: number;
+}
+
+export const getHumanReviewDigest = () =>
+  apiFetch<HumanReviewDigest>("/api/repos/digest/human-review");
 
 // ── Recovery (Engine B) ────────────────────────────────────────────────────
 

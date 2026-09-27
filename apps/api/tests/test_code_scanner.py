@@ -248,3 +248,33 @@ val = get(10)
 """
     assert len(find_usages("src/api.py", py_local, "get", package_name="requests")) == 0
 
+
+def test_is_test_file_detection():
+    from services.code_scanner import is_test_file
+
+    assert is_test_file("tests/test_scanner.py") is True
+    assert is_test_file("src/__tests__/app.test.ts") is True
+    assert is_test_file("spec/models/user_spec.rb") is True
+    assert is_test_file("tests/e2e/test_auth.py") is True
+    assert is_test_file("apps/api/tests/test_routers.py") is True
+    assert is_test_file("apps/web/components/Button.test.tsx") is True
+    assert is_test_file("src/services/scanner.py") is False
+    assert is_test_file("src/main.ts") is False
+
+
+def test_detect_symbol_in_tests():
+    from services.code_scanner import detect_symbol_in_tests
+
+    repo_files_with_coverage = {
+        "src/client.ts": "import { fetchUser } from 'user-sdk'; fetchUser('123');",
+        "tests/client.test.ts": "import { fetchUser } from 'user-sdk'; test('fetch', () => { fetchUser('456'); });",
+    }
+    assert detect_symbol_in_tests(repo_files_with_coverage, "fetchUser", "user-sdk") is True
+
+    repo_files_without_coverage = {
+        "src/client.ts": "import { fetchUser } from 'user-sdk'; fetchUser('123');",
+        "tests/other.test.ts": "test('math', () => { expect(1+1).toBe(2); });",
+    }
+    assert detect_symbol_in_tests(repo_files_without_coverage, "fetchUser", "user-sdk") is False
+
+

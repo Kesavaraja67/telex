@@ -241,16 +241,58 @@ All analytics and dashboard statistics must map 1:1 to real database events:
 
 ## 6. Execution Acceptance Criteria
 
-- [ ] Every API endpoint touching a repository requires authentication and checks authorization.
-- [ ] OAuth callback rejects missing, empty, or mismatched state parameters with HTTP 400.
-- [ ] HTTP 500 responses do not contain internal exception messages or stack traces.
-- [ ] Automatic registry polling passes real ecosystem, changelog text, and old/new version numbers to extraction.
-- [ ] LLM extraction output is strictly validated against a bounded Pydantic schema.
-- [ ] AST scanner matches symbols only when imported from the target package.
-- [ ] Verification fails closed when Telex verification workflow is missing, skipped, or neutral.
-- [ ] Validated patches store base SHA and verification commit SHA.
-- [ ] Repository drift between validation and PR creation triggers rebase/revalidation.
-- [ ] Patch application failure fails closed without opening PR.
-- [ ] PR creation is idempotent: 1 PR per dependency repair event.
-- [ ] Standalone `telex scan` CLI runs in < 2 seconds with zero external services.
-- [ ] All present-tense README claims match code reality.
+- [x] Every API endpoint touching a repository requires authentication and checks authorization.
+- [x] OAuth callback rejects missing, empty, or mismatched state parameters with HTTP 400.
+- [x] HTTP 500 responses do not contain internal exception messages or stack traces.
+- [x] Automatic registry polling passes real ecosystem, changelog text, and old/new version numbers to extraction.
+- [x] LLM extraction output is strictly validated against a bounded Pydantic schema.
+- [x] AST scanner matches symbols only when imported from the target package.
+- [x] Verification fails closed when Telex verification workflow is missing, skipped, or neutral.
+- [x] Validated patches store base SHA and verification commit SHA.
+- [x] Repository drift between validation and PR creation triggers rebase/revalidation.
+- [x] Patch application failure fails closed without opening PR.
+- [x] PR creation is idempotent: 1 PR per dependency repair event.
+- [x] Standalone `telex scan` CLI runs in < 2 seconds with zero external services.
+- [x] All present-tense README claims match code reality.
+
+---
+
+## 7. Phase 12 Specification: Multi-Language & Multi-Ecosystem Scale
+
+**Objective**: Scale Telex from npm and PyPI to all major modern software ecosystems (Go, Rust, Java, Ruby, C#/.NET) while maintaining strict semantic guarantees, Tree-sitter AST call-site precision, and fail-closed isolated sandbox verification.
+
+### 7.1 Architecture & Ecosystem Abstraction Matrix
+
+Every supported ecosystem implements three decoupled interfaces:
+1. `RegistryWatcher`: Dispatches to upstream package indexes to detect new versions and raw release notes.
+2. `ASTScanner`: Tree-sitter query engine resolving exact symbol import bindings, aliases, and call sites.
+3. `SandboxEnvironment`: Generates native isolated verification workflows with scripts blocked by default.
+
+| Ecosystem | Package Registry | Manifest Files | Tree-sitter Grammar | Native Verification Command | Lifecycle Script Defense |
+|---|---|---|---|---|---|
+| **JavaScript / TS** | npm (`registry.npmjs.org`) | `package.json`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock` | `tree-sitter-typescript`, `tree-sitter-javascript` | `npm test` / `pnpm test` / `yarn test` | `--ignore-scripts` by default |
+| **Python** | PyPI (`pypi.org/pypi/<pkg>/json`) | `requirements.txt`, `pyproject.toml`, `Pipfile`, `poetry.lock` | `tree-sitter-python` | `pytest` / `python -m unittest` | Dependency install skipped unless opt-in |
+| **Go** | Go Proxy (`proxy.golang.org`) | `go.mod`, `go.sum` | `tree-sitter-go` | `go test ./...` | Strict module hash verification (`go.sum`) |
+| **Rust** | Crates.io (`crates.io/api/v1/crates`) | `Cargo.toml`, `Cargo.lock` | `tree-sitter-rust` | `cargo test --workspace` | Offline/locked build flags (`--locked`) |
+| **Java / JVM** | Maven Central (`repo1.maven.org`) | `pom.xml`, `build.gradle`, `build.gradle.kts` | `tree-sitter-java` | `mvn test` / `./gradlew test` | Sandboxed dependency resolution |
+| **Ruby** | RubyGems (`rubygems.org/api/v1`) | `Gemfile`, `Gemfile.lock` | `tree-sitter-ruby` | `bundle exec rspec` / `rake test` | Frozen lockfile enforcement |
+| **C# / .NET** | NuGet (`api.nuget.org/v3/index.json`) | `*.csproj`, `Directory.Packages.props`, `packages.lock.json` | `tree-sitter-c-sharp` | `dotnet test --no-restore` | Locked restore mode (`--locked-mode`) |
+
+### 7.2 Tree-sitter AST Import Binding Contracts (Across All Languages)
+
+For every new language added in Phase 12, the scanner MUST resolve import bindings to the specific target package before flagging call sites:
+- **Go**: Distinguish local package functions from external imported module functions (e.g. `import "github.com/gin-gonic/gin"` -> `gin.Default()`).
+- **Rust**: Resolve `use crate::*` vs `use external_crate::*`, renamed imports (`use serde::Deserialize as De`), and fully-qualified calls (`tokio::spawn`).
+- **Java**: Match package declarations, wildcard imports (`import org.slf4j.*`), and static method imports.
+- **Ruby**: Match `require` statements and module namespace scoping (`Stripe::Charge.create`).
+- **C#**: Match `using Namespace;` directives, static using (`using static Math;`), and namespace aliasing.
+
+### 7.3 Multi-Language Verification Pipeline Contracts
+
+1. **Deterministic Environment Probing**:
+   - `detect_repo_environment` inspects repository file manifests in deterministic priority order.
+   - If multiple language manifests exist (monorepo or polyglot), Telex generates matrix jobs targeting only the subdirectories affected by the dependency change.
+2. **Fail-Closed Patch Application**:
+   - Patches are synthesized as unified diffs and validated using `git apply --check`.
+   - If any whitespace, AST syntax error, or compile failure occurs, the patch is marked `verification_passed=False` and no PR is opened.
+

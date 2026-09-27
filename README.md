@@ -145,6 +145,16 @@ Telex turns breaking dependency updates into verified, ready-to-merge GitHub pul
 
 > **Strict Non-Negotiable Contract**: Telex **never** automatically merges code. Every patch requires human engineering review and approval before entering production.
 
+### Risk Classification & Human-Review Model
+
+1. **Mechanical vs. Semantic Risk Classification**:
+   - Upstream breaking changes are categorized by Gemini 2.5 Flash as either purely mechanical (e.g. function renames, explicit argument relocations) or semantic risks (e.g. altered defaults, modified return coercions, subtle behavior shifts).
+   - If a change is classified as a semantic risk or has classifier confidence `< 75%`, Telex tags the PR title with `[semantic-risk]` and flags in the PR body: `⚠️ Possible semantic/behavior change — passing tests do not guarantee old behavior is preserved`.
+2. **Fail-Closed Human Review Gate**:
+   - Whenever a patch has weak evidence—such as missing test coverage on the affected symbol, failing CI checks, or unverified semantic risks—Telex attaches the GitHub label `needs-human-review` and highlights the review requirement in the PR description.
+3. **Supply-Chain Defense (Install Scripts Blocked by Default)**:
+   - Untrusted dependency upgrades can execute malicious arbitrary lifecycle hooks (`postinstall`, `preinstall`). During isolated CI sandbox verification, Telex defaults to `npm ci --ignore-scripts`, `pnpm install --frozen-lockfile --ignore-scripts`, and disables Python install scripts unless repository maintainers explicitly toggle `allow_install_scripts: true`.
+
 <br>
 
 <p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>

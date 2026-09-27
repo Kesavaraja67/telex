@@ -73,7 +73,7 @@ export default function ReposPage() {
 
   async function handleToggle(
     repoId: string,
-    field: "requires_tests" | "requires_typecheck",
+    field: "requires_tests" | "requires_typecheck" | "allow_install_scripts",
     currentValue: boolean
   ) {
     const newValue = !currentValue;
@@ -438,6 +438,52 @@ export default function ReposPage() {
                           }`}
                           animate={{
                             x: repo.requires_typecheck ? 20 : 0,
+                          }}
+                          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        />
+                      </button>
+                    </div>
+
+                    {/* Toggle: allow_install_scripts (GFI-2) */}
+                    <div className="p-3 rounded-lg bg-black/40 border border-white/[0.06] flex items-center justify-between gap-3 sm:col-span-2">
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5 font-mono text-xs font-semibold text-white">
+                          <span>Allow Install Scripts</span>
+                          {repo.allow_install_scripts ? (
+                            <span className="text-[9px] px-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
+                              OPT-IN ENABLED
+                            </span>
+                          ) : (
+                            <span className="text-[9px] px-1 rounded bg-white/10 text-[#A1A1AA] font-mono">
+                              BLOCKED (DEFAULT)
+                            </span>
+                          )}
+                        </div>
+                        <span className="font-sans text-[11px] text-[#71717A]">
+                          Allow lifecycle install scripts during sandbox verification (disabled by default to prevent supply-chain execution)
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() =>
+                          handleToggle(
+                            repo.id,
+                            "allow_install_scripts",
+                            Boolean(repo.allow_install_scripts)
+                          )
+                        }
+                        disabled={updatingId === `${repo.id}-allow_install_scripts`}
+                        className={`w-11 h-6 rounded-full transition-colors relative flex items-center p-0.5 cursor-pointer disabled:opacity-50 ${
+                          repo.allow_install_scripts ? "bg-amber-400" : "bg-white/15"
+                        }`}
+                        aria-label="Toggle install scripts execution"
+                      >
+                        <motion.div
+                          className={`w-5 h-5 rounded-full shadow-md ${
+                            repo.allow_install_scripts ? "bg-black" : "bg-white"
+                          }`}
+                          animate={{
+                            x: repo.allow_install_scripts ? 20 : 0,
                           }}
                           transition={{ type: "spring", stiffness: 500, damping: 30 }}
                         />

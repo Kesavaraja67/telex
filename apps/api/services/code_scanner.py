@@ -321,6 +321,9 @@ def find_usages(
         logger.error("tree-sitter language setup failed for %s: %s", lang_name, exc)
         return []
 
+    if isinstance(source, str):
+        source = source.encode("utf-8")
+
     tree = parser.parse(source)
     root = tree.root_node
 
@@ -434,3 +437,38 @@ def find_usages(
             unique.append(u)
 
     return unique
+
+
+def is_test_file(file_path: str) -> bool:
+    """Return True if the file path matches standard test file patterns."""
+    p = str(file_path).replace("\\", "/").lower()
+    parts = p.split("/")
+    filename = parts[-1]
+    if any(part in ("tests", "test", "__tests__", "spec", "specs") for part in parts[:-1]):
+        return True
+    if filename.startswith("test_") or filename.endswith("_test.py"):
+        return True
+    if filename.endswith(".test.ts") or filename.endswith(".test.tsx") or filename.endswith(".test.js") or filename.endswith(".test.jsx"):
+        return True
+    if filename.endswith(".spec.ts") or filename.endswith(".spec.tsx") or filename.endswith(".spec.js") or filename.endswith(".spec.jsx"):
+        return True
+    return False
+
+
+def detect_symbol_in_tests(
+    repo_files: dict[str, str],
+    symbol_name: str,
+    package_name: str | None = None,
+) -> bool:
+    """
+    Scans test files in repo_files (dict of file_path -> source_content)
+    to check whether symbol_name from package_name is referenced/called.
+    Returns True if at least one test file has a usage.
+    """
+    for file_path, content in repo_files.items():
+        if is_test_file(file_path):
+            usages = find_usages(file_path, content, symbol_name, package_name)
+            if usages:
+                return True
+    return False
+

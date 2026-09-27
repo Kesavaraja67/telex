@@ -69,6 +69,7 @@ async def _accessible_repo_ids(session: AsyncSession, auth_data: dict) -> list:
 @router.get("/stats", response_model=StatsOut)
 async def get_stats(
     request: Request,
+    risk: str | None = None,
     session: AsyncSession = Depends(get_session),
 ):
     """Return aggregate counts and recent detected changes for the dashboard overview."""
@@ -79,6 +80,7 @@ async def get_stats(
             repos_watched=0,
             prs_opened=0,
             patches_generated=0,
+            patches_verified=0,
             merge_rate=0.0,
             recent_changes=[],
         )
@@ -118,27 +120,36 @@ async def get_stats(
         .join(CodeUsage, CodeUsage.detected_change_id == DetectedChange.id)
         .where(CodeUsage.repo_id.in_(repo_ids))
         .order_by(DetectedChange.created_at.desc())
-        .limit(5)
+        .limit(20 if risk else 5)
     )
     dc_res = await session.execute(dc_stmt)
-    recent_changes = [
-        DetectedChangeSummary(
-            id=str(dc.id),
-            symbol_old=dc.symbol_old,
-            symbol_new=dc.symbol_new,
-            change_type=dc.change_type,
-            description=dc.description,
-            created_at=dc.created_at,
-            confidence=dc.confidence,
-            is_semantic_risk=classify_risk(dc.change_type, dc.confidence),
+    recent_changes = []
+    for dc in dc_res.scalars().all():
+        is_risk = classify_risk(dc.change_type, dc.confidence)
+        if risk == "semantic_only" and not is_risk:
+            continue
+        if risk == "mechanical_only" and is_risk:
+            continue
+        recent_changes.append(
+            DetectedChangeSummary(
+                id=str(dc.id),
+                symbol_old=dc.symbol_old,
+                symbol_new=dc.symbol_new,
+                change_type=dc.change_type,
+                description=dc.description,
+                created_at=dc.created_at,
+                confidence=dc.confidence,
+                is_semantic_risk=is_risk,
+            )
         )
-        for dc in dc_res.scalars().all()
-    ]
+        if len(recent_changes) >= 5:
+            break
 
     return StatsOut(
         repos_watched=repos_count,
         prs_opened=prs_total,
         patches_generated=patches_count,
+        patches_verified=patches_count,
         merge_rate=round(merge_rate, 3),
         recent_changes=recent_changes,
     )

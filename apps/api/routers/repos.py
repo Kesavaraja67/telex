@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 
-from db.models import CodeUsage, DetectedChange, Patch, PullRequest, ValidationRun
+from db.models import CodeUsage, DetectedChange, Patch, PullRequest, Repo, ValidationRun
 from db.session import AsyncSessionLocal
 from routers.auth import get_authorized_repo, require_auth
 from schemas import (
@@ -195,12 +195,62 @@ async def update_repo_settings(
         }
 
 
+@router.get("/digest/human-review")
+async def get_human_review_digest(
+    request: Request,
+    auth_data: dict = Depends(require_auth),
+):
+    """
+    Weekly summary / digest of open PRs requiring human review across all accessible repos (ISSUE-4).
+    """
+    async with AsyncSessionLocal() as session:
+        from routers.stats import _accessible_repo_ids
+
+        repo_ids = await _accessible_repo_ids(session, auth_data)
+        if not repo_ids:
+            return {"open_review_prs": [], "total": 0}
+
+        pr_stmt = (
+            select(PullRequest, Repo)
+            .join(Repo, PullRequest.repo_id == Repo.id)
+            .where(
+                PullRequest.repo_id.in_(repo_ids),
+                PullRequest.status == "open",
+            )
+            .order_by(PullRequest.opened_at.desc())
+        )
+        pr_res = await session.execute(pr_stmt)
+        rows = pr_res.all()
+
+        digest_items = []
+        for pr, repo in rows:
+            digest_items.append(
+                {
+                    "pr_id": str(pr.id),
+                    "repo_name": repo.full_name,
+                    "github_pr_number": pr.github_pr_number,
+                    "github_pr_url": pr.github_pr_url,
+                    "opened_at": pr.opened_at.isoformat() if pr.opened_at else None,
+                    "status": pr.status,
+                }
+            )
+
+        return {
+            "open_review_prs": digest_items,
+            "total": len(digest_items),
+        }
+
+
 @router.get("/{repo_id}/patches", response_model=RepoPatchesOut)
 async def list_patches(
     repo_id: str,
+    risk: str | None = None,
+    sort_by: str | None = None,
     auth_data: dict = Depends(require_auth),
 ):
     """Return recent patches for repository from real DB records (P1-8)."""
+    import re
+
     async with AsyncSessionLocal() as session:
         db_repo, _ = await get_authorized_repo(session, repo_id, auth_data)
         repo_name = db_repo.full_name
@@ -211,7 +261,7 @@ async def list_patches(
             .join(CodeUsage, Patch.code_usage_id == CodeUsage.id)
             .where(CodeUsage.repo_id == db_repo.id)
             .order_by(Patch.created_at.desc())
-            .limit(20)
+            .limit(50 if (risk or sort_by) else 20)
         )
         res = await session.execute(stmt)
         pairs = res.all()
@@ -255,6 +305,27 @@ async def list_patches(
                 vr_row = vr_map.get(patch_row.id)
                 dc_row = dc_map.get(cu_row.detected_change_id)
 
+                is_risk = (
+                    classify_risk(dc_row.change_type, dc_row.confidence)
+                    if dc_row
+                    else None
+                )
+
+                if risk == "semantic_only" and not is_risk:
+                    continue
+                if risk == "mechanical_only" and is_risk:
+                    continue
+
+                base_sha = None
+                commit_sha = None
+                if vr_row and vr_row.log:
+                    m_base = re.search(r"\[base_sha:([a-f0-9]+)\]", vr_row.log)
+                    if m_base:
+                        base_sha = m_base.group(1)
+                    m_commit = re.search(r"\[commit_sha:([a-f0-9]+)\]", vr_row.log)
+                    if m_commit:
+                        commit_sha = m_commit.group(1)
+
                 patches_out.append(
                     PatchOut(
                         id=str(patch_row.id),
@@ -282,15 +353,26 @@ async def list_patches(
                         change_type=dc_row.change_type if dc_row else None,
                         change_description=dc_row.description if dc_row else None,
                         confidence=dc_row.confidence if dc_row else None,
-                        is_semantic_risk=(
-                            classify_risk(dc_row.change_type, dc_row.confidence)
-                            if dc_row
-                            else None
-                        ),
+                        is_semantic_risk=is_risk,
+                        base_sha=base_sha,
+                        commit_sha=commit_sha,
                     )
                 )
 
+        if sort_by == "risk_first":
+            patches_out.sort(
+                key=lambda p: (0 if p.is_semantic_risk else 1, -p.opened_at.timestamp())
+            )
+        elif sort_by == "confidence_asc":
+            patches_out.sort(
+                key=lambda p: (p.confidence if p.confidence is not None else 1.0)
+            )
+        elif sort_by == "confidence_desc":
+            patches_out.sort(
+                key=lambda p: (-(p.confidence if p.confidence is not None else 0.0))
+            )
+
         return RepoPatchesOut(
             repo=repo_name,
-            patches=patches_out,
+            patches=patches_out[:20],
         )

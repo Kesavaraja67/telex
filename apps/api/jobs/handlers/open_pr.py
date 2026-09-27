@@ -416,12 +416,17 @@ async def run(payload: dict) -> None:
             _typecheck_passed = True
 
     from services.github_service import requires_human_review as _requires_human_review
+    from services.code_scanner import is_test_file as _is_test_file
+
+    _has_test_coverage = any(
+        _is_test_file(pd.get("file_path", "")) for pd in patch_dicts
+    )
 
     _needs_review = _requires_human_review(
         tests_passed=_tests_passed,
         typecheck_passed=_typecheck_passed,
         is_semantic_risk=is_semantic_risk,
-        has_test_coverage_on_changed_symbol=False,
+        has_test_coverage_on_changed_symbol=_has_test_coverage,
     )
 
     base_title = f"chore(deps): auto-patch for {pkg_name}@{pv_version}"

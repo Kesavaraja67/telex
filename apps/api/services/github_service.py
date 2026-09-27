@@ -237,7 +237,7 @@ async def open_patch_pr(
             tests_passed=tests_passed,
             typecheck_passed=typecheck_passed,
             is_semantic_risk=is_semantic_risk,
-            has_test_coverage_on_changed_symbol=False,  # stub — always unknown
+            has_test_coverage_on_changed_symbol=False,
         )
         if _needs_review:
             try:
@@ -265,6 +265,22 @@ async def open_patch_pr(
         return pr.html_url, pr.number
 
     return await asyncio.to_thread(_do_github_work)
+
+
+def ensure_repo_labels(repo) -> None:
+    """Ensures Telex management labels (needs-human-review, semantic-risk) exist on repository."""
+    labels_to_ensure = [
+        ("needs-human-review", "e11d48", "Telex flagged this PR for human review before merge"),
+        ("semantic-risk", "e36209", "Possible semantic/behavior change detected"),
+    ]
+    for name, color, desc in labels_to_ensure:
+        try:
+            repo.get_label(name)
+        except GithubException:
+            try:
+                repo.create_label(name=name, color=color, description=desc)
+            except GithubException as exc:
+                logger.warning("ensure_repo_labels: failed creating label %s: %s", name, exc)
 
 
 def apply_diff_to_content(
