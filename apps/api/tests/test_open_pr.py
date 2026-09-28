@@ -333,7 +333,11 @@ async def test_open_pr_happy_path(open_pr_setup, monkeypatch, patched_file):
 
     monkeypatch.setattr(
         "services.github_service.apply_diff_to_content",
-        lambda fpath, orig, diff: (True, "import lodash from 'lodash'; lodash.cloneDeep(x)", "Applied cleanly"),
+        lambda fpath, orig, diff: (
+            True,
+            "import lodash from 'lodash'; lodash.cloneDeep(x)",
+            "Applied cleanly",
+        ),
     )
 
     mock_open_patch_pr = AsyncMock(return_value=("https://github.com/acme/service/pull/99", 99))

@@ -253,7 +253,11 @@ def _extract_bindings_js_ts(root, source_bytes: bytes, target_pkg: str, target_s
 
 
 def _extract_bindings_python(
-    root, source_bytes: bytes, target_pkg: str, target_symbol: str, import_names: tuple[str, ...] = ()
+    root,
+    source_bytes: bytes,
+    target_pkg: str,
+    target_symbol: str,
+    import_names: tuple[str, ...] = (),
 ):
     """
     Extract direct function bindings, namespace bindings, foreign bindings,

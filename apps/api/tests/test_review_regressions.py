@@ -141,9 +141,7 @@ def seed_module():
         "sqlite+aiosqlite:///production.db?demo=true",
     ],
 )
-async def test_seed_rejects_non_demo_before_database_operations(
-    seed_module, url, clean
-):
+async def test_seed_rejects_non_demo_before_database_operations(seed_module, url, clean):
     engine = MagicMock(url=url)
     with pytest.raises(RuntimeError, match="Refusing to seed or wipe"):
         await seed_module.seed_demo_data(engine, clean=clean, db_url=url)
@@ -180,18 +178,11 @@ async def test_stats_generated_query_errors_are_not_hidden(monkeypatch):
     from routers import stats
 
     repo_id = uuid.uuid4()
-    monkeypatch.setattr(
-        stats, "require_auth", AsyncMock(return_value={"user_id": "demo-operator"})
-    )
-    monkeypatch.setattr(
-        stats, "_accessible_repo_ids", AsyncMock(return_value=[repo_id])
-    )
+    monkeypatch.setattr(stats, "require_auth", AsyncMock(return_value={"user_id": "demo-operator"}))
+    monkeypatch.setattr(stats, "_accessible_repo_ids", AsyncMock(return_value=[repo_id]))
     session = AsyncMock()
     session.execute.side_effect = [
-        *[
-            MagicMock(scalar_one=MagicMock(return_value=value))
-            for value in (2, 5, 4, 3)
-        ],
+        *[MagicMock(scalar_one=MagicMock(return_value=value)) for value in (2, 5, 4, 3)],
         RuntimeError("generated count failed"),
     ]
     with pytest.raises(RuntimeError, match="generated count failed"):
