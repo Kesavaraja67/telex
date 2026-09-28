@@ -29,6 +29,8 @@ async def test_rescan_package_unauthenticated():
 @pytest.mark.asyncio
 async def test_rescan_package_not_found():
     mock_session = AsyncMock()
+    mock_session.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+    mock_session.get_bind.return_value.dialect.name = "sqlite"
     mock_session.get = AsyncMock(return_value=None)
 
     async def override_get_session():
@@ -61,6 +63,8 @@ async def test_rescan_package_success(monkeypatch):
     mock_pkg = Package(id=pkg_id, name="express", ecosystem="npm")
 
     mock_session = AsyncMock()
+    mock_session.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+    mock_session.get_bind.return_value.dialect.name = "sqlite"
     mock_session.get = AsyncMock(return_value=mock_pkg)
     mock_session.add = MagicMock()
     mock_session.commit = AsyncMock()
@@ -70,6 +74,8 @@ async def test_rescan_package_success(monkeypatch):
 
     def fake_execute(stmt):
         nonlocal call_count
+        if str(stmt) == "BEGIN IMMEDIATE":
+            return MagicMock()
         call_count += 1
         mock_res = MagicMock()
         if call_count == 1:
@@ -133,12 +139,16 @@ async def test_rescan_package_debounce_already_queued(monkeypatch):
     )
 
     mock_session = AsyncMock()
+    mock_session.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+    mock_session.get_bind.return_value.dialect.name = "sqlite"
     mock_session.get = AsyncMock(return_value=mock_pkg)
 
     call_count = 0
 
     def fake_execute(stmt):
         nonlocal call_count
+        if str(stmt) == "BEGIN IMMEDIATE":
+            return MagicMock()
         call_count += 1
         mock_res = MagicMock()
         if call_count == 1:
@@ -186,12 +196,16 @@ async def test_rescan_package_forbidden_unauthorized(monkeypatch):
     mock_user = User(id=user_id, github_id=123, github_login="unauthorized-user")
 
     mock_session = AsyncMock()
+    mock_session.get_bind = MagicMock(return_value=MagicMock(dialect=MagicMock(name="sqlite")))
+    mock_session.get_bind.return_value.dialect.name = "sqlite"
     mock_session.get = AsyncMock(return_value=mock_pkg)
 
     call_count = 0
 
     def fake_execute(stmt):
         nonlocal call_count
+        if str(stmt) == "BEGIN IMMEDIATE":
+            return MagicMock()
         call_count += 1
         mock_res = MagicMock()
         if call_count == 1:

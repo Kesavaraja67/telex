@@ -55,6 +55,7 @@ async def run(payload: dict) -> None:
     from jobs.queue import enqueue_job
     from services.code_scanner import find_usages
     from services.github_service import get_installation_client
+    from services.python_imports import resolve_import_names
 
     repo_id = uuid.UUID(payload["repo_id"])
     package_version_id = uuid.UUID(payload["package_version_id"])
@@ -102,9 +103,9 @@ async def run(payload: dict) -> None:
 
         pkg = await session.get(Package, pv.package_id) if pv else None
         pkg_name = pkg.name if pkg else None
+        import_names = ()
         if pkg and pkg_name and pkg.ecosystem == "pypi":
-            # For PyPI packages, normalize to lowercase and replace hyphens with underscores
-            pkg_name = pkg_name.lower().replace("-", "_")
+            import_names = await asyncio.to_thread(resolve_import_names, pkg_name)
 
         changes_result = await session.execute(
             select(DetectedChange).where(DetectedChange.package_version_id == package_version_id)
@@ -143,7 +144,9 @@ async def run(payload: dict) -> None:
 
             for change in changes:
                 symbol = change.symbol_old.split("(")[0].strip()  # strip signature
-                usages = find_usages(item.path, source, symbol, package_name=pkg_name)
+                usages = find_usages(
+                    item.path, source, symbol, package_name=pkg_name, import_names=import_names
+                )
 
                 for usage in usages:
                     # Idempotent: skip if this exact usage already exists

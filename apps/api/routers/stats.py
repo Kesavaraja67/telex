@@ -113,22 +113,13 @@ async def get_stats(
         )
     ).scalar_one()
 
-    # Query separate generated count vs verified count (Comment on Line 152)
-    try:
-        from unittest.mock import Mock
-
-        if not isinstance(session, Mock):
-            patches_generated_count = (
-                await session.execute(
-                    select(func.count(Patch.id))
-                    .join(CodeUsage, Patch.code_usage_id == CodeUsage.id)
-                    .where(CodeUsage.repo_id.in_(repo_ids))
-                )
-            ).scalar_one()
-        else:
-            patches_generated_count = patches_verified_count
-    except Exception:
-        patches_generated_count = patches_verified_count
+    patches_generated_count = (
+        await session.execute(
+            select(func.count(Patch.id))
+            .join(CodeUsage, Patch.code_usage_id == CodeUsage.id)
+            .where(CodeUsage.repo_id.in_(repo_ids))
+        )
+    ).scalar_one()
 
     merge_rate = (prs_merged / prs_total) if prs_total > 0 else 0.0
 

@@ -302,9 +302,11 @@ async def test_open_pr_fails_closed_when_diff_application_fails(open_pr_setup, m
 
 
 @pytest.mark.asyncio
-async def test_open_pr_happy_path(open_pr_setup, monkeypatch):
+@pytest.mark.parametrize("patched_file", ["src/index.js", "tests/index.test.js"])
+async def test_open_pr_happy_path(open_pr_setup, monkeypatch, patched_file):
     """When validation passes, branch matches base_sha, and diff applies cleanly, open PR."""
     entities = open_pr_setup
+    entities["code_usage"].file_path = patched_file
     repo = entities["repo"]
     pv = entities["package_version"]
 
@@ -331,7 +333,7 @@ async def test_open_pr_happy_path(open_pr_setup, monkeypatch):
 
     monkeypatch.setattr(
         "services.github_service.apply_diff_to_content",
-        lambda fpath, orig, diff: (True, "structuredClone(x)", "Applied cleanly"),
+        lambda fpath, orig, diff: (True, "import lodash from 'lodash'; lodash.cloneDeep(x)", "Applied cleanly"),
     )
 
     mock_open_patch_pr = AsyncMock(return_value=("https://github.com/acme/service/pull/99", 99))
@@ -353,6 +355,7 @@ async def test_open_pr_happy_path(open_pr_setup, monkeypatch):
 
     # Must open PR on GitHub
     mock_open_patch_pr.assert_called_once()
+    assert "Human review required" in mock_open_patch_pr.call_args.kwargs["summary"]
     # Must record pr_opened event
     mock_record_event.assert_called_once()
     assert mock_record_event.call_args[1]["event_type"] == "pr_opened"

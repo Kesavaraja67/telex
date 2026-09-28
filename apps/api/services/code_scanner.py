@@ -252,11 +252,18 @@ def _extract_bindings_js_ts(root, source_bytes: bytes, target_pkg: str, target_s
     return direct_bindings, namespace_bindings, foreign_bindings, local_definitions
 
 
-def _extract_bindings_python(root, source_bytes: bytes, target_pkg: str, target_symbol: str):
+def _extract_bindings_python(
+    root, source_bytes: bytes, target_pkg: str, target_symbol: str, import_names: tuple[str, ...] = ()
+):
     """
     Extract direct function bindings, namespace bindings, foreign bindings,
     and local definitions for Python.
     """
+    candidates = {target_pkg, *import_names}
+
+    def is_target_module(module):
+        return any(module == name or module.startswith(f"{name}.") for name in candidates)
+
     direct_bindings = set()
     namespace_bindings = set()
     foreign_bindings = set()
@@ -268,7 +275,7 @@ def _extract_bindings_python(root, source_bytes: bytes, target_pkg: str, target_
             for c in child.children:
                 if c.type == "dotted_name":
                     mod = source_bytes[c.start_byte : c.end_byte].decode("utf-8")
-                    if mod == target_pkg:
+                    if is_target_module(mod):
                         namespace_bindings.add(mod)
                     else:
                         foreign_bindings.add(mod)
@@ -285,7 +292,7 @@ def _extract_bindings_python(root, source_bytes: bytes, target_pkg: str, target_
                         if alias_node
                         else ""
                     )
-                    if mod == target_pkg:
+                    if is_target_module(mod):
                         namespace_bindings.add(alias)
                     else:
                         foreign_bindings.add(alias)
@@ -298,7 +305,7 @@ def _extract_bindings_python(root, source_bytes: bytes, target_pkg: str, target_
                 if mod_node
                 else ""
             )
-            is_target = (mod == target_pkg) or mod.startswith(f"{target_pkg}.")
+            is_target = is_target_module(mod)
             for c in child.children:
                 if c.type == "dotted_name" and c != mod_node:
                     sym = source_bytes[c.start_byte : c.end_byte].decode("utf-8")
@@ -571,6 +578,7 @@ def find_usages(
     source: bytes | str,
     symbol_name: str,
     package_name: str | None = None,
+    import_names: tuple[str, ...] = (),
 ) -> list[dict]:
     """
     Scan `source` (raw bytes of a code file) for call sites of `symbol_name`
@@ -583,6 +591,8 @@ def find_usages(
         package_name: Optional package name (e.g. "lodash", "requests"). If symbol_name
                       contains a dot and package_name is not provided, the package prefix
                       is inferred from symbol_name.
+
+        import_names: Known Python import names for the target distribution.
 
     Returns a list of dicts:
         {
@@ -635,6 +645,13 @@ def find_usages(
         else:
             target_symbol = symbol_name
 
+    # Qualified Python symbols can use an import name that differs from the distribution.
+    if target_pkg and lang_name == "python":
+        for name in sorted(import_names, key=len, reverse=True):
+            if symbol_name.startswith(f"{name}."):
+                target_symbol = symbol_name[len(name) + 1 :]
+                break
+
     # If package is known, extract import bindings and enforce package boundary
     if target_pkg:
         if lang_name in ("typescript", "tsx", "javascript"):
@@ -643,7 +660,7 @@ def find_usages(
             )
         elif lang_name == "python":
             direct, ns, foreign, local = _extract_bindings_python(
-                root, source, target_pkg, target_symbol
+                root, source, target_pkg, target_symbol, import_names
             )
         elif lang_name == "go":
             direct, ns, foreign, local = _extract_bindings_go(

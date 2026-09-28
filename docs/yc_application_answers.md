@@ -55,7 +55,7 @@ Telex bridges the gap:
 ---
 
 ### 6. How do you acquire users and distribution?
-- **Developer-First Open Source CLI**: `pip install git+https://github.com/Kesavaraja67/telex.git#subdirectory=packages/telex-core` (or editable local install `pip install -e packages/telex-core`) allows developers to run `telex-core scan` and `telex-core verify` locally in seconds with zero configuration.
+- **Developer-First Open Source CLI**: `pip install git+https://github.com/Kesavaraja67/telex.git#subdirectory=packages/telex-core` (or editable local install `pip install -e packages/telex-core`) allows developers to run `telex scan . --symbol get` and `telex verify .` locally in seconds with zero configuration.
 - **GitHub Marketplace App**: 1-click installation to monitor fleet repositories.
 - **Open Source Migration Public PRs**: When popular packages release major versions (e.g. OpenAI v1, Next.js v15, Pydantic v2), Telex generates verified PRs for high-impact open-source projects, demonstrating value directly to maintainers.
 

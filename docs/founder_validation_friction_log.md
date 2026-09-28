@@ -20,11 +20,11 @@ Phase 9 establishes real-world validation of the Telex autonomous patch synthesi
    - Java: `pom.xml`, `build.gradle`
    - Ruby: `Gemfile`
    - C# / .NET: `*.csproj`
-3. **End-to-End Latency Profile** (Benchmark estimates measured on Apple Silicon M2 / 16GB RAM and local Linux Docker runners across N=25 sample test runs on fixture repositories under 15k LOC):
-   - AST Tree-sitter parse: **< 15ms** per 1,000 LOC (measured average).
-   - Import binding resolution & package boundary check: **< 4ms** per file (measured average).
+3. **End-to-End Latency Profile** (Estimates for Apple Silicon M2 / 16GB RAM and local Linux Docker runners on fixture repositories under 15k LOC; supporting benchmark records are not available):
+   - AST Tree-sitter parse: **< 15ms** per 1,000 LOC (estimate).
+   - Import binding resolution & package boundary check: **< 4ms** per file (estimate).
    - Patch synthesis (Gemini 2.5 Flash / AST rule): **~1.2s** (API round-trip median estimate).
-   - Sandbox isolated verification (test execution): **~4.8s** (workload: fast unit tests in ephemeral container).
+   - Sandbox isolated verification (test execution): **~4.8s** (estimate; workload: fast unit tests in ephemeral container).
    - Pull Request generation with verification receipt: **~850ms** (GitHub API create ref + PR median estimate).
 
 ---

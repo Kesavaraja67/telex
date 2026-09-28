@@ -37,15 +37,17 @@ async def test_get_stats_empty():
     # 2. repos_count
     # 3. prs_total
     # 4. prs_merged
-    # 5. patches_count
-    # 6. dc_res
+    # 5. patches_verified_count
+    # 6. patches_generated_count
+    # 7. dc_res
     mock_session.execute = AsyncMock()
     mock_session.execute.side_effect = [
         MagicMock(all=MagicMock(return_value=[(repo_id,)])),  # _accessible_repo_ids
         MagicMock(scalar_one=MagicMock(return_value=2)),  # repos_count
         MagicMock(scalar_one=MagicMock(return_value=5)),  # prs_total
         MagicMock(scalar_one=MagicMock(return_value=4)),  # prs_merged
-        MagicMock(scalar_one=MagicMock(return_value=3)),  # patches_count
+        MagicMock(scalar_one=MagicMock(return_value=3)),  # patches_verified_count
+        MagicMock(scalar_one=MagicMock(return_value=7)),  # patches_generated_count
         MagicMock(
             scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
         ),  # dc_res
@@ -66,7 +68,8 @@ async def test_get_stats_empty():
             data = resp.json()
             assert data["repos_watched"] == 2
             assert data["prs_opened"] == 5
-            assert data["patches_generated"] == 3
+            assert data["patches_generated"] == 7
+            assert data["patches_verified"] == 3
             assert data["merge_rate"] == 0.8
             assert data["recent_changes"] == []
     finally:
@@ -114,7 +117,8 @@ async def test_get_stats_zero_prs():
         MagicMock(scalar_one=MagicMock(return_value=0)),  # repos_count
         MagicMock(scalar_one=MagicMock(return_value=0)),  # prs_total
         MagicMock(scalar_one=MagicMock(return_value=0)),  # prs_merged
-        MagicMock(scalar_one=MagicMock(return_value=0)),  # patches_count
+        MagicMock(scalar_one=MagicMock(return_value=0)),  # patches_verified_count
+        MagicMock(scalar_one=MagicMock(return_value=0)),  # patches_generated_count
         MagicMock(
             scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
         ),  # dc_res
@@ -139,6 +143,7 @@ async def test_get_stats_zero_prs():
 
 @pytest.mark.asyncio
 async def test_get_activity_populated():
+    mock_session = AsyncMock()
     mock_session = AsyncMock()
     repo_id = uuid.uuid4()
     now = datetime.now(timezone.utc)

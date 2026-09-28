@@ -911,9 +911,6 @@ def find_usages(
                 else:
                     base_obj = receiver_text.split(".")[0].split("(")[0].strip()
                     matches_ns = receiver_text in ns or base_obj in ns
-                    if not matches_ns and lang_name == "c_sharp" and bool(ns):
-                        if receiver_text and receiver_text[0].isupper():
-                            matches_ns = True
                     if matches_ns and (receiver_text not in foreign and base_obj not in foreign):
                         _record_usage(node)
 

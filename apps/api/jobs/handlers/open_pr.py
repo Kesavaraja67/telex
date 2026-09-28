@@ -443,19 +443,11 @@ async def run(payload: dict) -> None:
         else:
             _typecheck_passed = True
 
-    from services.code_scanner import detect_symbol_in_tests
-    from services.code_scanner import is_test_file as _is_test_file
     from services.github_service import requires_human_review as _requires_human_review
 
+    # Keep this consistent with open_patch_pr's label gate: symbol-level coverage
+    # is unknown until reliable coverage instrumentation is available.
     _has_test_coverage = False
-    for pd in patch_dicts:
-        fpath = pd.get("file_path", "")
-        dc = pd.get("detected_change")
-        if _is_test_file(fpath) and dc and getattr(dc, "symbol_old", None):
-            content = pd.get("new_content", "")
-            if detect_symbol_in_tests({fpath: content}, dc.symbol_old, pkg_name):
-                _has_test_coverage = True
-                break
 
     _needs_review = _requires_human_review(
         tests_passed=_tests_passed,

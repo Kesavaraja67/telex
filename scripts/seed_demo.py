@@ -40,6 +40,7 @@ from db.models import (
     ValidationRun,
 )
 from sqlalchemy import delete, select
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 
@@ -106,15 +107,25 @@ async def get_or_create_pv(
 
 
 async def seed_demo_data(engine, clean: bool = False, db_url: str = "") -> None:
-    # 0. Safety check: verify target database before any connection or schema alteration
-    if clean:
-        is_demo_db = "demo" in db_url.lower() or "sqlite" in db_url.lower()
-        if not is_demo_db:
-            redacted_url = db_url.split("@")[-1] if "@" in db_url else db_url
-            raise RuntimeError(
-                f"Refusing to wipe database: connection target '{redacted_url}' does not appear to be a demo database. "
-                "Expected 'demo' in URL or a SQLite database."
-            )
+    # Validate the actual engine target before any connection or schema alteration.
+    # Credentials, hostnames, and query strings cannot designate a demo database.
+    target = make_url(engine.url)
+    if db_url and make_url(db_url) != target:
+        raise RuntimeError("Demo database URL does not match the engine target")
+    backend = target.get_backend_name()
+    is_demo_db = (
+        backend == "postgresql" and target.database == "telex_demo" and not target.query
+    ) or (
+        backend == "sqlite"
+        and not target.query
+        and target.database is not None
+        and Path(target.database).resolve() == (API_DIR / "telex_demo.db").resolve()
+    )
+    if not is_demo_db:
+        raise RuntimeError(
+            "Refusing to seed or wipe database: expected PostgreSQL database 'telex_demo' "
+            "or the local apps/api/telex_demo.db SQLite file"
+        )
 
     # 1. Ensure all tables exist
     async with engine.begin() as conn:

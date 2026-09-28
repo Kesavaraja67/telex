@@ -2,8 +2,8 @@
 Packages API — manual rescan trigger with authentication and job debounce.
 """
 
+import logging
 import uuid
-from unittest.mock import Mock
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, or_, select, text
@@ -14,6 +14,8 @@ from db.session import get_session
 from jobs.queue import enqueue_job
 from routers.auth import require_auth
 from schemas import RescanIn
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/packages", tags=["packages"])
 
@@ -32,6 +34,24 @@ async def rescan_package(
     user_id = auth_data.get("user_id") if isinstance(auth_data, dict) else None
     if not user_id:
         raise HTTPException(status_code=401, detail="Authentication required")
+
+    # SQLite must acquire its write lock before the first read starts a transaction.
+    # Hold serialization through version creation, debounce, and enqueue commit.
+    try:
+        dialect_name = session.get_bind().dialect.name
+        if dialect_name == "postgresql":
+            await session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                {"key": f"rescan_package:{package_id}:{body.new_version}"},
+            )
+        elif dialect_name == "sqlite":
+            await session.execute(text("BEGIN IMMEDIATE"))
+        else:
+            raise RuntimeError("Unsupported rescan lock dialect")
+    except Exception:
+        logger.exception("Could not acquire rescan lock for package %s", package_id)
+        await session.rollback()
+        raise HTTPException(status_code=503, detail="Package rescan temporarily unavailable")
 
     pkg = await session.get(Package, package_id)
     if pkg is None:
@@ -66,22 +86,6 @@ async def rescan_package(
         )
         if auth_check.scalar_one_or_none() is None:
             raise HTTPException(status_code=403, detail="Package access denied")
-
-    # Acquire transaction lock BEFORE package-version lookup and creation, keyed by package and version
-    if not isinstance(session, Mock):
-        try:
-            bind = session.get_bind()
-            dialect = getattr(bind, "dialect", None)
-            dialect_name = getattr(dialect, "name", "") if dialect else ""
-            if "postgres" in dialect_name.lower():
-                await session.execute(
-                    text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
-                    {"key": f"rescan_package:{package_id}:{body.new_version}"},
-                )
-            elif "sqlite" in dialect_name.lower():
-                await session.execute(text("BEGIN IMMEDIATE"))
-        except Exception:
-            pass
 
     # Lookup or create target PackageVersion within the locked transaction
     existing = await session.execute(

@@ -117,7 +117,7 @@ JSON.parse(data)
 """
     assert len(find_usages("app.rb", ruby_code, "parse", package_name="json")) == 1
 
-    cs_code = b"""using System.Text.Json;
+    cs_code = b"""using static System.Text.Json.JsonSerializer;
 class Program {
     void Main() {
         JsonSerializer.Serialize(obj);
@@ -126,3 +126,21 @@ class Program {
 """
     assert len(find_usages("Program.cs", cs_code, "Serialize", package_name="System.Text.Json")) == 1
 
+
+
+def test_csharp_capitalization_does_not_establish_target_binding():
+    source = b"""using System.Text.Json;
+using static System.Text.Json.JsonSerializer;
+class Program {
+    void Main() {
+        OtherSerializer.Serialize(obj);
+        JsonSerializer.Serialize(obj);
+        System.Text.Json.JsonSerializer.Serialize(obj);
+    }
+}
+"""
+    usages = find_usages("Program.cs", source, "Serialize", package_name="System.Text.Json")
+    assert [u["snippet"] for u in usages] == [
+        "JsonSerializer.Serialize(obj)",
+        "System.Text.Json.JsonSerializer.Serialize(obj)",
+    ]
