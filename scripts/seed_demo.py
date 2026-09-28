@@ -106,6 +106,16 @@ async def get_or_create_pv(
 
 
 async def seed_demo_data(engine, clean: bool = False, db_url: str = "") -> None:
+    # 0. Safety check: verify target database before any connection or schema alteration
+    if clean:
+        is_demo_db = "demo" in db_url.lower() or "sqlite" in db_url.lower()
+        if not is_demo_db:
+            redacted_url = db_url.split("@")[-1] if "@" in db_url else db_url
+            raise RuntimeError(
+                f"Refusing to wipe database: connection target '{redacted_url}' does not appear to be a demo database. "
+                "Expected 'demo' in URL or a SQLite database."
+            )
+
     # 1. Ensure all tables exist
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -116,12 +126,6 @@ async def seed_demo_data(engine, clean: bool = False, db_url: str = "") -> None:
 
     async with session_factory() as session:
         if clean:
-            is_demo_db = "demo" in db_url.lower() or "sqlite" in db_url.lower()
-            if not is_demo_db:
-                raise RuntimeError(
-                    f"Refusing to wipe database: connection URL '{db_url}' does not appear to be a demo database. "
-                    "Expected 'demo' in URL or a SQLite database."
-                )
             print("Wiping existing demo data...")
             await session.execute(delete(IncidentEvent))
             await session.execute(delete(PullRequest))

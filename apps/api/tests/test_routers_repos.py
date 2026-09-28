@@ -66,7 +66,9 @@ async def test_list_repos_endpoint():
 async def test_get_repo_details():
     now = datetime.now(timezone.utc)
     repo_uuid = uuid.uuid4()
-    mock_db_repo = Repo(id=repo_uuid, full_name="owner/detail-repo", default_branch="main", is_active=True)
+    mock_db_repo = Repo(
+        id=repo_uuid, full_name="owner/detail-repo", default_branch="main", is_active=True
+    )
     mock_inst = Installation(id=uuid.uuid4(), github_installation_id=123)
 
     mock_repos = [
@@ -97,19 +99,37 @@ async def test_get_repo_details():
         assert r_unauth.status_code == 401
 
         # 2. Unauthorized -> 403
-        with patch("routers.repos.get_authorized_repo", AsyncMock(side_effect=HTTPException(status_code=403, detail="Repository access denied"))):
-            r_forbidden = await client.get(f"/api/repos/{repo_uuid}", headers={"X-Demo-Key": "telex_demo_secret_2026"})
+        with patch(
+            "routers.repos.get_authorized_repo",
+            AsyncMock(
+                side_effect=HTTPException(status_code=403, detail="Repository access denied")
+            ),
+        ):
+            r_forbidden = await client.get(
+                f"/api/repos/{repo_uuid}", headers={"X-Demo-Key": "telex_demo_secret_2026"}
+            )
             assert r_forbidden.status_code == 403
 
         # 3. Not found -> 404
-        with patch("routers.repos.get_authorized_repo", AsyncMock(side_effect=HTTPException(status_code=404, detail="Repo not found"))):
-            r_notfound = await client.get(f"/api/repos/{repo_uuid}", headers={"X-Demo-Key": "telex_demo_secret_2026"})
+        with patch(
+            "routers.repos.get_authorized_repo",
+            AsyncMock(side_effect=HTTPException(status_code=404, detail="Repo not found")),
+        ):
+            r_notfound = await client.get(
+                f"/api/repos/{repo_uuid}", headers={"X-Demo-Key": "telex_demo_secret_2026"}
+            )
             assert r_notfound.status_code == 404
 
         # 4. Authorized -> 200
-        with patch("routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))):
-            with patch("routers.repos.get_core_repositories_async", AsyncMock(return_value=mock_repos)):
-                resp = await client.get(f"/api/repos/{repo_uuid}", headers={"X-Demo-Key": "telex_demo_secret_2026"})
+        with patch(
+            "routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))
+        ):
+            with patch(
+                "routers.repos.get_core_repositories_async", AsyncMock(return_value=mock_repos)
+            ):
+                resp = await client.get(
+                    f"/api/repos/{repo_uuid}", headers={"X-Demo-Key": "telex_demo_secret_2026"}
+                )
                 assert resp.status_code == 200
                 data = resp.json()
                 assert data["full_name"] == "owner/detail-repo"
@@ -153,8 +173,12 @@ async def test_ai_explain_repo():
         assert r_unauth.status_code == 401
 
         # Authorized -> 200
-        with patch("routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))):
-            with patch("routers.repos.explain_repo_with_gemini", AsyncMock(return_value=mock_explain)):
+        with patch(
+            "routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))
+        ):
+            with patch(
+                "routers.repos.explain_repo_with_gemini", AsyncMock(return_value=mock_explain)
+            ):
                 resp = await client.post(
                     f"/api/repos/{repo_uuid}/ai-explain",
                     headers={"X-Demo-Key": "telex_demo_secret_2026"},
@@ -178,9 +202,12 @@ async def test_ai_explain_not_found():
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        with patch("routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))):
+        with patch(
+            "routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))
+        ):
             with patch(
-                "routers.repos.explain_repo_with_gemini", AsyncMock(side_effect=KeyError("not found"))
+                "routers.repos.explain_repo_with_gemini",
+                AsyncMock(side_effect=KeyError("not found")),
             ):
                 resp = await client.post(
                     f"/api/repos/{repo_uuid}/ai-explain",
@@ -202,7 +229,9 @@ async def test_toggle_repo():
         assert r_unauth.status_code == 401
 
         # Authorized -> 200
-        with patch("routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))):
+        with patch(
+            "routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))
+        ):
             with patch("routers.repos.AsyncSessionLocal") as mock_session_ctx:
                 mock_session = AsyncMock()
                 mock_session.__aenter__.return_value = mock_session
@@ -238,7 +267,9 @@ async def test_update_repo_settings():
         assert r_unauth.status_code == 401
 
         # Authorized -> 200
-        with patch("routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))):
+        with patch(
+            "routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))
+        ):
             with patch("routers.repos.AsyncSessionLocal") as mock_session_ctx:
                 mock_session = AsyncMock()
                 mock_session.__aenter__.return_value = mock_session
@@ -277,7 +308,9 @@ async def test_list_patches_endpoint():
         assert r_unauth.status_code == 401
 
         # Authorized -> 200
-        with patch("routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))):
+        with patch(
+            "routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))
+        ):
             with patch("routers.repos.AsyncSessionLocal") as mock_session_ctx:
                 mock_session = AsyncMock()
                 mock_session.__aenter__.return_value = mock_session
@@ -301,17 +334,32 @@ async def test_list_patches_endpoint():
 async def test_repo_endpoints_404_cases():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        with patch("routers.repos.get_authorized_repo", AsyncMock(side_effect=HTTPException(status_code=404, detail="Repo not found"))):
-            r1 = await client.get("/api/repos/missing-repo", headers={"X-Demo-Key": "telex_demo_secret_2026"})
+        with patch(
+            "routers.repos.get_authorized_repo",
+            AsyncMock(side_effect=HTTPException(status_code=404, detail="Repo not found")),
+        ):
+            r1 = await client.get(
+                "/api/repos/missing-repo", headers={"X-Demo-Key": "telex_demo_secret_2026"}
+            )
             assert r1.status_code == 404
 
-            r2 = await client.post("/api/repos/missing-repo/toggle", json={"is_active": True}, headers={"X-Demo-Key": "telex_demo_secret_2026"})
+            r2 = await client.post(
+                "/api/repos/missing-repo/toggle",
+                json={"is_active": True},
+                headers={"X-Demo-Key": "telex_demo_secret_2026"},
+            )
             assert r2.status_code == 404
 
-            r3 = await client.patch("/api/repos/missing-repo", json={"requires_tests": True}, headers={"X-Demo-Key": "telex_demo_secret_2026"})
+            r3 = await client.patch(
+                "/api/repos/missing-repo",
+                json={"requires_tests": True},
+                headers={"X-Demo-Key": "telex_demo_secret_2026"},
+            )
             assert r3.status_code == 404
 
-            r4 = await client.get("/api/repos/missing-repo/patches", headers={"X-Demo-Key": "telex_demo_secret_2026"})
+            r4 = await client.get(
+                "/api/repos/missing-repo/patches", headers={"X-Demo-Key": "telex_demo_secret_2026"}
+            )
             assert r4.status_code == 404
 
 
@@ -353,7 +401,9 @@ async def test_list_patches_populated():
         typechecks=True,
     )
 
-    with patch("routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))):
+    with patch(
+        "routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))
+    ):
         with patch("routers.repos.AsyncSessionLocal") as mock_session_ctx:
             mock_session = AsyncMock()
             mock_session.__aenter__.return_value = mock_session
@@ -435,4 +485,3 @@ async def test_human_review_digest():
                 pr_item = data["open_review_prs"][0]
                 assert pr_item["github_pr_number"] == 99
                 assert pr_item["repo_name"] == "org/review-repo"
-

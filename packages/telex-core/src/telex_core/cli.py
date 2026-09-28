@@ -134,32 +134,40 @@ def cmd_verify(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(receipt, indent=2))
     else:
+        if receipt.get("error"):
+            print(f"[ERROR] Verification failed: {receipt['error']}", file=sys.stderr)
+            return 1
+
         print(f"Verification results for '{args.path}':")
-        print(f"  Files checked: {receipt['files_checked']}")
-        parse_status = "PASSED" if receipt["gates"]["parse"]["passed"] else "FAILED"
+        print(f"  Files checked: {receipt.get('files_checked', 0)}")
+        parse_status = (
+            "PASSED"
+            if receipt.get("gates", {}).get("parse", {}).get("passed")
+            else "FAILED"
+        )
         print(f"  AST Parse: {parse_status}")
-        if receipt["gates"]["parse"]["error_files"]:
+        if receipt.get("gates", {}).get("parse", {}).get("error_files"):
             for ef in receipt["gates"]["parse"]["error_files"]:
                 print(f"    - Error in: {ef}")
 
-        tc = receipt["gates"]["typecheck"]
-        if tc["executed"]:
+        tc = receipt.get("gates", {}).get("typecheck", {})
+        if tc.get("executed"):
             tc_status = "PASSED" if tc["passed"] else "FAILED"
             print(f"  Typecheck ({tc['command']}): {tc_status}")
 
-        tst = receipt["gates"]["tests"]
-        if tst["executed"]:
+        tst = receipt.get("gates", {}).get("tests", {})
+        if tst.get("executed"):
             tst_status = "PASSED" if tst["passed"] else "FAILED"
             print(f"  Tests ({tst['command']}): {tst_status}")
 
         verdict = (
             "[VERIFIED] All gates passed."
-            if receipt["all_passed"]
+            if receipt.get("all_passed")
             else "[FAILED] Verification gates failed."
         )
         print(f"\n{verdict}")
 
-    return 0 if receipt["all_passed"] else 1
+    return 0 if receipt.get("all_passed") else 1
 
 
 def build_parser() -> argparse.ArgumentParser:

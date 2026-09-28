@@ -83,9 +83,7 @@ def collect_missing_secrets(s: Settings) -> list[str]:
 
 # P1-3: Fail loudly at startup if running in production without real secrets.
 # Uses normalized predicate (checks RENDER or case-insensitive ENVIRONMENT=production).
-_is_production = bool(
-    os.getenv("RENDER") or settings.environment.strip().lower() == "production"
-)
+_is_production = bool(os.getenv("RENDER") or settings.environment.strip().lower() == "production")
 
 if _is_production:
     _missing = collect_missing_secrets(settings)

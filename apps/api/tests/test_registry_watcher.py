@@ -69,9 +69,7 @@ async def test_fetch_latest_version_pypi_success():
             "project_urls": {"Changelog": "https://pypi.org/project/requests/#changelog"},
             "description": "## 1.5.0 Release\n- Breaking: removed old auth API",
         },
-        "releases": {
-            "1.5.0": [{"upload_time_iso_8601": "2026-09-10T15:30:00Z"}]
-        },
+        "releases": {"1.5.0": [{"upload_time_iso_8601": "2026-09-10T15:30:00Z"}]},
     }
     mock_resp.raise_for_status = MagicMock()
 
@@ -106,4 +104,3 @@ async def test_fetch_unsupported_ecosystem():
     assert result is None
     versions = await fetch_package_versions("foo", ecosystem="unsupported-eco")
     assert versions == []
-

@@ -651,7 +651,10 @@ def find_usages(
         target_pkg, target_symbol = symbol_name.split(".", 1)
     else:
         target_pkg = package_name
-        target_symbol = symbol_name
+        if package_name and symbol_name.startswith(f"{package_name}."):
+            target_symbol = symbol_name[len(package_name) + 1 :]
+        else:
+            target_symbol = symbol_name
 
     if target_pkg:
         if lang_name in ("typescript", "tsx", "javascript"):
@@ -907,11 +910,11 @@ def find_usages(
                     _record_usage(node)
                 else:
                     base_obj = receiver_text.split(".")[0].split("(")[0].strip()
-                    if (
-                        receiver_text in ns
-                        or base_obj in ns
-                        or any(item in receiver_text for item in ns)
-                    ) and (receiver_text not in foreign and base_obj not in foreign):
+                    matches_ns = receiver_text in ns or base_obj in ns
+                    if not matches_ns and lang_name == "c_sharp" and bool(ns):
+                        if receiver_text and receiver_text[0].isupper():
+                            matches_ns = True
+                    if matches_ns and (receiver_text not in foreign and base_obj not in foreign):
                         _record_usage(node)
 
         for c in node.children:

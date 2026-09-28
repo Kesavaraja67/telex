@@ -27,9 +27,7 @@ async def run(payload: dict) -> None:
 
     latest = await fetch_latest_version(package_name, ecosystem=ecosystem)
     if not latest or not latest.get("version"):
-        logger.warning(
-            "poll_registry: no version info for %s (%s)", package_name, ecosystem
-        )
+        logger.warning("poll_registry: no version info for %s (%s)", package_name, ecosystem)
         return
 
     new_version = latest["version"]

@@ -173,3 +173,56 @@ async def test_rescan_package_debounce_already_queued(monkeypatch):
             assert data["job_id"] == str(existing_job.id)
     finally:
         app.dependency_overrides.pop(get_session, None)
+
+
+@pytest.mark.asyncio
+async def test_rescan_package_forbidden_unauthorized(monkeypatch):
+    from routers.auth import require_auth
+    from db.models import User
+
+    pkg_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    mock_pkg = Package(id=pkg_id, name="express", ecosystem="npm")
+    mock_user = User(id=user_id, github_id=123, github_login="unauthorized-user")
+
+    mock_session = AsyncMock()
+    mock_session.get = AsyncMock(return_value=mock_pkg)
+
+    call_count = 0
+
+    def fake_execute(stmt):
+        nonlocal call_count
+        call_count += 1
+        mock_res = MagicMock()
+        if call_count == 1:
+            # User lookup
+            mock_res.scalar_one_or_none.return_value = mock_user
+        else:
+            # RepoPackage check returns None (no access)
+            mock_res.scalar_one_or_none.return_value = None
+        return mock_res
+
+    mock_session.execute = AsyncMock(side_effect=fake_execute)
+
+    async def override_require_auth():
+        return {"user_id": str(user_id)}
+
+    async def override_get_session():
+        yield mock_session
+
+    app.dependency_overrides[require_auth] = override_require_auth
+    app.dependency_overrides[get_session] = override_get_session
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            body = {
+                "package_name": "express",
+                "old_version": "4.17.0",
+                "new_version": "4.18.0",
+            }
+            resp = await client.post(f"/api/packages/{pkg_id}/rescan", json=body)
+            assert resp.status_code == 403
+            assert resp.json()["detail"] == "Package access denied"
+    finally:
+        app.dependency_overrides.pop(require_auth, None)
+        app.dependency_overrides.pop(get_session, None)

@@ -163,9 +163,7 @@ def create_mock_session(entities, existing_prs=None):
 
 
 @pytest.mark.asyncio
-async def test_open_pr_idempotency_skips_when_open_pr_exists(
-    open_pr_setup, monkeypatch
-):
+async def test_open_pr_idempotency_skips_when_open_pr_exists(open_pr_setup, monkeypatch):
     """When an open PR already exists for (repo_id, package_version_id), open_pr must skip."""
     entities = open_pr_setup
     repo = entities["repo"]
@@ -202,9 +200,7 @@ async def test_open_pr_idempotency_skips_when_open_pr_exists(
 
 
 @pytest.mark.asyncio
-async def test_open_pr_fails_closed_when_base_branch_drifted(
-    open_pr_setup, monkeypatch
-):
+async def test_open_pr_fails_closed_when_base_branch_drifted(open_pr_setup, monkeypatch):
     """When target branch HEAD does not match base_sha, fail closed and emit patch_failed event."""
     entities = open_pr_setup
     repo = entities["repo"]
@@ -225,9 +221,7 @@ async def test_open_pr_fails_closed_when_base_branch_drifted(
 
     mock_gh = MagicMock()
     mock_gh.get_repo.return_value = mock_gh_repo
-    monkeypatch.setattr(
-        "services.github_service.get_installation_client", lambda *args: mock_gh
-    )
+    monkeypatch.setattr("services.github_service.get_installation_client", lambda *args: mock_gh)
 
     mock_open_patch_pr = AsyncMock()
     monkeypatch.setattr("services.github_service.open_patch_pr", mock_open_patch_pr)
@@ -252,9 +246,7 @@ async def test_open_pr_fails_closed_when_base_branch_drifted(
 
 
 @pytest.mark.asyncio
-async def test_open_pr_fails_closed_when_diff_application_fails(
-    open_pr_setup, monkeypatch
-):
+async def test_open_pr_fails_closed_when_diff_application_fails(open_pr_setup, monkeypatch):
     """When apply_diff_to_content fails, fail closed (never fall back to original file)."""
     entities = open_pr_setup
     repo = entities["repo"]
@@ -279,9 +271,7 @@ async def test_open_pr_fails_closed_when_diff_application_fails(
 
     mock_gh = MagicMock()
     mock_gh.get_repo.return_value = mock_gh_repo
-    monkeypatch.setattr(
-        "services.github_service.get_installation_client", lambda *args: mock_gh
-    )
+    monkeypatch.setattr("services.github_service.get_installation_client", lambda *args: mock_gh)
 
     # Simulate diff application failure
     monkeypatch.setattr(
@@ -308,10 +298,7 @@ async def test_open_pr_fails_closed_when_diff_application_fails(
     # Must record patch_failed event
     mock_record_event.assert_called_once()
     assert mock_record_event.call_args[1]["event_type"] == "patch_failed"
-    assert (
-        mock_record_event.call_args[1]["payload"]["reason"]
-        == "apply_diff_to_content_failed"
-    )
+    assert mock_record_event.call_args[1]["payload"]["reason"] == "apply_diff_to_content_failed"
 
 
 @pytest.mark.asyncio
@@ -340,24 +327,18 @@ async def test_open_pr_happy_path(open_pr_setup, monkeypatch):
 
     mock_gh = MagicMock()
     mock_gh.get_repo.return_value = mock_gh_repo
-    monkeypatch.setattr(
-        "services.github_service.get_installation_client", lambda *args: mock_gh
-    )
+    monkeypatch.setattr("services.github_service.get_installation_client", lambda *args: mock_gh)
 
     monkeypatch.setattr(
         "services.github_service.apply_diff_to_content",
         lambda fpath, orig, diff: (True, "structuredClone(x)", "Applied cleanly"),
     )
 
-    mock_open_patch_pr = AsyncMock(
-        return_value=("https://github.com/acme/service/pull/99", 99)
-    )
+    mock_open_patch_pr = AsyncMock(return_value=("https://github.com/acme/service/pull/99", 99))
     monkeypatch.setattr("services.github_service.open_patch_pr", mock_open_patch_pr)
 
     mock_create_check_run = AsyncMock()
-    monkeypatch.setattr(
-        "services.github_service.create_check_run", mock_create_check_run
-    )
+    monkeypatch.setattr("services.github_service.create_check_run", mock_create_check_run)
 
     mock_record_event = AsyncMock()
     monkeypatch.setattr("services.incident_events.record_event", mock_record_event)

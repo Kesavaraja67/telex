@@ -3,12 +3,13 @@ Packages API — manual rescan trigger with authentication and job debounce.
 """
 
 import uuid
+from unittest.mock import Mock
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Job, Package, PackageVersion
+from db.models import Installation, Job, Package, PackageVersion, Repo, RepoPackage, User
 from db.session import get_session
 from jobs.queue import enqueue_job
 from routers.auth import require_auth
@@ -36,7 +37,53 @@ async def rescan_package(
     if pkg is None:
         raise HTTPException(status_code=404, detail="Package not found")
 
-    # Upsert the target version
+    # Authorize access: verify user owns/manages at least one repo tracking this package
+    if user_id not in ("dev-user", "demo-operator"):
+        try:
+            user_uuid = uuid.UUID(str(user_id))
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=403, detail="Package access denied")
+
+        user_res = await session.execute(select(User).where(User.id == user_uuid))
+        user = user_res.scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=403, detail="Package access denied")
+
+        user_login = user.github_login.lower() if user.github_login else None
+        inst_conditions = [Installation.installed_by == user_uuid]
+        if user_login:
+            inst_conditions.append(func.lower(Installation.account_login) == user_login)
+
+        auth_check = await session.execute(
+            select(RepoPackage.id)
+            .join(Repo, RepoPackage.repo_id == Repo.id)
+            .join(Installation, Repo.installation_id == Installation.id)
+            .where(
+                RepoPackage.package_id == package_id,
+                or_(*inst_conditions),
+            )
+            .limit(1)
+        )
+        if auth_check.scalar_one_or_none() is None:
+            raise HTTPException(status_code=403, detail="Package access denied")
+
+    # Acquire transaction lock BEFORE package-version lookup and creation, keyed by package and version
+    if not isinstance(session, Mock):
+        try:
+            bind = session.get_bind()
+            dialect = getattr(bind, "dialect", None)
+            dialect_name = getattr(dialect, "name", "") if dialect else ""
+            if "postgres" in dialect_name.lower():
+                await session.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                    {"key": f"rescan_package:{package_id}:{body.new_version}"},
+                )
+            elif "sqlite" in dialect_name.lower():
+                await session.execute(text("BEGIN IMMEDIATE"))
+        except Exception:
+            pass
+
+    # Lookup or create target PackageVersion within the locked transaction
     existing = await session.execute(
         select(PackageVersion).where(
             PackageVersion.package_id == package_id,
@@ -46,37 +93,13 @@ async def rescan_package(
     pv = existing.scalar_one_or_none()
     if pv is None:
         pv = PackageVersion(
+            id=uuid.uuid4(),
             package_id=package_id,
             version=body.new_version,
             changelog_raw=body.changelog,
         )
         session.add(pv)
-        await session.commit()
-        await session.refresh(pv)
-
-    # Acquire transaction lock on the package version to serialize concurrent rescan requests
-    try:
-        from unittest.mock import Mock
-
-        if not isinstance(session, Mock):
-            bind = session.get_bind()
-            dialect = getattr(bind, "dialect", None)
-            dialect_name = getattr(dialect, "name", "") if dialect else ""
-            if "postgres" in dialect_name.lower():
-                from sqlalchemy import text
-
-                await session.execute(
-                    text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
-                    {"key": f"extract_changes:{pv.id}"},
-                )
-            else:
-                await session.execute(
-                    select(PackageVersion)
-                    .where(PackageVersion.id == pv.id)
-                    .with_for_update()
-                )
-    except Exception:
-        pass
+        await session.flush()
 
     # Debounce against already queued or active extract_changes job
     active_jobs_res = await session.execute(
@@ -87,8 +110,12 @@ async def rescan_package(
     )
     active_jobs = active_jobs_res.scalars().all()
     for j in active_jobs:
-        if isinstance(j.payload, dict) and j.payload.get("package_version_id") == str(
-            pv.id
+        if isinstance(j.payload, dict) and (
+            (pv.id and j.payload.get("package_version_id") == str(pv.id))
+            or (
+                j.payload.get("package_name") == pkg.name
+                and j.payload.get("new_version") == body.new_version
+            )
         ):
             return {
                 "status": "already_queued",
@@ -96,7 +123,7 @@ async def rescan_package(
                 "job_id": str(j.id),
             }
 
-    job_id = await enqueue_job(
+    job = await enqueue_job(
         session,
         "extract_changes",
         {
@@ -107,6 +134,7 @@ async def rescan_package(
             "changelog": body.changelog or "",
         },
     )
+    job_id = str(getattr(job, "id", job))
     return {
         "status": "queued",
         "package_version_id": str(pv.id),

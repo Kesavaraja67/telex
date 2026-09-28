@@ -154,6 +154,7 @@ async def open_patch_pr(
     tests_passed: bool | None = None,
     typecheck_passed: bool | None = None,
     allow_install_scripts: bool = False,
+    base_sha: str | None = None,
 ) -> tuple[str, int]:
     """
     Open a pull request on `repo_full_name` with the given patches applied.
@@ -181,18 +182,19 @@ async def open_patch_pr(
         gh = get_installation_client(installation_id)
         repo = gh.get_repo(repo_full_name)
         base_branch = repo.get_branch(repo.default_branch)
+        target_sha = base_sha or base_branch.commit.sha
 
-        # Create or update the patch branch from the current HEAD of default branch (retry-safe)
+        # Create or update the patch branch from the validated target SHA (retry-safe)
         try:
             repo.create_git_ref(
                 ref=f"refs/heads/{branch_name}",
-                sha=base_branch.commit.sha,
+                sha=target_sha,
             )
         except GithubException as exc:
             if getattr(exc, "status", None) == 422:
                 try:
                     ref = repo.get_git_ref(f"heads/{branch_name}")
-                    ref.edit(sha=base_branch.commit.sha, force=True)
+                    ref.edit(sha=target_sha, force=True)
                 except Exception as ref_exc:
                     logger.warning("Could not reset existing ref %s: %s", branch_name, ref_exc)
             else:
@@ -724,7 +726,10 @@ async def wait_for_telex_verification(
         matching_checks = [
             cr
             for cr in check_runs
-            if "telex" in (cr.name or "").lower() or (expected_workflow_name and expected_workflow_name.lower() in (cr.name or "").lower())
+            if "telex" in (cr.name or "").lower()
+            or (
+                expected_workflow_name and expected_workflow_name.lower() in (cr.name or "").lower()
+            )
         ]
         target_checks = matching_checks
 
@@ -742,17 +747,12 @@ async def wait_for_telex_verification(
 
             all_completed = all(c["status"] == "completed" for c in observed_checks.values())
             if all_completed and observed_checks:
-                all_success = all(
-                    c["conclusion"] == "success"
-                    for c in observed_checks.values()
-                )
+                all_success = all(c["conclusion"] == "success" for c in observed_checks.values())
 
                 logs = []
                 for c in observed_checks.values():
                     status_str = (
-                        "passed"
-                        if c["conclusion"] == "success"
-                        else f"failed ({c['conclusion']})"
+                        "passed" if c["conclusion"] == "success" else f"failed ({c['conclusion']})"
                     )
                     logs.append(f"Verification Check [{c['name']}]: {status_str}")
                     if c["summary"]:

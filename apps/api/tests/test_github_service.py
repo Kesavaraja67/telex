@@ -541,4 +541,3 @@ async def test_wait_for_telex_verification_ignores_unrelated_checks():
     assert result["is_verified"] is False
     assert result["workflow_found"] is False
     assert result["conclusion"] == "timed_out"
-

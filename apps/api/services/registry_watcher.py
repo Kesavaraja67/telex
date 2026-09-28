@@ -41,9 +41,7 @@ async def fetch_latest_version_npm(package_name: str) -> dict | None:
             )
             # Raw changelog only from a version-specific release-note source (e.g. release_notes or changelog field)
             changelog_raw = (
-                version_data.get("release_notes")
-                or version_data.get("changelog")
-                or None
+                version_data.get("release_notes") or version_data.get("changelog") or None
             )
 
             return {
@@ -82,9 +80,7 @@ async def fetch_latest_version_pypi(package_name: str) -> dict | None:
                 upload_time = first_file.get("upload_time_iso_8601")
                 if upload_time:
                     try:
-                        published_at = datetime.fromisoformat(
-                            upload_time.replace("Z", "+00:00")
-                        )
+                        published_at = datetime.fromisoformat(upload_time.replace("Z", "+00:00"))
                     except Exception:
                         pass
 
@@ -112,9 +108,7 @@ async def fetch_latest_version_pypi(package_name: str) -> dict | None:
         return None
 
 
-async def fetch_latest_version(
-    package_name: str, ecosystem: str = "npm"
-) -> dict | None:
+async def fetch_latest_version(package_name: str, ecosystem: str = "npm") -> dict | None:
     """
     Dispatch registry lookup by ecosystem.
 
@@ -170,9 +164,7 @@ async def fetch_package_versions_pypi(package_name: str) -> list[str]:
         return []
 
 
-async def fetch_package_versions(
-    package_name: str, ecosystem: str = "npm"
-) -> list[str]:
+async def fetch_package_versions(package_name: str, ecosystem: str = "npm") -> list[str]:
     """Return all published versions for a package, newest first, dispatched by ecosystem."""
     eco = (ecosystem or "npm").strip().lower()
     if eco == "npm":

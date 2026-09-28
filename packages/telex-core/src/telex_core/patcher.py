@@ -84,7 +84,7 @@ def apply_diff_to_content(
 
     for i, hunk in enumerate(hunks, 1):
         if hunk["old_count"] == 0:
-            old_start = hunk["old_start"]
+            old_start = hunk["old_start"] + offset
         else:
             old_start = hunk["old_start"] - 1 + offset
         expected_old_lines = []

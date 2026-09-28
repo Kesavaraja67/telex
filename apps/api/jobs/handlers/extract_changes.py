@@ -34,9 +34,7 @@ def _publish_change_detected(repo_id_str, dc_id_str, payload_dict):
                 }
             )
         except Exception as exc:
-            logger.warning(
-                "event_bus publish change_detected failed (non-fatal): %s", exc
-            )
+            logger.warning("event_bus publish change_detected failed (non-fatal): %s", exc)
 
     try:
         loop = asyncio.get_running_loop()
@@ -61,9 +59,7 @@ async def run(payload: dict) -> None:
     async with AsyncSessionLocal() as session:
         pv = await session.get(PackageVersion, package_version_id)
         if pv is None:
-            logger.error(
-                "extract_changes: PackageVersion %s not found", package_version_id
-            )
+            logger.error("extract_changes: PackageVersion %s not found", package_version_id)
             return
 
         # Fetch changelog if not supplied in payload
@@ -121,10 +117,7 @@ async def run(payload: dict) -> None:
         from datetime import datetime, timezone
 
         # First version ever seen for this package: treat as baseline, no prior breaking changes
-        if (
-            old_version in ("none", "unknown", None)
-            and payload.get("old_version") == "none"
-        ):
+        if old_version in ("none", "unknown", None) and payload.get("old_version") == "none":
             logger.info(
                 "extract_changes: initial version %s@%s recorded as baseline",
                 package_name,

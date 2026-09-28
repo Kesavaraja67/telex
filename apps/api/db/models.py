@@ -32,13 +32,14 @@ def compile_array_sqlite(type_, compiler, **kw):
     return "JSON"
 
 
-_sqlite3.register_adapter(list, lambda val: _json.dumps([str(x) if isinstance(x, uuid.UUID) else x for x in val]))
+_sqlite3.register_adapter(
+    list, lambda val: _json.dumps([str(x) if isinstance(x, uuid.UUID) else x for x in val])
+)
 _sqlite3.register_adapter(dict, _json.dumps)
 
 
 class Base(DeclarativeBase):
     pass
-
 
 
 # ─── Users ────────────────────────────────────────────────────────────────────

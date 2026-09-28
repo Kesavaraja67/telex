@@ -148,8 +148,9 @@ Telex turns breaking dependency updates into verified, ready-to-merge GitHub pul
 ### Risk Classification & Human-Review Model
 
 1. **Mechanical vs. Semantic Risk Classification**:
-   - Upstream breaking changes are categorized by Gemini 2.5 Flash as either purely mechanical (e.g. function renames, explicit argument relocations) or semantic risks (e.g. altered defaults, modified return coercions, subtle behavior shifts).
-   - If a change is classified as a semantic risk or has classifier confidence `< 75%`, Telex tags the PR title with `[semantic-risk]` and flags in the PR body: `⚠️ Possible semantic/behavior change — passing tests do not guarantee old behavior is preserved`.
+   - Upstream breaking changes are analyzed by Gemini 2.0 Flash to extract structured change types (`removed`, `renamed`, `signature_change`, `deprecated`, `behavior_change`) along with extraction confidence.
+   - A change is classified as a semantic risk if it is a `behavior_change` (always flagged—passing tests do not guarantee old behavior is preserved), or if it is a `signature_change` or `deprecated` with classifier confidence `< 75%`. Changes of type `removed` or `renamed` are treated as mechanical.
+   - When a semantic risk is identified, Telex tags the PR title with `[semantic-risk]` and flags in the PR body: `⚠️ Possible semantic/behavior change — passing tests do not guarantee old behavior is preserved`.
 2. **Fail-Closed Human Review Gate**:
    - Whenever a patch has weak evidence—such as missing test coverage on the affected symbol, failing CI checks, or unverified semantic risks—Telex attaches the GitHub label `needs-human-review` and highlights the review requirement in the PR description.
 3. **Supply-Chain Defense (Install Scripts Blocked by Default)**:
@@ -171,12 +172,12 @@ Telex is built for:
 - **Maintainers of Mission-Critical Services**: Protect systems with strict, evidence-bound verification where passing tests on the exact commit SHA are required before any code is approved.
 
 **Supported Ecosystems & Languages:**
-- **Automated Dependency Repair & AST Scanner (11 Languages with implemented import queries)**:
+- **Automated Dependency Repair (4 Languages)**:
   - **Node / TypeScript**: `.ts`, `.mts`, `.cts` (`package.json`)
   - **TSX**: `.tsx`
   - **JavaScript**: `.js`, `.mjs`, `.cjs`
-  - **JSX**: `.jsx`
   - **Python**: `.py` (`pyproject.toml`, `requirements.txt`, `setup.py`)
+- **Polyglot AST Call-Site Scanning & Cartography (11 Dialects)**:
   - **Go**: `.go` (`go.mod`, `go.sum`)
   - **Rust**: `.rs` (`Cargo.toml`, `Cargo.lock`)
   - **Java**: `.java` (`pom.xml`, `build.gradle`)

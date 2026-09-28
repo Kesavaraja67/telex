@@ -21,7 +21,7 @@ Telex is the autonomous maintenance engine for software dependencies. When an op
 ### 2. Why did you choose this idea? What is your domain expertise?
 Upstream dependency upgrades are responsible for billions of dollars in developer toil each year. Dependabot and Renovate alert developers when a version bump is available, but they open dumb PRs that simply bump `package.json` or `pyproject.toml` by a single line. When the new version contains breaking API changes, the build breaks, and engineers spend hours reading migration guides and rewriting call sites.
 
-We built Telex because language-aware static analysis (Tree-sitter ASTs) combined with LLM code synthesis and isolated ephemeral test runners can eliminate 90% of this mechanical migration work without introducing hallucination risk.
+We built Telex because language-aware static analysis (Tree-sitter ASTs) combined with LLM code synthesis and isolated ephemeral test runners targets automating up to 90% of this mechanical migration work while significantly reducing hallucination risk through deterministic AST boundaries and fail-closed sandbox verification.
 
 ---
 
@@ -55,7 +55,7 @@ Telex bridges the gap:
 ---
 
 ### 6. How do you acquire users and distribution?
-- **Developer-First Open Source CLI**: `npx @telex/core` and `poetry add telex-core` allow developers to scan their repos locally in seconds with zero configuration.
+- **Developer-First Open Source CLI**: `pip install git+https://github.com/Kesavaraja67/telex.git#subdirectory=packages/telex-core` (or editable local install `pip install -e packages/telex-core`) allows developers to run `telex-core scan` and `telex-core verify` locally in seconds with zero configuration.
 - **GitHub Marketplace App**: 1-click installation to monitor fleet repositories.
 - **Open Source Migration Public PRs**: When popular packages release major versions (e.g. OpenAI v1, Next.js v15, Pydantic v2), Telex generates verified PRs for high-impact open-source projects, demonstrating value directly to maintainers.
 

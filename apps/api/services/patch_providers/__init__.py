@@ -107,9 +107,7 @@ def get_patch_provider(
         from .extra_providers import XAIProvider
 
         if not api_key:
-            raise RuntimeError(
-                "xAI is a BYOK-only provider — add your key in Settings → API Keys."
-            )
+            raise RuntimeError("xAI is a BYOK-only provider — add your key in Settings → API Keys.")
         return XAIProvider(api_key)
 
     if provider_name == "deepseek":
@@ -175,9 +173,7 @@ async def get_patch_provider_for_user(
 
     logger = logging.getLogger(__name__)
 
-    provider_name = (
-        (preferred_provider or settings.llm_provider_default).lower().strip()
-    )
+    provider_name = (preferred_provider or settings.llm_provider_default).lower().strip()
 
     uid = None
     try:

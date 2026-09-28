@@ -58,3 +58,55 @@ def test_extract_breaking_changes_with_changelog_text():
     )
     assert len(changes) == 1
     assert changes[0]["symbol"] == "formatDate"
+
+
+def test_extract_breaking_changes_npm_missing_version(monkeypatch):
+    import pytest
+    monkeypatch.setattr(
+        "telex_core.analyzer.fetch_npm_metadata",
+        lambda pkg: {"versions": {"1.0.0": {}}, "readme": "# Readme"},
+    )
+    with pytest.raises(ValueError, match="not found in npm versions"):
+        extract_breaking_changes(
+            package_name="test-pkg",
+            old_version="1.0.0",
+            new_version="2.0.0",
+            ecosystem="npm",
+        )
+
+
+def test_extract_breaking_changes_npm_empty_readme(monkeypatch):
+    import pytest
+    monkeypatch.setattr(
+        "telex_core.analyzer.fetch_npm_metadata",
+        lambda pkg: {"versions": {"2.0.0": {}}, "readme": "   "},
+    )
+    with pytest.raises(ValueError, match="No usable README text available"):
+        extract_breaking_changes(
+            package_name="test-pkg",
+            old_version="1.0.0",
+            new_version="2.0.0",
+            ecosystem="npm",
+        )
+
+
+def test_extract_breaking_changes_npm_packument_readme_success(monkeypatch):
+    readme_text = """# Release 2.0.0
+### Breaking Changes
+- Renamed `oldApi` to `newApi`
+"""
+    monkeypatch.setattr(
+        "telex_core.analyzer.fetch_npm_metadata",
+        lambda pkg: {"versions": {"2.0.0": {}}, "readme": readme_text},
+    )
+    changes = extract_breaking_changes(
+        package_name="test-pkg",
+        old_version="1.0.0",
+        new_version="2.0.0",
+        ecosystem="npm",
+    )
+    assert len(changes) == 1
+    assert changes[0]["change_type"] == "renamed"
+    assert changes[0]["symbol"] == "oldApi"
+    assert changes[0]["symbol_new"] == "newApi"
+

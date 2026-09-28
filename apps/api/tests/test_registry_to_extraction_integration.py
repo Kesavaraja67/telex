@@ -59,9 +59,7 @@ async def test_registry_polling_propagates_changelog_and_version_context_npm(
     await db_session.commit()
 
     # 2. Mock registry response for new version 2.0.0 with explicit changelog
-    expected_changelog = (
-        "## 2.0.0 Breaking Changes\n- Removed legacy createCompletion API."
-    )
+    expected_changelog = "## 2.0.0 Breaking Changes\n- Removed legacy createCompletion API."
     mock_latest = {
         "version": "2.0.0",
         "published_at": datetime(2026, 9, 1, tzinfo=timezone.utc),
@@ -103,9 +101,7 @@ async def test_registry_polling_propagates_changelog_and_version_context_npm(
     ), f"changelog_raw must be persisted, got {pv_new.changelog_raw}"
 
     # 4. Assert extract_changes job enqueued with correct context
-    assert (
-        len(enqueued_jobs) == 1
-    ), "Expected exactly 1 extract_changes job to be enqueued"
+    assert len(enqueued_jobs) == 1, "Expected exactly 1 extract_changes job to be enqueued"
     extract_job = enqueued_jobs[0]
     assert extract_job["job_type"] == "extract_changes"
 

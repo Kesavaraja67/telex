@@ -15,7 +15,6 @@ from services.code_scanner import find_usages, is_test_file
 from services.github_service import requires_human_review
 from jobs.handlers.open_pr import build_pr_metadata
 
-
 FIXTURE_V1_CODE = b"""
 import { fetchConfig, parseUser } from 'core-auth-lib';
 
@@ -62,32 +61,43 @@ def test_semantic_risk_pipeline_e2e_behavior_change():
 
     # 2. Risk classification
     risk_results = [
-        classify_risk(c["change_type"], c["confidence"]) for c in changes
+        classify_risk(str(c["change_type"]), float(c["confidence"]))  # type: ignore[arg-type]
+        for c in changes
     ]
     assert risk_results[0] is False  # Purely mechanical rename
-    assert risk_results[1] is True   # Stricter behavior shift
+    assert risk_results[1] is True  # Stricter behavior shift
 
     # Aggregate risk for the release
     is_semantic_risk = any(risk_results)
     assert is_semantic_risk is True
 
     # 3. AST call-site discovery
-    usages_rename = find_usages("src/login.ts", FIXTURE_V1_CODE, "parseUser", package_name="core-auth-lib")
+    usages_rename = find_usages(
+        "src/login.ts", FIXTURE_V1_CODE, "parseUser", package_name="core-auth-lib"
+    )
     assert len(usages_rename) == 1
     assert usages_rename[0]["line_start"] == 6
 
-    usages_behavior = find_usages("src/login.ts", FIXTURE_V1_CODE, "fetchConfig", package_name="core-auth-lib")
+    usages_behavior = find_usages(
+        "src/login.ts", FIXTURE_V1_CODE, "fetchConfig", package_name="core-auth-lib"
+    )
     assert len(usages_behavior) == 1
     assert usages_behavior[0]["line_start"] == 5
 
     # 4. Check test coverage signal (tests do not call fetchConfig directly)
-    test_has_coverage = is_test_file("tests/login.test.ts") and False
+    from services.code_scanner import detect_symbol_in_tests
+
+    test_has_coverage = detect_symbol_in_tests(
+        {"tests/login.test.ts": FIXTURE_TEST_CODE.decode("utf-8")},
+        "fetchConfig",
+        package_name="core-auth-lib",
+    )
     assert test_has_coverage is False
 
     # 5. Human review decision gate
     needs_review = requires_human_review(
-        tests_passed=True,          # Tests passed in sandbox
-        typecheck_passed=True,      # Types passed in sandbox
+        tests_passed=True,  # Tests passed in sandbox
+        typecheck_passed=True,  # Types passed in sandbox
         is_semantic_risk=is_semantic_risk,
         has_test_coverage_on_changed_symbol=test_has_coverage,
     )

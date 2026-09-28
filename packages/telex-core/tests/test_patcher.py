@@ -54,3 +54,21 @@ def test_patch_file_dry_run_and_apply(tmp_path: Path):
     res_real = patch_file(str(target), diff, dry_run=False)
     assert res_real["success"] is True
     assert target.read_text(encoding="utf-8") == "console.log('new');\n"
+
+
+def test_apply_diff_zero_count_hunk_with_accumulated_offset():
+    """Hunks with old_count=0 (pure insertions) respect offset from earlier hunks."""
+    original = "line 1\nline 2\nline 3\n"
+    diff = """--- a/test.txt
++++ b/test.txt
+@@ -1,1 +1,2 @@
+-line 1
++line 1a
++line 1b
+@@ -2,0 +3,1 @@
++line 2.5
+"""
+    apply_ok, new_content, log = apply_diff_to_content("test.txt", original, diff)
+    assert apply_ok is True
+    assert new_content == "line 1a\nline 1b\nline 2\nline 2.5\nline 3\n"
+

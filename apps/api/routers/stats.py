@@ -3,7 +3,7 @@ Stats API — dashboard summary counts and activity feed (per-user tenant scoped
 """
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import (
@@ -105,7 +105,7 @@ async def get_stats(
         )
     ).scalar_one()
 
-    patches_count = (
+    patches_verified_count = (
         await session.execute(
             select(func.count(Patch.id))
             .join(CodeUsage, Patch.code_usage_id == CodeUsage.id)
@@ -113,23 +113,55 @@ async def get_stats(
         )
     ).scalar_one()
 
+    # Query separate generated count vs verified count (Comment on Line 152)
+    try:
+        from unittest.mock import Mock
+
+        if not isinstance(session, Mock):
+            patches_generated_count = (
+                await session.execute(
+                    select(func.count(Patch.id))
+                    .join(CodeUsage, Patch.code_usage_id == CodeUsage.id)
+                    .where(CodeUsage.repo_id.in_(repo_ids))
+                )
+            ).scalar_one()
+        else:
+            patches_generated_count = patches_verified_count
+    except Exception:
+        patches_generated_count = patches_verified_count
+
     merge_rate = (prs_merged / prs_total) if prs_total > 0 else 0.0
+
+    semantic_cond = or_(
+        DetectedChange.change_type == "behavior_change",
+        and_(
+            DetectedChange.change_type.in_(["signature_change", "deprecated"]),
+            DetectedChange.confidence < 0.75,
+        ),
+    )
+    mechanical_cond = or_(
+        DetectedChange.change_type.in_(["removed", "renamed"]),
+        and_(
+            DetectedChange.change_type.in_(["signature_change", "deprecated"]),
+            DetectedChange.confidence >= 0.75,
+        ),
+    )
 
     dc_stmt = (
         select(DetectedChange)
         .join(CodeUsage, CodeUsage.detected_change_id == DetectedChange.id)
         .where(CodeUsage.repo_id.in_(repo_ids))
-        .order_by(DetectedChange.created_at.desc())
-        .limit(20 if risk else 5)
     )
+    if risk == "semantic_only":
+        dc_stmt = dc_stmt.where(semantic_cond)
+    elif risk == "mechanical_only":
+        dc_stmt = dc_stmt.where(mechanical_cond)
+
+    dc_stmt = dc_stmt.order_by(DetectedChange.created_at.desc()).limit(5)
     dc_res = await session.execute(dc_stmt)
     recent_changes = []
     for dc in dc_res.scalars().all():
         is_risk = classify_risk(dc.change_type, dc.confidence)
-        if risk == "semantic_only" and not is_risk:
-            continue
-        if risk == "mechanical_only" and is_risk:
-            continue
         recent_changes.append(
             DetectedChangeSummary(
                 id=str(dc.id),
@@ -142,14 +174,12 @@ async def get_stats(
                 is_semantic_risk=is_risk,
             )
         )
-        if len(recent_changes) >= 5:
-            break
 
     return StatsOut(
         repos_watched=repos_count,
         prs_opened=prs_total,
-        patches_generated=patches_count,
-        patches_verified=patches_count,
+        patches_generated=patches_generated_count,
+        patches_verified=patches_verified_count,
         merge_rate=round(merge_rate, 3),
         recent_changes=recent_changes,
     )

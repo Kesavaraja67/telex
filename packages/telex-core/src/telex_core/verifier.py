@@ -71,7 +71,7 @@ def run_command(
         kwargs["start_new_session"] = True
 
     try:
-        proc = subprocess.Popen(cmd, **kwargs)
+        proc = subprocess.Popen(cmd, **kwargs)  # nosec B602: repo-configured test runner command
         try:
             stdout, stderr = proc.communicate(timeout=timeout)
             output = (stdout or "") + "\n" + (stderr or "")

@@ -249,7 +249,7 @@ All analytics and dashboard statistics must map 1:1 to real database events:
 - [x] AST scanner matches symbols only when imported from the target package.
 - [x] Verification fails closed when Telex verification workflow is missing, skipped, or neutral.
 - [x] Validated patches store base SHA and verification commit SHA.
-- [x] Repository drift between validation and PR creation triggers rebase/revalidation.
+- [x] Repository drift between validation and PR creation is detected fail-closed, recording base_branch_drifted and aborting PR creation without opening from stale evidence.
 - [x] Patch application failure fails closed without opening PR.
 - [x] PR creation is idempotent: 1 PR per dependency repair event.
 - [x] Standalone `telex scan` CLI runs in < 2 seconds with zero external services.

@@ -80,9 +80,7 @@ async def _handle_installation_created(payload: dict) -> None:
             )
             sender_id = payload.get("sender", {}).get("id")
             if sender_id:
-                user_res = await session.execute(
-                    select(User).where(User.github_id == sender_id)
-                )
+                user_res = await session.execute(select(User).where(User.github_id == sender_id))
                 user = user_res.scalar_one_or_none()
                 if user:
                     inst.installed_by = user.id
@@ -91,9 +89,7 @@ async def _handle_installation_created(payload: dict) -> None:
         elif inst.installed_by is None:
             sender_id = payload.get("sender", {}).get("id")
             if sender_id:
-                user_res = await session.execute(
-                    select(User).where(User.github_id == sender_id)
-                )
+                user_res = await session.execute(select(User).where(User.github_id == sender_id))
                 user = user_res.scalar_one_or_none()
                 if user:
                     inst.installed_by = user.id

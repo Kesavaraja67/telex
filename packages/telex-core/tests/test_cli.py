@@ -98,3 +98,16 @@ def test_cli_cmd_verify(tmp_path: Path, capsys):
     captured = capsys.readouterr()
     data = json.loads(captured.out)
     assert data["all_passed"] is True
+
+
+def test_cli_cmd_verify_nonexistent_path_text_mode(tmp_path: Path, capsys):
+    parser = build_parser()
+    missing_path = tmp_path / "nonexistent_dir"
+    args = parser.parse_args(["verify", str(missing_path)])
+    exit_code = cmd_verify(args)
+    assert exit_code == 1
+
+    captured = capsys.readouterr()
+    assert "[ERROR] Verification failed" in captured.err
+    assert "Path not found" in captured.err
+

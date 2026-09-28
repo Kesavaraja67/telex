@@ -437,9 +437,8 @@ async def run(payload: dict) -> None:
             conclusion = result.get("conclusion")
             all_passed = conclusion == "success"
 
-            validation_log = (
-                f"[base_sha:{base_sha}] [commit_sha:{commit_sha}]\n"
-                + (result.get("log") or "")
+            validation_log = f"[base_sha:{base_sha}] [commit_sha:{commit_sha}]\n" + (
+                result.get("log") or ""
             )
             vr = ValidationRun(
                 patch_id=patch.id,

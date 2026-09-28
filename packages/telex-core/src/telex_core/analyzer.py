@@ -234,9 +234,16 @@ def extract_breaking_changes(
                     f"Failed to fetch npm metadata for package '{package_name}'"
                 )
             versions = meta.get("versions", {})
-            v_meta = versions.get(new_version, {})
-            # Look for release notes in description or readme
-            raw_changelog = v_meta.get("description", "") or meta.get("readme", "")
+            if new_version not in versions:
+                raise ValueError(
+                    f"Version '{new_version}' not found in npm versions for package '{package_name}'"
+                )
+            # Use packument README rather than version's short description
+            raw_changelog = meta.get("readme", "")
+            if not raw_changelog or not raw_changelog.strip():
+                raise ValueError(
+                    f"No usable README text available for {package_name} ({new_version}) in npm packument"
+                )
         elif ecosystem == "pypi":
             meta = fetch_pypi_metadata(package_name, version=new_version)
             if not meta:

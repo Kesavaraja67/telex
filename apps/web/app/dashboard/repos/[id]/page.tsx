@@ -104,6 +104,25 @@ export default function RepoDetailPage({
     }
   }
 
+  const displayedPatches = React.useMemo(() => {
+    let list = [...patches];
+    if (filterRisk === "semantic_only") {
+      list = list.filter((p) => p.is_semantic_risk === true);
+    } else if (filterRisk === "mechanical_only") {
+      list = list.filter((p) => p.is_semantic_risk === false);
+    }
+    if (sortBy === "risk_first") {
+      list.sort((a, b) =>
+        a.is_semantic_risk === b.is_semantic_risk ? 0 : a.is_semantic_risk ? -1 : 1
+      );
+    } else if (sortBy === "confidence") {
+      list.sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
+    }
+    return list;
+  }, [patches, filterRisk, sortBy]);
+
+  const activePatch = displayedPatches[selectedPatchIndex] || displayedPatches[0] || null;
+
   // State 1: Loading
   if (isLoading && !repo) {
     return (
@@ -158,25 +177,6 @@ export default function RepoDetailPage({
       </div>
     );
   }
-
-  const displayedPatches = React.useMemo(() => {
-    let list = [...patches];
-    if (filterRisk === "semantic_only") {
-      list = list.filter((p) => p.is_semantic_risk === true);
-    } else if (filterRisk === "mechanical_only") {
-      list = list.filter((p) => p.is_semantic_risk === false);
-    }
-    if (sortBy === "risk_first") {
-      list.sort((a, b) =>
-        a.is_semantic_risk === b.is_semantic_risk ? 0 : a.is_semantic_risk ? -1 : 1
-      );
-    } else if (sortBy === "confidence") {
-      list.sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
-    }
-    return list;
-  }, [patches, filterRisk, sortBy]);
-
-  const activePatch = displayedPatches[selectedPatchIndex] || displayedPatches[0] || null;
 
   return (
     <div className="flex flex-col gap-6 relative z-10 max-w-7xl mx-auto w-full">
@@ -323,7 +323,10 @@ export default function RepoDetailPage({
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-[#71717A] text-[11px] uppercase mr-1">Sort:</span>
                 <button
-                  onClick={() => setSortBy("chronological")}
+                  onClick={() => {
+                    setSortBy("chronological");
+                    setSelectedPatchIndex(0);
+                  }}
                   className={`px-2 py-1 rounded text-[11px] transition-colors cursor-pointer ${
                     sortBy === "chronological"
                       ? "bg-white/15 text-white font-semibold"
@@ -333,7 +336,10 @@ export default function RepoDetailPage({
                   Recent
                 </button>
                 <button
-                  onClick={() => setSortBy("risk_first")}
+                  onClick={() => {
+                    setSortBy("risk_first");
+                    setSelectedPatchIndex(0);
+                  }}
                   className={`px-2 py-1 rounded text-[11px] transition-colors cursor-pointer ${
                     sortBy === "risk_first"
                       ? "bg-white/15 text-white font-semibold"
@@ -343,7 +349,10 @@ export default function RepoDetailPage({
                   Risk First
                 </button>
                 <button
-                  onClick={() => setSortBy("confidence")}
+                  onClick={() => {
+                    setSortBy("confidence");
+                    setSelectedPatchIndex(0);
+                  }}
                   className={`px-2 py-1 rounded text-[11px] transition-colors cursor-pointer ${
                     sortBy === "confidence"
                       ? "bg-white/15 text-white font-semibold"

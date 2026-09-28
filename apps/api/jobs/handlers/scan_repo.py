@@ -34,15 +34,16 @@ async def _publish_usage_found(repo_id_str, dc_id_str, cu_id_str, payload_dict):
 # Max file size to scan (bytes) — skip huge generated/vendored files
 MAX_FILE_BYTES = 500_000
 
-# Extensions to scan (polyglot support for Phase 12)
+# Extensions to scan for automated dependency repair: JavaScript/TypeScript and Python.
+# Polyglot AST parsing remains available via find_usages / telex_core for repo atlas.
 SCAN_EXTENSIONS = {
-    ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
     ".py",
-    ".go",
-    ".rs",
-    ".java",
-    ".rb",
-    ".cs",
 }
 
 
@@ -98,8 +99,12 @@ async def run(payload: dict) -> None:
         repo = await session.get(Repo, repo_id)
         pv = await session.get(PackageVersion, package_version_id)
         from db.models import Package
+
         pkg = await session.get(Package, pv.package_id) if pv else None
         pkg_name = pkg.name if pkg else None
+        if pkg and pkg_name and pkg.ecosystem == "pypi":
+            # For PyPI packages, normalize to lowercase and replace hyphens with underscores
+            pkg_name = pkg_name.lower().replace("-", "_")
 
         changes_result = await session.execute(
             select(DetectedChange).where(DetectedChange.package_version_id == package_version_id)
@@ -164,6 +169,13 @@ async def run(payload: dict) -> None:
                     session.add(cu)
                     new_usages.append(cu)
                     total_usages += 1
+
+        if total_usages == 0 and pkg_name:
+            logger.warning(
+                "scan_repo: no usages found for declared dependency %s across repository %s",
+                pkg_name,
+                repo_full_name,
+            )
 
         # Flush so new_usages get their generated IDs assigned
         await session.flush()

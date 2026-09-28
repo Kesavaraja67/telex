@@ -6,8 +6,8 @@ import logging
 import time
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import and_, func, or_, select
 
 from db.models import CodeUsage, DetectedChange, Patch, PullRequest, Repo, ValidationRun
 from db.session import AsyncSessionLocal
@@ -95,13 +95,9 @@ async def get_repo_details(
             "id": str(db_repo.id),
             "full_name": db_repo.full_name,
             "name": (
-                db_repo.full_name.split("/")[-1]
-                if "/" in db_repo.full_name
-                else db_repo.full_name
+                db_repo.full_name.split("/")[-1] if "/" in db_repo.full_name else db_repo.full_name
             ),
-            "owner": (
-                db_repo.full_name.split("/")[0] if "/" in db_repo.full_name else "owner"
-            ),
+            "owner": (db_repo.full_name.split("/")[0] if "/" in db_repo.full_name else "owner"),
             "description": None,
             "default_branch": db_repo.default_branch,
             "is_active": db_repo.is_active,
@@ -203,6 +199,8 @@ async def update_repo_settings(
 @router.get("/digest/human-review")
 async def get_human_review_digest(
     request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     auth_data: dict = Depends(require_auth),
 ):
     """
@@ -213,7 +211,15 @@ async def get_human_review_digest(
 
         repo_ids = await _accessible_repo_ids(session, auth_data)
         if not repo_ids:
-            return {"open_review_prs": [], "total": 0}
+            return {"open_review_prs": [], "total": 0, "page": page, "page_size": page_size}
+
+        total_stmt = select(func.count(PullRequest.id)).where(
+            PullRequest.repo_id.in_(repo_ids),
+            PullRequest.status == "open",
+        )
+        total_res = await session.execute(total_stmt)
+        raw_total = total_res.scalar() if hasattr(total_res, "scalar") else None
+        total = raw_total if isinstance(raw_total, int) else None
 
         pr_stmt = (
             select(PullRequest, Repo)
@@ -223,6 +229,8 @@ async def get_human_review_digest(
                 PullRequest.status == "open",
             )
             .order_by(PullRequest.opened_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
         )
         pr_res = await session.execute(pr_stmt)
         rows = pr_res.all()
@@ -242,7 +250,9 @@ async def get_human_review_digest(
 
         return {
             "open_review_prs": digest_items,
-            "total": len(digest_items),
+            "total": total if total is not None else len(digest_items),
+            "page": page,
+            "page_size": page_size,
         }
 
 
@@ -261,13 +271,45 @@ async def list_patches(
         repo_name = db_repo.full_name
 
         patches_out: list[PatchOut] = []
+        semantic_cond = or_(
+            DetectedChange.change_type == "behavior_change",
+            and_(
+                DetectedChange.change_type.in_(["signature_change", "deprecated"]),
+                DetectedChange.confidence < 0.75,
+            ),
+        )
+        mechanical_cond = or_(
+            DetectedChange.change_type.in_(["removed", "renamed"]),
+            and_(
+                DetectedChange.change_type.in_(["signature_change", "deprecated"]),
+                DetectedChange.confidence >= 0.75,
+            ),
+        )
+
         stmt = (
             select(Patch, CodeUsage)
             .join(CodeUsage, Patch.code_usage_id == CodeUsage.id)
             .where(CodeUsage.repo_id == db_repo.id)
-            .order_by(Patch.created_at.desc())
-            .limit(50 if (risk or sort_by) else 20)
         )
+        if risk or sort_by:
+            stmt = stmt.outerjoin(DetectedChange, CodeUsage.detected_change_id == DetectedChange.id)
+            if risk == "semantic_only":
+                stmt = stmt.where(semantic_cond)
+            elif risk == "mechanical_only":
+                stmt = stmt.where(mechanical_cond)
+
+            if sort_by == "risk_first":
+                stmt = stmt.order_by(semantic_cond.desc(), Patch.created_at.desc())
+            elif sort_by == "confidence_asc":
+                stmt = stmt.order_by(DetectedChange.confidence.asc(), Patch.created_at.desc())
+            elif sort_by == "confidence_desc":
+                stmt = stmt.order_by(DetectedChange.confidence.desc(), Patch.created_at.desc())
+            else:
+                stmt = stmt.order_by(Patch.created_at.desc())
+        else:
+            stmt = stmt.order_by(Patch.created_at.desc())
+
+        stmt = stmt.limit(20)
         res = await session.execute(stmt)
         pairs = res.all()
 
@@ -310,15 +352,11 @@ async def list_patches(
                 vr_row = vr_map.get(patch_row.id)
                 dc_row = dc_map.get(cu_row.detected_change_id)
 
-                is_risk = (
-                    classify_risk(dc_row.change_type, dc_row.confidence)
-                    if dc_row
-                    else None
-                )
+                is_risk = classify_risk(dc_row.change_type, dc_row.confidence) if dc_row else None
 
                 if risk == "semantic_only" and not is_risk:
                     continue
-                if risk == "mechanical_only" and is_risk:
+                if risk == "mechanical_only" and is_risk is not False:
                     continue
 
                 base_sha = None
@@ -339,9 +377,7 @@ async def list_patches(
                         new_version="patched",
                         status="verified" if patch_row.verified else "generated",
                         pr_url=(
-                            pr_row.github_pr_url
-                            if pr_row
-                            else f"https://github.com/{repo_name}"
+                            pr_row.github_pr_url if pr_row else f"https://github.com/{repo_name}"
                         ),
                         usages_patched=1,
                         opened_at=(
@@ -369,13 +405,9 @@ async def list_patches(
                 key=lambda p: (0 if p.is_semantic_risk else 1, -p.opened_at.timestamp())
             )
         elif sort_by == "confidence_asc":
-            patches_out.sort(
-                key=lambda p: (p.confidence if p.confidence is not None else 1.0)
-            )
+            patches_out.sort(key=lambda p: (p.confidence if p.confidence is not None else 1.0))
         elif sort_by == "confidence_desc":
-            patches_out.sort(
-                key=lambda p: (-(p.confidence if p.confidence is not None else 0.0))
-            )
+            patches_out.sort(key=lambda p: (-(p.confidence if p.confidence is not None else 0.0)))
 
         return RepoPatchesOut(
             repo=repo_name,

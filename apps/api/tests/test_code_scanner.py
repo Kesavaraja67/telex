@@ -373,6 +373,46 @@ def test_polyglot_is_test_file():
     assert is_test_file("pkg/server/server.go") is False
     assert is_test_file("src/main.rs") is False
     assert is_test_file("src/User.java") is False
+    # Java & C# word boundary checks: ensure Latest.java and Contest.cs are not classified as tests
+    assert is_test_file("src/Latest.java") is False
+    assert is_test_file("src/Contest.cs") is False
+    assert is_test_file("src/OrderTest.java") is True
+    assert is_test_file("src/OrderTests.cs") is True
 
 
+def test_find_usages_negative_namespace_no_substring_leak():
+    """Ensure '_' does not match 'my_cache.get' and 'map' does not match 'sitemap.get'."""
+    js_code = b"""
+import _ from 'lodash';
+import map from 'lodash/map';
 
+const my_cache = { get: () => 1 };
+const sitemap = { get: () => 2 };
+
+function run() {
+    my_cache.get();
+    sitemap.get();
+    _.get({ a: 1 }, 'a');
+}
+"""
+    # Scanning for get on lodash should only match _.get, NOT my_cache.get or sitemap.get
+    usages = find_usages("index.js", js_code, "get", package_name="lodash")
+    assert len(usages) == 1
+    assert "_.get" in usages[0]["snippet"]
+    assert "my_cache.get" not in usages[0]["snippet"]
+    assert "sitemap.get" not in usages[0]["snippet"]
+
+
+def test_find_usages_prefixed_symbol_name():
+    """Package-prefixed symbol_name has prefix removed when package_name is supplied."""
+    ts_code = b"""
+import _ from 'lodash';
+
+function run() {
+    const val = _.get({ x: 42 }, 'x');
+    return val;
+}
+"""
+    usages = find_usages("app.ts", ts_code, "lodash.get", package_name="lodash")
+    assert len(usages) == 1
+    assert "_.get" in usages[0]["snippet"]
