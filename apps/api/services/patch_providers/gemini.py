@@ -75,11 +75,19 @@ class GeminiProvider(PatchProvider):
     """Patch provider backed by Google Gemini (google-genai SDK)."""
 
     def __init__(self, api_key: str, model: str = "gemini-2.5-flash"):
+        if not api_key:
+            raise RuntimeError(
+                "GeminiProvider requires GEMINI_API_KEY — "
+                "set GEMINI_API_KEY in environment or configure BYOK key in Settings."
+            )
         self.client = genai.Client(
             api_key=api_key,
             http_options=genai_types.HttpOptions(timeout=30000),
         )
         self._model_name = model
+
+    def __repr__(self) -> str:
+        return f"<GeminiProvider model={self._model_name!r}>"
 
     @property
     def model_name(self) -> str:

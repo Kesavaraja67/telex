@@ -96,7 +96,10 @@ def fetch_live_github_commits(
                         "message": commit_obj.get("message", "Update codebase").split("\n")[0],
                     }
                 )
-            _CACHE["commits_by_repo"][cache_key] = {"data": commits, "time": time.time()}
+            _CACHE["commits_by_repo"][cache_key] = {
+                "data": commits,
+                "time": time.time(),
+            }
             return commits
     except Exception:
         return []
@@ -107,7 +110,13 @@ def get_local_git_commits(repo_path: str, limit: int = 5) -> list[dict]:
     if not os.path.exists(repo_path) or not os.path.exists(os.path.join(repo_path, ".git")):
         return []
     try:
-        cmd = ["git", "log", f"-n{limit}", "--pretty=format:%H|%an|%ae|%ad|%s", "--date=relative"]
+        cmd = [
+            "git",
+            "log",
+            f"-n{limit}",
+            "--pretty=format:%H|%an|%ae|%ad|%s",
+            "--date=relative",
+        ]
         res = subprocess.run(cmd, cwd=repo_path, capture_output=True, text=True)
         commits = []
         for line in res.stdout.strip().split("\n"):
@@ -327,8 +336,9 @@ async def sync_github_app_repositories_async(user_id: str | None = None) -> None
                     session.add(db_inst)
                     await session.flush()
 
-                if current_user and account_login.lower() == current_user.github_login.lower():
-                    db_inst.installed_by = current_user.id
+                if current_user and current_user.github_login:
+                    if account_login.lower() == current_user.github_login.lower():
+                        db_inst.installed_by = current_user.id
 
                 async with httpx.AsyncClient(timeout=15.0) as client:
                     gh_repos = []
@@ -464,7 +474,8 @@ async def get_core_repositories_async(
                             from services.github_service import get_installation_token
 
                             token = await asyncio.to_thread(
-                                get_installation_token, inst_record.github_installation_id
+                                get_installation_token,
+                                inst_record.github_installation_id,
                             )
                             if token:
                                 inst_token_map[inst_record.id] = token

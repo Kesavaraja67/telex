@@ -293,11 +293,14 @@ async def github_callback(code: str, request: Request, state: str | None = None)
     next_url = parts[1] if len(parts) > 1 else ""
     origin_from_state = parts[2] if len(parts) > 2 else ""
 
-    if stored_nonce and nonce_from_state:
-        if not secrets.compare_digest(stored_nonce, nonce_from_state):
-            raise HTTPException(
-                status_code=400, detail="Invalid OAuth state — possible CSRF attack"
-            )
+    if (
+        not stored_nonce
+        or not nonce_from_state
+        or not secrets.compare_digest(stored_nonce, nonce_from_state)
+    ):
+        raise HTTPException(
+            status_code=400, detail="Invalid or missing OAuth state — possible CSRF attack"
+        )
 
     # ── Exchange code for access token ───────────────────────────────────────
     try:

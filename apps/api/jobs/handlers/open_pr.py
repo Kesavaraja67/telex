@@ -110,7 +110,11 @@ async def run(payload: dict) -> None:
     )
     from db.session import AsyncSessionLocal
     from services.change_extractor import classify_risk
-    from services.github_service import create_check_run, get_installation_client, open_patch_pr
+    from services.github_service import (
+        create_check_run,
+        get_installation_client,
+        open_patch_pr,
+    )
 
     repo_id = uuid.UUID(payload["repo_id"])
     pv_id_raw = payload.get("package_version_id")
@@ -211,9 +215,106 @@ async def run(payload: dict) -> None:
                 if dc:
                     dc_map[cu.detected_change_id] = dc
 
+        # Stage 6 / Change 16: Check idempotency — 1 PR per repo + package_version repair event
+        if package_version_id is not None:
+            existing_pr_res = await session.execute(
+                select(PullRequest).where(
+                    PullRequest.repo_id == repo_id,
+                    PullRequest.package_version_id == package_version_id,
+                    PullRequest.status == "open",
+                )
+            )
+            existing_pr = existing_pr_res.scalar_one_or_none()
+            if existing_pr:
+                logger.info(
+                    "open_pr: open PR #%d already exists for repo %s and version %s — skipping duplicate PR",
+                    existing_pr.github_pr_number,
+                    repo_id,
+                    package_version_id,
+                )
+                return
+        elif patches:
+            existing_pr_res = await session.execute(
+                select(PullRequest).where(
+                    PullRequest.repo_id == repo_id,
+                    PullRequest.status == "open",
+                )
+            )
+            all_open_prs = list(existing_pr_res.scalars())
+            target_patch_ids = {p.id for p in patches}
+            for op in all_open_prs:
+                op_patch_ids = set(op.patch_ids or [])
+                if target_patch_ids.intersection(op_patch_ids):
+                    logger.info(
+                        "open_pr: open PR #%d already covers patch(es) for repo %s — skipping duplicate PR",
+                        op.github_pr_number,
+                        repo_id,
+                    )
+                    return
+
+    import re
+
+    expected_base_sha = payload.get("base_sha")
+    if not expected_base_sha:
+        for vr in vr_map.values():
+            if vr and getattr(vr, "log", None):
+                m = re.search(r"\[base_sha:([a-f0-9]+)\]", vr.log)
+                if m:
+                    expected_base_sha = m.group(1)
+                    break
+
     # ── PyGithub calls run in a thread — they are blocking I/O ───────────────
     gh = await asyncio.to_thread(get_installation_client, installation_github_id)
     gh_repo = await asyncio.to_thread(gh.get_repo, repo_full_name)
+
+    # Change 16: Verify repository base commit has not drifted since validation
+    if expected_base_sha:
+        try:
+            default_branch_obj = await asyncio.to_thread(gh_repo.get_branch, repo_default_branch)
+            current_head_sha = default_branch_obj.commit.sha
+            if current_head_sha != expected_base_sha:
+                logger.warning(
+                    "open_pr: target branch %s HEAD (%s) does not match validation base_sha (%s) for repo %s — aborting PR creation due to drift",
+                    repo_default_branch,
+                    current_head_sha,
+                    expected_base_sha,
+                    repo_id,
+                )
+                from services.incident_events import record_event
+
+                async with AsyncSessionLocal() as session:
+                    await record_event(
+                        session,
+                        event_type="patch_failed",
+                        repo_id=repo_id,
+                        payload={
+                            "reason": "base_branch_drifted",
+                            "expected_base_sha": expected_base_sha,
+                            "current_head_sha": current_head_sha,
+                        },
+                    )
+                    await session.commit()
+                return
+        except Exception as drift_exc:
+            logger.warning(
+                "open_pr: drift check encountered exception for %s: %s",
+                repo_full_name,
+                drift_exc,
+            )
+            from services.incident_events import record_event
+
+            async with AsyncSessionLocal() as session:
+                await record_event(
+                    session,
+                    event_type="patch_failed",
+                    repo_id=repo_id,
+                    payload={
+                        "reason": f"drift_check_failed: {drift_exc}",
+                        "expected_base_sha": expected_base_sha,
+                    },
+                )
+                await session.commit()
+            return
 
     from services.github_service import apply_diff_to_content, get_installation_client
 
@@ -224,18 +325,63 @@ async def run(payload: dict) -> None:
             continue
         try:
             content_file = await asyncio.to_thread(
-                gh_repo.get_contents, cu.file_path, ref=repo_default_branch
+                gh_repo.get_contents,
+                cu.file_path,
+                ref=expected_base_sha or repo_default_branch,
             )
             original = content_file.decoded_content.decode("utf-8")  # type: ignore
         except Exception as exc:
-            logger.warning("open_pr: could not fetch %s: %s", cu.file_path, exc)
-            continue
+            logger.error(
+                "open_pr: could not fetch %s for repo %s: %s — failing closed, aborting PR",
+                cu.file_path,
+                repo_id,
+                exc,
+            )
+            from services.incident_events import record_event
+
+            async with AsyncSessionLocal() as session:
+                await record_event(
+                    session,
+                    event_type="patch_failed",
+                    repo_id=repo_id,
+                    code_usage_id=cu.id,
+                    detected_change_id=cu.detected_change_id,
+                    payload={
+                        "file_path": cu.file_path,
+                        "error": str(exc),
+                        "reason": "fetch_file_failed",
+                    },
+                )
+                await session.commit()
+            return
 
         # Compute patched content by applying the validated diff
+        # Change 15: If apply_diff_to_content returns apply_ok=False, FAIL CLOSED.
         apply_ok, new_content, apply_log = apply_diff_to_content(cu.file_path, original, p.diff)
         if not apply_ok:
-            logger.warning("open_pr: could not apply diff to %s: %s", cu.file_path, apply_log)
-            new_content = original
+            logger.error(
+                "open_pr: could not apply diff to %s for repo %s: %s — failing closed, aborting PR",
+                cu.file_path,
+                repo_id,
+                apply_log,
+            )
+            from services.incident_events import record_event
+
+            async with AsyncSessionLocal() as session:
+                await record_event(
+                    session,
+                    event_type="patch_failed",
+                    repo_id=repo_id,
+                    code_usage_id=cu.id,
+                    detected_change_id=cu.detected_change_id,
+                    payload={
+                        "file_path": cu.file_path,
+                        "error": apply_log,
+                        "reason": "apply_diff_to_content_failed",
+                    },
+                )
+                await session.commit()
+            return
 
         cu_dc = dc_map.get(cu.detected_change_id) if cu.detected_change_id else None
         patch_dicts.append(
@@ -299,11 +445,15 @@ async def run(payload: dict) -> None:
 
     from services.github_service import requires_human_review as _requires_human_review
 
+    # Keep this consistent with open_patch_pr's label gate: symbol-level coverage
+    # is unknown until reliable coverage instrumentation is available.
+    _has_test_coverage = False
+
     _needs_review = _requires_human_review(
         tests_passed=_tests_passed,
         typecheck_passed=_typecheck_passed,
         is_semantic_risk=is_semantic_risk,
-        has_test_coverage_on_changed_symbol=False,
+        has_test_coverage_on_changed_symbol=_has_test_coverage,
     )
 
     base_title = f"chore(deps): auto-patch for {pkg_name}@{pv_version}"
@@ -372,6 +522,7 @@ async def run(payload: dict) -> None:
             tests_passed=_tests_passed,
             typecheck_passed=_typecheck_passed,
             allow_install_scripts=repo_allow_scripts,
+            base_sha=expected_base_sha,
         )
     except Exception as exc:
         logger.error("open_pr: failed to open PR: %s", exc)

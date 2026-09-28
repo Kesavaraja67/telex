@@ -154,6 +154,7 @@ async def open_patch_pr(
     tests_passed: bool | None = None,
     typecheck_passed: bool | None = None,
     allow_install_scripts: bool = False,
+    base_sha: str | None = None,
 ) -> tuple[str, int]:
     """
     Open a pull request on `repo_full_name` with the given patches applied.
@@ -181,18 +182,19 @@ async def open_patch_pr(
         gh = get_installation_client(installation_id)
         repo = gh.get_repo(repo_full_name)
         base_branch = repo.get_branch(repo.default_branch)
+        target_sha = base_sha or base_branch.commit.sha
 
-        # Create or update the patch branch from the current HEAD of default branch (retry-safe)
+        # Create or update the patch branch from the validated target SHA (retry-safe)
         try:
             repo.create_git_ref(
                 ref=f"refs/heads/{branch_name}",
-                sha=base_branch.commit.sha,
+                sha=target_sha,
             )
         except GithubException as exc:
             if getattr(exc, "status", None) == 422:
                 try:
                     ref = repo.get_git_ref(f"heads/{branch_name}")
-                    ref.edit(sha=base_branch.commit.sha, force=True)
+                    ref.edit(sha=target_sha, force=True)
                 except Exception as ref_exc:
                     logger.warning("Could not reset existing ref %s: %s", branch_name, ref_exc)
             else:
@@ -237,7 +239,7 @@ async def open_patch_pr(
             tests_passed=tests_passed,
             typecheck_passed=typecheck_passed,
             is_semantic_risk=is_semantic_risk,
-            has_test_coverage_on_changed_symbol=False,  # stub — always unknown
+            has_test_coverage_on_changed_symbol=False,
         )
         if _needs_review:
             try:
@@ -265,6 +267,22 @@ async def open_patch_pr(
         return pr.html_url, pr.number
 
     return await asyncio.to_thread(_do_github_work)
+
+
+def ensure_repo_labels(repo) -> None:
+    """Ensures Telex management labels (needs-human-review, semantic-risk) exist on repository."""
+    labels_to_ensure = [
+        ("needs-human-review", "e11d48", "Telex flagged this PR for human review before merge"),
+        ("semantic-risk", "e36209", "Possible semantic/behavior change detected"),
+    ]
+    for name, color, desc in labels_to_ensure:
+        try:
+            repo.get_label(name)
+        except GithubException:
+            try:
+                repo.create_label(name=name, color=color, description=desc)
+            except GithubException as exc:
+                logger.warning("ensure_repo_labels: failed creating label %s: %s", name, exc)
 
 
 def apply_diff_to_content(
@@ -704,13 +722,16 @@ async def wait_for_telex_verification(
             await asyncio.sleep(poll_interval)
             continue
 
-        # Filter check runs for our specific verification gate
+        # Filter check runs strictly for our specific verification gate
         matching_checks = [
             cr
             for cr in check_runs
-            if "telex" in (cr.name or "").lower() or expected_workflow_name in (cr.name or "")
+            if "telex" in (cr.name or "").lower()
+            or (
+                expected_workflow_name and expected_workflow_name.lower() in (cr.name or "").lower()
+            )
         ]
-        target_checks = matching_checks or check_runs
+        target_checks = matching_checks
 
         if target_checks:
             saw_checks = True
@@ -726,17 +747,12 @@ async def wait_for_telex_verification(
 
             all_completed = all(c["status"] == "completed" for c in observed_checks.values())
             if all_completed and observed_checks:
-                all_success = all(
-                    c["conclusion"] in ("success", "neutral", "skipped")
-                    for c in observed_checks.values()
-                )
+                all_success = all(c["conclusion"] == "success" for c in observed_checks.values())
 
                 logs = []
                 for c in observed_checks.values():
                     status_str = (
-                        "passed"
-                        if c["conclusion"] in ("success", "skipped")
-                        else f"failed ({c['conclusion']})"
+                        "passed" if c["conclusion"] == "success" else f"failed ({c['conclusion']})"
                     )
                     logs.append(f"Verification Check [{c['name']}]: {status_str}")
                     if c["summary"]:

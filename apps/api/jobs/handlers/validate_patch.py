@@ -437,6 +437,9 @@ async def run(payload: dict) -> None:
             conclusion = result.get("conclusion")
             all_passed = conclusion == "success"
 
+            validation_log = f"[base_sha:{base_sha}] [commit_sha:{commit_sha}]\n" + (
+                result.get("log") or ""
+            )
             vr = ValidationRun(
                 patch_id=patch.id,
                 verification_mode=verification_mode,
@@ -445,7 +448,7 @@ async def run(payload: dict) -> None:
                 typechecks=typechecks,
                 tests_pass=tests_pass,
                 scope_ok=scope_ok,
-                log=result.get("log"),
+                log=validation_log,
             )
             session.add(vr)
 
@@ -476,6 +479,8 @@ async def run(payload: dict) -> None:
                         "tests_pass": tests_pass,
                         "scope_ok": scope_ok,
                         "verification_mode": verification_mode,
+                        "base_sha": base_sha,
+                        "commit_sha": commit_sha,
                         "reason": "gate_requirements_failed",
                     },
                 )
@@ -494,6 +499,8 @@ async def run(payload: dict) -> None:
                         "tests_pass": tests_pass,
                         "scope_ok": scope_ok,
                         "verification_mode": verification_mode,
+                        "base_sha": base_sha,
+                        "commit_sha": commit_sha,
                     },
                 )
                 await enqueue_job(
@@ -502,6 +509,8 @@ async def run(payload: dict) -> None:
                     payload={
                         "repo_id": str(repo_id),
                         "code_usage_id": str(code_usage.id),
+                        "base_sha": base_sha,
+                        "commit_sha": commit_sha,
                     },
                 )
                 logger.info(

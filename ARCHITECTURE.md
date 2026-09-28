@@ -195,8 +195,9 @@ Accessible via the dedicated operator page `/dashboard/atlas`, Repo Atlas transf
                                              │
                                              ▼
  ┌────────────────────────────────────────────────────────────────────────────────────────┐
- │                         MULTI-LANGUAGE AST GRAPH PARSER                                │
- │       Tree-Sitter: TS, JS, Python, Go, Rust, Java, C/C++, Ruby, PHP + tsconfig paths   │
+ │                    MULTI-LANGUAGE AST GRAPH PARSER (REPO ATLAS 3D)                     │
+ │   Visualization: TS, JS, Python, Go, Rust, Java, C/C++, Ruby, PHP + tsconfig paths     │
+ │   (Automated repair pipeline is strictly bounded to TypeScript, TSX, JS, and Python)   │
  └────────────────────────────────────────────────────────────────────────────────────────┘
                                              │
                                              ▼

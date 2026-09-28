@@ -431,3 +431,113 @@ def test_detect_python_allows_scripts_when_opted_in():
         )
     assert env["ecosystem"] == "python"
     assert env["install_cmd"] == "pip install -r requirements.txt"
+
+
+@pytest.mark.asyncio
+async def test_wait_for_telex_verification_success():
+    """Telex verification passes when Telex check run completes with success."""
+    from services.github_service import wait_for_telex_verification
+
+    mock_check = MagicMock()
+    mock_check.name = "Telex Validation"
+    mock_check.status = "completed"
+    mock_check.conclusion = "success"
+    mock_check.output = MagicMock(title="Passed", summary="All gates passed", text=None)
+
+    mock_commit = MagicMock()
+    mock_commit.get_check_runs.return_value = [mock_check]
+
+    mock_repo = MagicMock()
+    mock_repo.get_commit.return_value = mock_commit
+    mock_repo.get_workflow_runs.return_value = []
+
+    mock_gh = MagicMock()
+    mock_gh.get_repo.return_value = mock_repo
+
+    with patch("services.github_service.get_installation_client", return_value=mock_gh):
+        result = await wait_for_telex_verification(
+            repo_full_name="owner/repo",
+            installation_id=12345,
+            commit_sha="abcd123",
+            expected_workflow_name="Telex Validation",
+            timeout_seconds=5.0,
+            poll_interval=0.1,
+        )
+
+    assert result["is_verified"] is True
+    assert result["conclusion"] == "success"
+    assert result["workflow_found"] is True
+
+
+@pytest.mark.asyncio
+async def test_wait_for_telex_verification_fails_on_neutral_or_skipped():
+    """Neutral or skipped conclusions must fail closed (not count as success)."""
+    from services.github_service import wait_for_telex_verification
+
+    for concl in ["neutral", "skipped", "failure"]:
+        mock_check = MagicMock()
+        mock_check.name = "telex-ci"
+        mock_check.status = "completed"
+        mock_check.conclusion = concl
+        mock_check.output = MagicMock(title=concl, summary=f"Finished with {concl}", text="log")
+
+        mock_commit = MagicMock()
+        mock_commit.get_check_runs.return_value = [mock_check]
+
+        mock_repo = MagicMock()
+        mock_repo.get_commit.return_value = mock_commit
+        mock_repo.get_workflow_runs.return_value = []
+
+        mock_gh = MagicMock()
+        mock_gh.get_repo.return_value = mock_repo
+
+        with patch("services.github_service.get_installation_client", return_value=mock_gh):
+            result = await wait_for_telex_verification(
+                repo_full_name="owner/repo",
+                installation_id=12345,
+                commit_sha="abcd123",
+                expected_workflow_name="telex-ci",
+                timeout_seconds=5.0,
+                poll_interval=0.1,
+            )
+
+        assert result["is_verified"] is False
+        assert result["conclusion"] == "failure"
+
+
+@pytest.mark.asyncio
+async def test_wait_for_telex_verification_ignores_unrelated_checks():
+    """Unrelated check runs (e.g. unrelated CI) must NOT be counted as Telex verification."""
+    from services.github_service import wait_for_telex_verification
+
+    # A check run that succeeded, but has nothing to do with telex or expected workflow
+    mock_check = MagicMock()
+    mock_check.name = "unrelated-build-step"
+    mock_check.status = "completed"
+    mock_check.conclusion = "success"
+    mock_check.output = MagicMock(title="Success", summary="Done", text=None)
+
+    mock_commit = MagicMock()
+    mock_commit.get_check_runs.return_value = [mock_check]
+
+    mock_repo = MagicMock()
+    mock_repo.get_commit.return_value = mock_commit
+    mock_repo.get_workflow_runs.return_value = []
+
+    mock_gh = MagicMock()
+    mock_gh.get_repo.return_value = mock_repo
+
+    with patch("services.github_service.get_installation_client", return_value=mock_gh):
+        result = await wait_for_telex_verification(
+            repo_full_name="owner/repo",
+            installation_id=12345,
+            commit_sha="abcd123",
+            expected_workflow_name="telex-verification",
+            timeout_seconds=0.2,
+            poll_interval=0.1,
+        )
+
+    # Must time out and NOT verify based on unrelated checks
+    assert result["is_verified"] is False
+    assert result["workflow_found"] is False
+    assert result["conclusion"] == "timed_out"

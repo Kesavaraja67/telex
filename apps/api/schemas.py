@@ -105,6 +105,8 @@ class PatchOut(BaseModel):
     change_description: str | None = None
     confidence: float | None = None
     is_semantic_risk: bool | None = None
+    base_sha: str | None = None
+    commit_sha: str | None = None
 
 
 class RepoPatchesOut(BaseModel):
@@ -130,6 +132,7 @@ class StatsOut(BaseModel):
     repos_watched: int
     prs_opened: int
     patches_generated: int
+    patches_verified: int | None = None
     merge_rate: float  # fraction 0.0–1.0
     recent_changes: list[DetectedChangeSummary] = []
 

@@ -3,7 +3,7 @@
 <div align="center">
 
   <h1>Contributing to Telex</h1>
-  <p><b>Guidelines for Engineering, Pull Requests, Code Style & Community Standards</b></p>
+  <p><b>Guidelines for Engineering, Pull Requests, Code Style & Developer Onboarding</b></p>
 
   <p>
     <a href="https://github.com/psf/black">
@@ -12,19 +12,20 @@
     <a href="https://github.com/astral-sh/ruff">
       <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json&style=flat-square" alt="Ruff" />
     </a>
-    <img src="https://img.shields.io/badge/Coverage-Enforced%20%E2%89%A580%25-10B981?style=flat-square" alt="Coverage >= 80%" />
     <img src="https://img.shields.io/badge/PRs-Welcome-14B8A6?style=flat-square" alt="PRs Welcome" />
   </p>
 
   <br>
 
   <p>
-    <a href="#code-of-conduct"><b>Code of Conduct</b></a> &nbsp;•&nbsp;
-    <a href="#workflow-policies"><b>Policies</b></a> &nbsp;•&nbsp;
-    <a href="#local-setup"><b>Local Setup</b></a> &nbsp;•&nbsp;
-    <a href="#coding-standards"><b>Standards</b></a> &nbsp;•&nbsp;
-    <a href="#pr-guidelines"><b>PR Guidelines</b></a> &nbsp;•&nbsp;
-    <a href="#pr-checklist"><b>Checklist</b></a>
+    <a href="#quickstart-zero-docker"><b>Zero-Docker Quickstart</b></a> &nbsp;•&nbsp;
+    <a href="#quickstart-docker"><b>Docker Quickstart</b></a> &nbsp;•&nbsp;
+    <a href="#seeded-demo"><b>Demo Data</b></a> &nbsp;•&nbsp;
+    <a href="#telex-cli"><b>Standalone CLI</b></a> &nbsp;•&nbsp;
+    <a href="#architecture"><b>Architecture</b></a> &nbsp;•&nbsp;
+    <a href="#testing"><b>Testing Guide</b></a> &nbsp;•&nbsp;
+    <a href="#standards"><b>Standards</b></a> &nbsp;•&nbsp;
+    <a href="#checklist"><b>PR Checklist</b></a>
   </p>
 
 </div>
@@ -35,175 +36,253 @@
 
 <br>
 
-## <a id="code-of-conduct"></a>01. Code of Conduct
+## 01. Prerequisites
 
-All contributors, maintainers, and community members are expected to uphold the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). We are committed to providing a polite, respectful, and harassment-free environment for everyone.
-
-<br>
-
-<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
-
----
-
-<br>
-
-## <a id="workflow-policies"></a>02. Contribution Workflow & Policies
-
-### 1. Large Features vs. Small Fixes
-- **Substantial Features & Schema Migrations**: For major features or architectural modifications, please open an issue first to align with maintainers before writing code.
-- **Bug Fixes, Typo Corrections & Tests**: Bug fixes, documentation updates, and test additions do not require prior approval—feel free to submit a pull request directly.
-
-### 2. Respectful & Professional Communication
-- All communication across issues, pull requests, and discussions must remain **polite, constructive, and professional**.
-- Explain technical tradeoffs clearly and treat maintainers and fellow contributors with dignity.
-
-<br>
-
-<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
-
----
-
-<br>
-
-## <a id="local-setup"></a>03. Local Setup & Verification
-
-### Prerequisites
-- **Python**: 3.11+
-- **Node.js**: 20+ (`npm` 10+)
-- **PostgreSQL**: 15+
+- **Python**: 3.10+ (tested on Python 3.10, 3.11, 3.12)
+- **Node.js**: 18+ (`npm` 9+)
 - **Git**
+- **Docker & Docker Compose**: *Optional* (only required for full PostgreSQL + Redis containerized stack)
 
-### 1. Clone the Repository
-```bash
-git clone https://github.com/Kesavaraja67/telex.git
-cd telex
+---
+
+<br>
+
+## <a id="quickstart-zero-docker"></a>02. Zero-Docker Quickstart (&lt; 5 Minutes)
+
+You do **not** need Docker, PostgreSQL, Redis, or GitHub App secrets to develop Telex locally. Telex runs on local SQLite with zero external dependencies out of the box.
+
+### One-Command Setup
+
+**On Windows (PowerShell):**
+```powershell
+.\scripts\bootstrap.ps1
 ```
 
-### 2. Backend Setup (`apps/api`)
+**On macOS / Linux (Bash):**
 ```bash
+chmod +x scripts/bootstrap.sh
+./scripts/bootstrap.sh
+```
+
+### What the bootstrap script does automatically:
+1. Verifies your Python 3.10+ and Node 18+ environments.
+2. Generates a local `.env` file with secure random session and encryption secrets.
+3. Configures local SQLite (`sqlite+aiosqlite:///telex.db`) with zero Docker needed.
+4. Installs Python dependencies and the standalone `telex-core` CLI package in editable mode.
+5. Installs Next.js dependencies in `apps/web`.
+6. Seeds 3 realistic demo repositories with breaking changes, patches, CI gate records, and pull requests via `scripts/seed_demo.py`.
+7. Runs test verification to confirm your environment works.
+
+### Launch Development Servers
+
+```bash
+# Terminal 1: Launch FastAPI backend (port 8000)
 cd apps/api
-
-python -m venv venv
-# Windows (PowerShell):
-.\venv\Scripts\Activate.ps1
-# macOS / Linux:
-source venv/bin/activate
-
-pip install -r requirements.txt
-cp .env.example .env
-
-# Run database migrations
-alembic upgrade head
-
-# Launch development server
 uvicorn main:app --reload --port 8000
-```
 
-### 3. Frontend Setup (`apps/web`)
-```bash
+# Terminal 2: Launch Next.js dashboard (port 3000)
 cd apps/web
-npm install
-cp .env.example .env.local
 npm run dev
 ```
-Open `http://localhost:3000` in your browser.
 
-<br>
-
-<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
+Visit [`http://localhost:3000`](http://localhost:3000) to view the pre-populated dashboard!
 
 ---
 
 <br>
 
-## <a id="coding-standards"></a>04. Engineering Standards
+## <a id="quickstart-docker"></a>03. Docker Quickstart (Full Production Stack)
 
-### 1. Python Code (`apps/api`)
-- **Formatting**: We use [Black](https://github.com/psf/black) with a line length of 100 characters.
-- **Linting & Imports**: We use [Ruff](https://github.com/astral-sh/ruff) for rapid linting and deterministic import sorting.
-- **Type Annotations**: Comprehensive type annotations are required on all public functions, database models, and Pydantic schemas.
+To run the full stack with real PostgreSQL, Redis, and background worker jobs:
 
 ```bash
+# 1. Copy environment template
+cp .env.example .env
+
+# 2. Launch PostgreSQL and Redis
+docker compose up -d postgres redis
+
+# 3. Install API dependencies and run database migrations
 cd apps/api
-ruff check --fix .
-black .
+pip install -r requirements.txt
+alembic upgrade head
+
+# 4. Start the background worker
+python worker.py
+
+# 5. Start API & Web servers
+uvicorn main:app --reload --port 8000
+npm --prefix ../web install && npm --prefix ../web run dev
 ```
 
-### 2. Simple English Code Comments
-- **Write code comments and docstrings in simple, plain English.**
-- Keep sentences short, concise, and focused on *why* non-obvious logic exists.
-- Avoid obscure jargon, idioms, or academic vocabulary.
-
-### 3. Frontend Code (`apps/web`)
-- Built with **Next.js 16 (App Router)** and **TypeScript Strict**.
-- Follow the design system tokens in [`DESIGN.md`](DESIGN.md).
-- Validate types and linting prior to submitting:
-  ```bash
-  cd apps/web
-  npx tsc --noEmit
-  npm run lint
-  ```
+---
 
 <br>
 
-<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
+## <a id="seeded-demo"></a>04. Seeded Demo Data
+
+Telex provides an automated, idempotent demo seeder script to populate your local database with 3 realistic repositories:
+
+```bash
+# Seed demo data into SQLite
+python scripts/seed_demo.py --sqlite
+
+# Wipe and re-seed clean data
+python scripts/seed_demo.py --sqlite --clean
+```
+
+### Seeded Repositories:
+1. **`acme/web-app`** (TypeScript / Next.js):
+   - Upstream dependency: `openai@3.3.0` → `4.0.0`
+   - Breaking Change: `createCompletion` replaced by `chat.completions.create`
+   - Outcome: Open PR #142 with full Jest test suite receipts
+2. **`acme/data-pipeline`** (Python):
+   - Upstream dependency: `pydantic@1.10.8` → `2.0.0`
+   - Breaking Change: `BaseModel.dict()` renamed to `model_dump()`
+   - Outcome: Merged PR #88 with pytest verification receipts
+3. **`acme/api-gateway`** (JavaScript / Express):
+   - Upstream dependency: `axios@0.27.2` → `1.6.0`
+   - Breaking Change: `transformResponse` signature change (flagged as semantic risk)
+   - Outcome: Open PR #57 marked with `[semantic-risk]` requiring human review
 
 ---
 
 <br>
 
-## <a id="pr-guidelines"></a>05. Pull Request Guidelines
+## <a id="telex-cli"></a>05. Standalone `telex` CLI
 
-### 1. Mandatory Visual Evidence
-- **If your pull request modifies any UI, layout, styling, or dashboard workflow, you MUST include visual evidence in the PR description.**
-- Acceptable formats:
-  - Screenshots (PNG/JPG) showing Before and After states.
-  - Video recordings (GIF, MP4, WebM) demonstrating interaction flows.
+Telex includes a standalone, zero-infrastructure CLI engine in [`packages/telex-core`](packages/telex-core). You can use it anywhere locally:
 
-### 2. Automated Test Coverage (Enforced ≥80%)
-- All logic changes require comprehensive unit or integration tests in `apps/api/tests/`.
-- CI strictly enforces a **≥80% statement and branch coverage gate**:
-  ```bash
-  cd apps/api
-  pytest --cov=. --cov-report=term-missing --cov-fail-under=80
-  ```
+```bash
+# Install CLI
+pip install -e packages/telex-core
 
-### 3. Git Discipline: No Force Pushes & No Rebasing
-- **Never Force Push (`--force`)**: Do not rewrite history on branches with open PRs.
-- **No Manual Rebasing**: Merge `main` into your branch (`git merge origin/main`) if synchronization is needed.
-- Maintainers use GitHub's **Squash and Merge** to guarantee clean linear history on `main`.
+# 1. Scan a local directory for call sites of a symbol:
+telex scan ./src --package lodash --symbol get
+telex scan ./services --package requests --symbol get --json
 
-### 4. Conventional Commits
-Use standard commit prefixes:
-- `feat:` New functionality
-- `fix:` Bug fix
-- `docs:` Documentation updates
-- `style:` Formatting or whitespace changes
-- `refactor:` Code reorganization without behavioral change
-- `test:` Adding or updating tests
-- `chore:` Maintenance or build tasks
+# 2. Analyze breaking changes between two package versions:
+telex analyze lodash --from 4.17.20 --to 4.17.21 --ecosystem npm
+telex analyze requests --from 2.25.0 --to 2.26.0 --ecosystem pypi
 
-<br>
+# 3. Test applying a unified diff (dry-run):
+telex patch ./src/index.ts --diff ./patch.diff --dry-run
 
-<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
+# 4. Verify local repository integrity:
+telex verify ./src --test-cmd "pytest" --typecheck-cmd "mypy src"
+```
 
 ---
 
 <br>
 
-## <a id="pr-checklist"></a>06. Pull Request Checklist
+## <a id="architecture"></a>06. Architecture in 5 Minutes
 
-Before submitting your pull request, verify that all items are checked:
+Telex operates as a six-stage automated pipeline:
 
-- [ ] **Polite & Professional**: All PR communication is respectful and constructive.
-- [ ] **Simple English Comments**: Comments and docstrings are concise and written in plain English.
-- [ ] **Tests Included**: Automated tests verify all modified or added code paths.
-- [ ] **Test Coverage Above 80%**: Verified locally with `pytest --cov=. --cov-fail-under=80`.
-- [ ] **No Force Pushes**: Commit history has not been rewritten or force pushed.
-- [ ] **Backend Linting**: Passed `black .` and `ruff check .` with zero errors.
-- [ ] **Frontend Validation**: Passed `npx tsc --noEmit` and `npm run lint` with zero errors.
-- [ ] **Visual Proof Attached**: UI changes include screenshots or screen recordings.
-- [ ] **Conventional Commits**: Commits follow `feat:`, `fix:`, `docs:` formatting.
+```text
+[Registry Watcher] (npm / PyPI)
+        │
+        ▼ (New Version Detected)
+[Change Extractor] (Rule-based heuristics + LLM classifier)
+        │
+        ▼ (Breaking API Signatures Identified)
+[Tree-Sitter Scanner] (TS/JS/Py import binding resolution)
+        │
+        ▼ (Exact Call Sites Isolated)
+[Patch Generator] (Multi-provider LLM synthesis: Gemini, Claude, OpenAI)
+        │
+        ▼ (Candidate Unified Diff)
+[Ephemeral CI Sandbox] (Real package tests + typechecks on dedicated runner)
+        │
+        ▼ (100% Green CI Gate Passed)
+[Idempotent PR Creation] (1 PR per repo+version with verification receipts)
+```
+
+### Critical Pipeline Rules:
+- **Zero Hallucinated Code**: Patches must pass the repository's real test suite on a dedicated verification branch before any pull request is opened.
+- **Fail Closed**: If a patch fails to apply cleanly or base commit drifts, PR creation is aborted immediately. We never fall back to unmodified code.
+- **Never Auto-Merge**: Telex opens ready-to-merge pull requests with verification evidence, but humans always retain ultimate merge authority.
+
+---
+
+<br>
+
+## <a id="testing"></a>07. Testing Guide
+
+Always run tests before opening a pull request:
+
+```bash
+# 1. Run backend tests (apps/api)
+pytest -c apps/api/pyproject.toml apps/api
+
+# 2. Run standalone CLI tests (packages/telex-core)
+pytest packages/telex-core/tests
+
+# 3. Test polyglot AST scanner (Go, Rust, Java, Python, Ruby, C#, TS/JS)
+pytest apps/api/tests/test_code_scanner.py
+
+# 4. Run lint checks
+ruff check .
+black --check apps/api packages/telex-core
+
+# 5. Run frontend typecheck & lint (apps/web)
+cd apps/web
+npm run typecheck
+npm run lint
+```
+
+---
+
+<br>
+
+## <a id="standards"></a>08. Engineering Standards
+
+1. **Python Code Style**:
+   - Format with **Black** (100 characters max line length).
+   - Lint with **Ruff** for imports and syntax.
+2. **Simple English Comments**:
+   - Write comments and docstrings in concise, plain English.
+   - Explain *why* non-obvious code exists rather than restating what the code does.
+3. **Security & Authorization**:
+   - All repository-scoped routes must enforce `get_authorized_repo(session, repo_id, auth_data)`.
+   - Never log or return unencrypted API keys or internal stack traces to clients.
+4. **Git Discipline**:
+   - Use conventional commit messages (`feat:`, `fix:`, `docs:`, `test:`, `chore:`).
+   - Never force-push (`git push --force`) to shared branches.
+
+---
+
+<br>
+
+## <a id="issues"></a>09. Good First Issues & Issue Lifecycle
+
+If you are a first-time contributor:
+1. **Find an Issue**:
+   - Look for issues labeled [`good first issue`](https://github.com/Kesavaraja67/telex/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) or [`help wanted`](https://github.com/Kesavaraja67/telex/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
+   - Leave a comment saying: *"I would like to work on this issue!"*
+2. **Create a Topic Branch**:
+   ```bash
+   git checkout -b feat/issue-<id>-short-name
+   ```
+3. **Link Your Pull Request**:
+   - In your PR description, write: `Resolves #<id>` (e.g. `Resolves #32`).
+   - When the PR is reviewed and merged, GitHub will automatically close the issue.
+
+---
+
+<br>
+
+## <a id="checklist"></a>10. Pull Request Checklist
+
+Before opening your pull request, verify:
+
+- [ ] **Tests Added & Passing**: Verified with `pytest` across modified packages.
+- [ ] **Lint Clean**: Passed `ruff check .` with zero errors.
+- [ ] **Code Formatted**: Passed `black .` formatting.
+- [ ] **Frontend Validation**: Passed `npm run typecheck` and `npm run lint` in `apps/web`.
+- [ ] **Visual Proof**: UI changes include screenshots or screen recordings.
+- [ ] **No Force Pushes**: Clean commit history.
 
 <br>
 
