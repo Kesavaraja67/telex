@@ -13,6 +13,68 @@
   --border:         rgba(255, 255, 255, 0.12);
   --border-subtle:  rgba(255, 255, 255, 0.06);
   --accent-glow:    rgba(255, 255, 255, 0.4);
+
+  /* ─── Phase 1: Skeuomorphic Material Tokens ─────────────────────────────── */
+
+  /* Light model: single source, top-left ~35° elevation.
+     Shadow direction = bottom-right (145 deg from top, clockwise).
+     All bevel/inset/shadow MUST derive from these anchors. */
+  --skeuo-light-angle:    145deg;
+  --skeuo-highlight-top:  rgba(255, 255, 255, 0.18);
+  --skeuo-highlight-sub:  rgba(255, 255, 255, 0.07);
+  --skeuo-shadow-deep:    rgba(0, 0, 0, 0.65);
+  --skeuo-shadow-mid:     rgba(0, 0, 0, 0.35);
+  --skeuo-shadow-inner:   rgba(0, 0, 0, 0.50);
+
+  /* Brushed dark metal — main chassis and outer bezels */
+  --metal-base:    #1a1c1f;
+  --metal-mid:     #222427;
+  --metal-light:   #2e3136;
+  --metal-shine:   rgba(255, 255, 255, 0.12);
+  /* CSS scratch texture: tiny repeating diagonal lines at 82° */
+  --metal-scratch: repeating-linear-gradient(
+    82deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.015) 2px,
+    rgba(255, 255, 255, 0.015) 3px
+  );
+
+  /* Matte anodized panel — content wells, sidebar, inset regions */
+  --panel-base:    #141618;
+  --panel-inset:   #0e1012;
+  --panel-rim:     rgba(255, 255, 255, 0.08);
+
+  /* Recessed black glass — 3D canvas bezel, screen frames, modal backs */
+  --glass-base:         #080a0c;
+  --glass-rim-lit:      rgba(255, 255, 255, 0.15);
+  --glass-rim-dark:     rgba(0, 0, 0, 0.80);
+  --glass-inner-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.90);
+
+  /* Rubberized key-cap — primary action buttons */
+  --key-base:     #1e2024;
+  --key-top:      #252830;
+  --key-pressed:  #191b1e;
+  --key-label:    #d4d4d8;
+
+  /* LED lamp signal colors — ONLY used on LED elements.
+     Never in 2D chrome, badges, status pills, or loaders. */
+  --led-off:      #1a1c1f;
+  --led-ok:       #14b8a6;  /* reuses Atlas wire-cyan intentionally */
+  --led-warn:     #f59e0b;
+  --led-fault:    #f43f5e;
+  --led-busy:     #ffffff;
+
+  /* LED glow shadows */
+  --led-ok-glow:    0 0 6px rgba(20, 184, 166, 0.8), 0 0 14px rgba(20, 184, 166, 0.4);
+  --led-warn-glow:  0 0 6px rgba(245, 158, 11, 0.8), 0 0 14px rgba(245, 158, 11, 0.4);
+  --led-fault-glow: 0 0 6px rgba(244, 63, 94, 0.8), 0 0 14px rgba(244, 63, 94, 0.4);
+  --led-busy-glow:  0 0 6px rgba(255, 255, 255, 0.8), 0 0 14px rgba(255, 255, 255, 0.3);
+
+  /* Motion easing curves */
+  --ease-press:   cubic-bezier(0.2, 0, 0, 1);
+  --ease-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth:  cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ─── Tailwind 4 Theme Registration ────────────────────────────────────── */
@@ -225,4 +287,229 @@ h1, h2, h3, h4, h5, h6 {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.4);
+}
+
+/* ─── Phase 1: Skeuomorphic Material Utilities ──────────────────────────── */
+
+/* Metal bezel — outer chassis / card frames */
+.metal-bezel {
+  background:
+    var(--metal-scratch),
+    linear-gradient(var(--skeuo-light-angle), var(--metal-base) 0%, var(--metal-mid) 50%, var(--metal-light) 100%);
+  box-shadow:
+    /* outer bevel: lit edge top-left, shadow edge bottom-right */
+    inset 0  1px 0 var(--skeuo-highlight-top),
+    inset 0 -1px 0 var(--skeuo-shadow-deep),
+    inset  1px 0 0 var(--skeuo-highlight-sub),
+    inset -1px 0 0 var(--skeuo-shadow-mid),
+    /* outer drop shadow */
+    0 4px 16px rgba(0, 0, 0, 0.7),
+    0 1px 4px  rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(0, 0, 0, 0.6);
+  border-radius: 8px;
+}
+
+/* Anodized panel — inset content well */
+.panel-inset {
+  background: var(--panel-base);
+  box-shadow:
+    inset 0  2px 6px var(--skeuo-shadow-inner),
+    inset 0  1px 1px rgba(0, 0, 0, 0.8),
+    /* lit rim at top (reflecting light from above) */
+    inset 0 -1px 0 var(--panel-rim);
+  border: 1px solid var(--panel-rim);
+  border-top-color: rgba(0, 0, 0, 0.5);
+}
+
+/* Recessed black glass — atlas canvas frame and modal backdrops */
+.glass-bezel {
+  background: var(--glass-base);
+  box-shadow:
+    var(--glass-inner-shadow),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.9);
+  border-top: 1px solid var(--glass-rim-lit);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid var(--glass-rim-dark);
+  border-bottom: 1px solid var(--glass-rim-dark);
+  border-radius: 4px;
+}
+
+/* Key-cap button — physical tactile press button */
+.key-cap {
+  background: linear-gradient(180deg, var(--key-top) 0%, var(--key-base) 100%);
+  color: var(--key-label);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;   /* 11px */
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid rgba(0, 0, 0, 0.6);
+  border-radius: 5px;
+  box-shadow:
+    /* top-left lit bevel */
+    inset  0  1px 0 var(--skeuo-highlight-sub),
+    inset  1px 0 0 rgba(255, 255, 255, 0.05),
+    /* bottom-right shadow bevel */
+    inset  0 -1px 0 rgba(0, 0, 0, 0.5),
+    inset -1px 0 0 rgba(0, 0, 0, 0.3),
+    /* physical depth: key sits above chassis */
+    0 2px 0 rgba(0, 0, 0, 0.6),
+    0 3px 6px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition:
+    transform 80ms var(--ease-press),
+    box-shadow 80ms var(--ease-press),
+    background 80ms var(--ease-press);
+  transform: translateY(0px);
+}
+
+.key-cap:hover {
+  background: linear-gradient(180deg, #2d3038 0%, #252830 100%);
+  box-shadow:
+    inset  0  1px 0 rgba(255, 255, 255, 0.12),
+    inset  1px 0 0 rgba(255, 255, 255, 0.06),
+    inset  0 -1px 0 rgba(0, 0, 0, 0.5),
+    inset -1px 0 0 rgba(0, 0, 0, 0.3),
+    0 2px 0 rgba(0, 0, 0, 0.6),
+    0 3px 8px rgba(0, 0, 0, 0.5);
+}
+
+.key-cap:active, .key-cap[data-pressed="true"] {
+  background: linear-gradient(180deg, var(--key-pressed) 0%, var(--key-base) 100%);
+  transform: translateY(1px);
+  box-shadow:
+    inset 0  2px 4px rgba(0, 0, 0, 0.6),
+    inset 0  1px 0 rgba(0, 0, 0, 0.4),
+    0 1px 0 rgba(0, 0, 0, 0.6);
+  transition: transform 80ms var(--ease-press), box-shadow 80ms var(--ease-press);
+}
+
+.key-cap:disabled, .key-cap[disabled] {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Spring settle after press release */
+.key-cap:not(:active) {
+  transition:
+    transform 120ms var(--ease-spring),
+    box-shadow 120ms var(--ease-spring),
+    background 80ms var(--ease-press);
+}
+
+/* LED lamp — status indicator dot */
+.led {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--led-off);
+  transition: background 200ms ease-out, box-shadow 200ms ease-out;
+  flex-shrink: 0;
+}
+.led[data-state="ok"]    { background: var(--led-ok);    box-shadow: var(--led-ok-glow); }
+.led[data-state="warn"]  { background: var(--led-warn);  box-shadow: var(--led-warn-glow); }
+.led[data-state="fault"] { background: var(--led-fault); box-shadow: var(--led-fault-glow); }
+.led[data-state="busy"]  { background: var(--led-busy);  animation: led-pulse 1.2s ease-in-out infinite; }
+
+@keyframes led-pulse {
+  0%, 100% { opacity: 1; box-shadow: var(--led-busy-glow); }
+  50%       { opacity: 0.35; box-shadow: none; }
+}
+
+/* Engraved label — text recessed into surface */
+.label-engraved {
+  color: #6b7280;
+  text-shadow:
+     0  1px 0 rgba(255, 255, 255, 0.09),
+     0 -1px 0 rgba(0, 0, 0, 0.70);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.625rem;   /* 10px */
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+/* Embossed label — text raised above surface */
+.label-embossed {
+  color: #e4e4e7;
+  text-shadow:
+     0 -1px 0 rgba(0, 0, 0, 0.80),
+     0  1px 0 rgba(255, 255, 255, 0.12);
+  letter-spacing: 0.04em;
+}
+
+/* Engraved divider — recessed horizontal rule */
+.divider-engraved {
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.50);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Toggle switch — physical on/off slider */
+.toggle-track {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--panel-inset);
+  border: 1px solid rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  transition: background 150ms var(--ease-press);
+}
+.toggle-track[data-checked="true"] {
+  background: #0f2b28;  /* very dark teal tint — not the LED color */
+  border-color: rgba(20, 184, 166, 0.25);
+}
+.toggle-thumb {
+  position: absolute;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, var(--key-top) 0%, var(--metal-base) 100%);
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  box-shadow:
+    inset 0 1px 0 var(--skeuo-highlight-sub),
+    0 1px 3px rgba(0, 0, 0, 0.6),
+    0 2px 0 rgba(0, 0, 0, 0.4);
+  transition: left 150ms var(--ease-press), box-shadow 150ms var(--ease-press);
+}
+.toggle-track[data-checked="true"] .toggle-thumb {
+  left: calc(100% - 19px);
+}
+/* LED pip at right end of toggle track */
+.toggle-led {
+  position: absolute;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--led-off);
+  transition: background 200ms ease-out, box-shadow 200ms ease-out;
+}
+.toggle-track[data-checked="true"] .toggle-led {
+  background: var(--led-ok);
+  box-shadow: var(--led-ok-glow);
+}
+
+/* ─── Reduced Motion Coverage ────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer::after,
+  .animate-radar-ping,
+  .led[data-state="busy"],
+  .key-cap,
+  .key-cap:hover,
+  .key-cap:active,
+  .key-cap:not(:active),
+  .toggle-thumb,
+  .toggle-track,
+  .led {
+    animation: none;
+    transition: none;
+  }
 }

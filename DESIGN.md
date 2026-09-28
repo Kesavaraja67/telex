@@ -4,97 +4,205 @@
 
 ---
 
-## 1. Aesthetic Identity: Industrial Cybernetic Hardware
+## 1. Aesthetic Identity: Hybrid — Industrial Hardware Surrounds Dark Void
 
-### The Core Metaphor
-Repo Atlas is an **interactive architectural reactor room** for production codebases. Looking at your repository should feel like stepping inside an illuminated, physical computing system:
-- **Dielectric Rubber Cables**: Imports are physical conduits carrying live photon data pulses. They have mass, flexibility, and gravitational sag.
-- **Floating Polycarbonate Cards**: Code modules float as frosted, precision-etched instrument cards casting soft ambient contact shadows.
-- **The Void**: Pure receding atmospheric depth (`#050508` void with soft depth fog) ensuring high-contrast telemetry visibility from any orbit angle.
-- **Strict Anti-Slop Guarantee**: Zero generic purple SaaS gradients, zero decorative floating blobs, zero nested card boxes, and zero meaningless cosmetic chips. Every visual element communicates state, hierarchy, or data flow.
+### The Core Direction
 
----
+Telex is **hybrid skeuomorphic**: dark 3D environments (Repo Atlas graph, landing robot) are framed by **machined metal control surfaces** — bezels, instrument panels, physical controls, and LED lamps that feel like they belong in a server rack or industrial control room.
 
-## 2. Color Palette & Telemetry Tokens
+**Two modes, strict separation:**
 
-### Color Philosophy
-Color in Repo Atlas is **rare, purposeful, and communicative**. Neutral dark void surrounds the scene; color strictly signals system health, active data flow, and architectural boundaries.
+| Zone | Material | Rule |
+|------|----------|------|
+| 3D canvas (Atlas, landing) | Three.js scene with physical materials | Handled by 3D doctrine below — unchanged |
+| 2D chrome (dashboard, sidebar, pages, HUD) | Metal bezels, anodized panels, key-cap buttons, LEDs | Governed by Phase 1 material tokens |
 
-| Token | Hex | Role | Contrast / Luminance |
-|---|---|---|---|
-| `--color-void` | `#050508` | Canvas background void | 0% ambient baseline |
-| `--color-surface-card` | `#0f1117` | 3D File Card base surface | Low-reflectance polycarbonate |
-| `--color-surface-border` | `#1e2430` | Card rim definition | Clean structural perimeter |
-| `--color-text-primary` | `#f4f4f5` | File names, major headers | > 14:1 against void (AAA) |
-| `--color-text-secondary` | `#a1a1aa` | Folder labels, active badges | > 7:1 against card surface (AAA) |
-| `--color-text-muted` | `#7e7e8a` | Metadata, paths, line counts | > 4.65:1 against void (WCAG AA) |
-| `--wire-healthy-jacket` | `#0f766e` | Healthy import cable jacket | PBR roughness 0.42, metalness 0.1 |
-| `--wire-healthy-core` | `#14b8a6` | Healthy cable emissive core | Luminous cyan accent |
-| `--wire-broken-jacket` | `#be123c` | Severed import cable jacket | PBR roughness 0.38, clearcoat 0.4 |
-| `--wire-broken-core` | `#f43f5e` | Severed cable emissive core | Active crimson warning |
-| `--pulse-photon-lead` | `#5eead4` | Lead data packet bead | High bloom saturation (threshold 0.65) |
-| `--status-warning` | `#f59e0b` | Incident pending / triage | High-visibility amber |
+**What is NOT the design direction:**
+- Generic dark SaaS with purple gradients → no
+- Flat-cyber with glowing grid blobs → no
+- Glassmorphism frosted cards everywhere → no
+- Plain flat dark with no physical depth → no
+
+**What IS the design direction:**
+- Machined dark metal outer chassis (`--metal-*` tokens)
+- Anodized matte panel insets for content wells (`--panel-*` tokens)
+- Black glass recessed screens for 3D canvases (`--glass-*` tokens)
+- Rubberized key-cap primary action buttons (`--key-*` tokens)
+- LED signal lamps as the ONLY colored elements in 2D chrome (`--led-*` tokens)
 
 ---
 
-## 3. Typography Hierarchy
+## 2. Phase 1 Material System
+
+### 2.1 Light Model
+
+Single virtual light source: **top-left, 35° elevation**.
+
+All bevels, insets, and shadows derive from these anchors — **do not invent box-shadows that contradict this light direction**:
+
+| Token | Value | Meaning |
+|-------|-------|---------|
+| `--skeuo-light-angle` | `145deg` | Shadow direction (bottom-right) |
+| `--skeuo-highlight-top` | `rgba(255,255,255,0.18)` | Bright lit edge (top-left) |
+| `--skeuo-highlight-sub` | `rgba(255,255,255,0.07)` | Subtle lit side |
+| `--skeuo-shadow-deep` | `rgba(0,0,0,0.65)` | Dark edge (bottom-right) |
+| `--skeuo-shadow-mid` | `rgba(0,0,0,0.35)` | Soft shadow side |
+| `--skeuo-shadow-inner` | `rgba(0,0,0,0.50)` | Recessed inset well |
+
+### 2.2 Materials
+
+#### Brushed Dark Metal (chassis, bezels)
+- Tokens: `--metal-base`, `--metal-mid`, `--metal-light`, `--metal-shine`, `--metal-scratch`
+- CSS class: `.metal-bezel`
+- Has: linear scratch texture + lit top-left bevel + drop shadow
+
+#### Matte Anodized Panel (content wells, sidebar)
+- Tokens: `--panel-base`, `--panel-inset`, `--panel-rim`
+- CSS class: `.panel-inset`
+- Has: recessed inner shadow + dark top border + lit bottom rim
+
+#### Recessed Black Glass (3D canvas frame, modal backs)
+- Tokens: `--glass-base`, `--glass-rim-lit`, `--glass-rim-dark`, `--glass-inner-shadow`
+- CSS class: `.glass-bezel`
+- Has: very deep inset shadow + lit top rim + dark side/bottom rims
+
+#### Rubberized Key-Cap (primary action buttons)
+- Tokens: `--key-base`, `--key-top`, `--key-pressed`, `--key-label`
+- CSS class: `.key-cap`
+- Has: raised depth shadow (2px below chassis) + top-left bevel + pressed state (1px translateY)
+
+### 2.3 Controls
+
+| Control | Class / Pattern | States |
+|---------|----------------|--------|
+| Tactile button | `.key-cap` | rest / hover / pressed / disabled |
+| Toggle switch | `.toggle-track` + `.toggle-thumb` + `.toggle-led` | off / on / disabled |
+| LED lamp | `.led` + `data-state` attr | off / ok / warn / fault / busy |
+| Engraved label | `.label-engraved` | static |
+| Embossed label | `.label-embossed` | static |
+| Engraved divider | `.divider-engraved` | static |
+
+### 2.4 Color — LED-Only Color Policy
+
+Color in Telex 2D chrome is **structurally restricted**:
+
+| Token | Value | Permitted use |
+|-------|-------|---------------|
+| `--led-off` | `#1a1c1f` | LED off state |
+| `--led-ok` | `#14b8a6` | LED ok state only (and Atlas wires — same color intentionally) |
+| `--led-warn` | `#f59e0b` | LED warn state only |
+| `--led-fault` | `#f43f5e` | LED fault state only |
+| `--led-busy` | `#ffffff` | LED busy pulse only |
+
+**Hard rules:**
+- LED colors (`--led-ok`, `--led-warn`, `--led-fault`) must NEVER appear in: buttons, badges, progress bars, status pills, skeleton loaders, or any non-LED element.
+- `rgba(79, 209, 197, *)` is banned from `RadialButton` and all 2D chrome — this was a legacy violation, now corrected.
+- `--led-ok` and Atlas `--wire-healthy-core` (`#14b8a6`) share the same teal by design — one physical, one digital.
+
+### 2.5 Motion
+
+| Interaction | Duration | Easing token |
+|-------------|----------|-------------|
+| Button press travel | 80ms down, 120ms return | `--ease-press` / `--ease-spring` |
+| LED fade on/off | 200ms | `ease-out` |
+| Toggle slide | 150ms | `--ease-press` |
+| `prefers-reduced-motion` | all transitions: `none` | — |
+
+### 2.6 Typography (2D Chrome — No New Fonts)
+
+Fonts remain: **Space Grotesk** (sans) and **Geist Mono** (mono).
+
+| Class | Effect | Use |
+|-------|--------|-----|
+| `.label-engraved` | Recessed text (cut into metal) | Field labels, section headers |
+| `.label-embossed` | Raised text (stamped) | Card titles, repo names |
+| `.divider-engraved` | Recessed horizontal rule | Section separators |
+
+---
+
+## 3. Color Palette & Telemetry Tokens (3D Atlas Only)
+
+> These govern the **3D scene materials**. They are not for 2D chrome.
+
+| Token | Hex | Role |
+|---|---|---|
+| `--color-void` | `#050508` | Canvas background void |
+| `--color-surface-card` | `#0f1117` | 3D File Card base surface |
+| `--color-surface-border` | `#1e2430` | Card rim definition |
+| `--color-text-primary` | `#f4f4f5` | File names, headers |
+| `--color-text-secondary` | `#a1a1aa` | Folder labels, active badges |
+| `--color-text-muted` | `#7e7e8a` | Metadata, paths, line counts |
+| `--wire-healthy-jacket` | `#0f766e` | Healthy import cable jacket |
+| `--wire-healthy-core` | `#14b8a6` | Healthy cable emissive core |
+| `--wire-broken-jacket` | `#be123c` | Severed import cable jacket |
+| `--wire-broken-core` | `#f43f5e` | Severed cable emissive core |
+| `--pulse-photon-lead` | `#5eead4` | Lead data packet bead |
+| `--status-warning` | `#f59e0b` | Incident pending / triage |
+
+---
+
+## 4. Typography Hierarchy
 
 ### Type Roles
 1. **Telemetry & Code (Monospace)**:
-   - Font: `JetBrains Mono`, `ui-monospace`, `SFMono-Regular`, `monospace`
+   - Font: `Geist Mono`, `ui-monospace`, `SFMono-Regular`, `monospace`
    - Weight: Regular (`400`) & Medium (`500`)
    - Usage: File names, import paths, git commit SHAs, line numbers, breakage counts.
-   - Principle: Numeric data and code symbols must align tabularly without proportional jitter.
+
 2. **Interface & Controls (Sans-Serif)**:
-   - Font: `Inter`, `system-ui`, `-apple-system`, `sans-serif`
+   - Font: `Space Grotesk`, `system-ui`, `-apple-system`, `sans-serif`
    - Usage: HUD action buttons, navigation tabs, modal headers, filter search.
-   - Principle: Neutral, highly legible at micro-sizes (11px–13px) with subtle letter-spacing (`+0.02em`).
 
 ---
 
-## 4. 3D Spatial Layout & Physics Doctrine
+## 5. 3D Spatial Layout & Physics Doctrine
 
 ### Hierarchy & Coordinate System
 - **Y-Axis (Depth)**: Inverted layer depth (`y = -depth * LAYER_SPACING`).
   - Standard spacing: `4.8` units between folder tree generations.
-  - Ensures clean vertical parallax without card stacking.
 - **X/Z-Axis (Layer Floor)**:
   - Folders anchor via deterministic polar distribution: `radius = 4.8 + 0.85 * siblingCount`.
   - File rings around folder anchors: `ringRadius = Math.max(2.6, Math.ceil(Math.sqrt(fileCount)) * 1.6)`.
-  - Collision buffer: `1.75` force-collide clearance (cards are `1.6 x 1.0`), preventing card or label overlap.
+  - Collision buffer: `1.75` force-collide clearance.
 
 ### Cable Physics (Flexible Rubber Catenary)
-- **Normal Cable Radius**: `0.028` units (substantial, rounded 3D cylinder).
+- **Normal Cable Radius**: `0.028` units.
 - **Broken Cable Radius**: `0.044` units.
-- **Inter-layer Connections**: Natural gravitational drape (`mid.y = (p1.y + p2.y) * 0.5 - sag`).
-- **Intra-layer Connections**: Soft flexible upward arch (`mid.y += Math.min(1.8, Math.max(0.35, dist * 0.15))`).
+- **Inter-layer Connections**: Natural gravitational drape.
+- **Intra-layer Connections**: Soft flexible upward arch.
 
 ### Elastic Card Interaction (Spring Physics)
-- When grabbed, cards lift along the normal axis (`+0.38` units) with dynamic contact shadows.
-- Dragging stretches connected rubber cables in real-time.
-- On release, cards elastically spring back to `(baseX, baseZ)` via critically-damped harmonic oscillators (`Spring3`, stiffness `175`, damping `18`).
-- Attached rubber cables recoil dynamically until the card settles into its resting slot.
+- When grabbed, cards lift along the normal axis (`+0.38` units).
+- On release, spring back via critically-damped harmonic oscillators (`Spring3`, stiffness `175`, damping `18`).
 
 ---
 
-## 5. Lighting & Post-Processing Pipeline
+## 6. Lighting & Post-Processing Pipeline
 
 - **Studio Key Light**: Directional white (`intensity: 1.2`, position: `(15, 25, 20)`).
 - **Cool Fill Light**: Subtle cyan tint (`intensity: 0.4`, position: `(-15, 10, -15)`).
 - **Studio Rim Light**: Directional backlight (`intensity: 0.6`, position: `(0, -20, -20)`).
-- **PMREM Environment Map**: Softbox studio cubemap baked once at init for realistic micro-reflections.
+- **PMREM Environment Map**: Softbox studio cubemap baked once at init.
 - **UnrealBloomPass**: Selective glow on emissive cores (`threshold: 0.65`, `strength: 0.82`, `radius: 0.45`).
-- **Atmospheric Fog**: `THREE.FogExp2(0x000000, 0.018)` for organic depth falloff.
+- **Atmospheric Fog**: `THREE.FogExp2` with density derived from graph bounding radius (Phase 3 fix — see spec).
 
 ---
 
-## 6. Visual Consistency & Loading Doctrine
+## 7. Visual Consistency Rules
 
-### Pure Monochrome Consistency & Wire-Only Color Policy
-Color discipline in Repo Atlas is absolute:
-- **Cyan/Teal Wire-Only Policy**: The cyan/teal data color (`#5EEAD4` / `#14B8A6`) is **strictly reserved for the physical 3D graph cables and live photon pulses**. It must never appear in 2D UI chrome, buttons, badges, status pills, or loaders.
-- **Pure Monochrome UI Chrome**: All 2D headers, dropdowns, HUD navigation bars, cards, and modal panels strictly follow Telex's pure monochrome engineering system (pure white `#FFFFFF`, zinc `#A1A1AA`, muted `#7E7E8A`, void black `#000000`).
-- **Consistent Loading States**:
-  - No gimmicky or fake sci-fi HUDs. Loading states must be clean, minimal, and 100% consistent with the rest of the Telex dashboard (`w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin`).
-  - **Zero Unlit Voids**: The 3D canvas must never sit in an unlit pitch-black state. During initial graph fetch (`state.kind === "idle"`) and during computation (`state.kind === "computing"`), the loading indicator is always active and displays clear diagnostic text (`Loading graph architecture…` / `Computing graph layout…`).
+### Pure Monochrome 2D Chrome
+- All 2D chrome (headers, dropdowns, HUD bars, cards, modals) follows the metal material system: `--metal-*`, `--panel-*`, `--glass-*`, `--key-*`, `--skeuo-*`.
+- LED colors (`--led-*`) are the ONLY color permitted in 2D chrome, and only on `.led` elements.
+- Zero generic SaaS gradients, no decorative blobs, no nested glass cards, no meaningless cosmetic chips.
 
+### Wire-Teal Restriction
+- `#5EEAD4` / `#14B8A6` / `#0f766e` are reserved for 3D cables and `.led[data-state="ok"]` only.
+- Any other use is a violation.
+
+### Consistent Loading States
+- No gimmicky sci-fi HUDs. Use: `w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin`.
+- 3D canvas: never unlit/black during loading. Always show loading state.
+
+### Anti-Slop Guarantee
+- Every visual element communicates state, hierarchy, or data flow.
+- No decoration for its own sake.
