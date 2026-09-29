@@ -177,12 +177,15 @@ async def test_ai_explain_repo():
             "routers.repos.get_authorized_repo", AsyncMock(return_value=(mock_db_repo, mock_inst))
         ):
             with patch(
-                "routers.repos.explain_repo_with_gemini", AsyncMock(return_value=mock_explain)
+                "services.repo_analysis.run_repo_analysis", AsyncMock(return_value=mock_explain)
             ):
-                resp = await client.post(
-                    f"/api/repos/{repo_uuid}/ai-explain",
-                    headers={"X-Demo-Key": "telex_demo_secret_2026"},
-                )
+                with patch(
+                    "routers.repos.explain_repo_with_gemini", AsyncMock(return_value=mock_explain)
+                ):
+                    resp = await client.post(
+                        f"/api/repos/{repo_uuid}/ai-explain",
+                        headers={"X-Demo-Key": "telex_demo_secret_2026"},
+                    )
                 assert resp.status_code == 200
                 assert resp.json()["architecture_verdict"] == "Production-ready"
 

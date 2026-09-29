@@ -20,6 +20,7 @@ from jobs.handlers import (
     open_pr,
     poll_registry,
     scan_repo,
+    update_atlas_graph,
     validate_patch,
 )
 from jobs.queue import dequeue_job
@@ -43,6 +44,7 @@ JOB_HANDLERS = {
     "open_pr": open_pr.run,
     # Engine C — Repo Atlas
     "build_atlas_graph": build_atlas_graph.run,
+    "update_atlas_graph": update_atlas_graph.run,
 }
 
 

@@ -10,8 +10,9 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Header, HTTPException, Request
 from sqlalchemy import select
 
-from db.models import Installation, PullRequest, Repo, User
+from db.models import Installation, Job, PullRequest, Repo, User
 from db.session import AsyncSessionLocal
+from jobs.queue import enqueue_job
 from services.github_service import verify_webhook_signature
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -55,8 +56,7 @@ async def github_webhook(
         await _handle_pull_request(payload)
 
     elif event == "push":
-        # Future: trigger a re-scan on push to default branch
-        pass
+        await _handle_push(payload)
 
     return {"ok": True}
 
@@ -243,3 +243,105 @@ async def _handle_pull_request(payload: dict) -> None:
                 pr.status,
                 pr.merged,
             )
+
+
+async def _handle_push(payload: dict) -> None:
+    """Handle push to repository default branch and trigger incremental atlas update."""
+    repo_data = payload.get("repository", {})
+    github_repo_id = repo_data.get("id")
+    if not github_repo_id:
+        return
+
+    ref = payload.get("ref", "")
+    default_branch = repo_data.get("default_branch", "main")
+    # Only process pushes to the default branch
+    if ref != f"refs/heads/{default_branch}":
+        logger.debug("Push ignored for non-default branch: %s", ref)
+        return
+
+    head_sha = payload.get("after") or payload.get("head_commit", {}).get("id")
+    if not head_sha or head_sha == "0000000000000000000000000000000000000000":
+        return
+
+    commits = payload.get("commits", [])
+    truncated = payload.get("truncated", False) or len(commits) >= 20
+    base_sha = payload.get("before")
+    if base_sha == "0000000000000000000000000000000000000000":
+        base_sha = None
+
+    # Extract added, modified, removed files across commits
+    added: set[str] = set()
+    modified: set[str] = set()
+    removed: set[str] = set()
+    for commit in commits:
+        added.update(commit.get("added", []))
+        modified.update(commit.get("modified", []))
+        removed.update(commit.get("removed", []))
+
+    async with AsyncSessionLocal() as session:
+        repo_res = await session.execute(select(Repo).where(Repo.github_repo_id == github_repo_id))
+        repo = repo_res.scalar_one_or_none()
+        if not repo or not repo.is_active:
+            return
+
+        # Deduplicate active atlas jobs for this repo & commit_sha
+        existing_jobs_res = await session.execute(
+            select(Job).where(
+                Job.job_type.in_(["update_atlas_graph", "build_atlas_graph"]),
+                Job.status.in_(["queued", "running"]),
+            )
+        )
+        for j in existing_jobs_res.scalars().all():
+            if (
+                isinstance(j.payload, dict)
+                and str(j.payload.get("repo_id")) == str(repo.id)
+                and j.payload.get("commit_sha") == head_sha
+            ):
+                logger.info(
+                    "Skipping duplicate atlas job for %s @ %s", repo.full_name, head_sha[:8]
+                )
+                return
+
+        if truncated:
+            await enqueue_job(
+                session,
+                "build_atlas_graph",
+                {
+                    "repo_id": str(repo.id),
+                    "commit_sha": head_sha,
+                    "expected_head_sha": base_sha,
+                    "base_sha": base_sha,
+                },
+            )
+            await session.commit()
+            logger.info(
+                "Enqueued full build_atlas_graph for %s @ %s (truncated/large push: %d commits)",
+                repo.full_name,
+                head_sha[:8],
+                len(commits),
+            )
+            return
+
+        # Enqueue update_atlas_graph job
+        job_payload = {
+            "repo_id": str(repo.id),
+            "commit_sha": head_sha,
+            "base_sha": base_sha,
+            "expected_head_sha": base_sha,
+            "changed": {
+                "added": sorted(added),
+                "modified": sorted(modified),
+                "removed": sorted(removed),
+            },
+        }
+        await enqueue_job(session, "update_atlas_graph", job_payload)
+        await session.commit()
+        logger.info(
+            "Enqueued update_atlas_graph for %s @ %s (base %s, +%d ~%d -%d)",
+            repo.full_name,
+            head_sha[:8],
+            base_sha[:8] if base_sha else "none",
+            len(added),
+            len(modified),
+            len(removed),
+        )

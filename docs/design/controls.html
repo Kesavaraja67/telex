@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Telex — Phase 1 Controls Reference</title>
+  <meta name="description" content="Live design token and component reference for the Telex hybrid skeuomorphic material system." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ─── Design Tokens (mirrors globals.css Phase 1) ───────────────────── */
+    :root {
+      --void:           #000000;
+      --surface-base:   rgba(255,255,255,0.03);
+      --surface-raised: rgba(255,255,255,0.06);
+      --text-pure:      #FFFFFF;
+      --text-secondary: #A1A1AA;
+      --text-muted:     #7E7E8A;
+      --border:         rgba(255,255,255,0.12);
+      --border-subtle:  rgba(255,255,255,0.06);
+      --accent-glow:    rgba(255,255,255,0.4);
+
+      /* Light model */
+      --skeuo-light-angle:   145deg;
+      --skeuo-highlight-top: rgba(255,255,255,0.18);
+      --skeuo-highlight-sub: rgba(255,255,255,0.07);
+      --skeuo-shadow-deep:   rgba(0,0,0,0.65);
+      --skeuo-shadow-mid:    rgba(0,0,0,0.35);
+      --skeuo-shadow-inner:  rgba(0,0,0,0.50);
+
+      /* Metal */
+      --metal-base:   #1a1c1f;
+      --metal-mid:    #222427;
+      --metal-light:  #2e3136;
+      --metal-shine:  rgba(255,255,255,0.12);
+      --metal-scratch: repeating-linear-gradient(
+        82deg, transparent, transparent 2px,
+        rgba(255,255,255,0.015) 2px, rgba(255,255,255,0.015) 3px
+      );
+
+      /* Panel */
+      --panel-base:  #141618;
+      --panel-inset: #0e1012;
+      --panel-rim:   rgba(255,255,255,0.08);
+
+      /* Glass */
+      --glass-base:         #080a0c;
+      --glass-rim-lit:      rgba(255,255,255,0.15);
+      --glass-rim-dark:     rgba(0,0,0,0.80);
+      --glass-inner-shadow: inset 0 2px 8px rgba(0,0,0,0.90);
+
+      /* Key-cap */
+      --key-base:    #1e2024;
+      --key-top:     #252830;
+      --key-pressed: #191b1e;
+      --key-label:   #d4d4d8;
+
+      /* LED */
+      --led-off:   #1a1c1f;
+      --led-ok:    #14b8a6;
+      --led-warn:  #f59e0b;
+      --led-fault: #f43f5e;
+      --led-busy:  #ffffff;
+      --led-ok-glow:    0 0 6px rgba(20,184,166,0.8), 0 0 14px rgba(20,184,166,0.4);
+      --led-warn-glow:  0 0 6px rgba(245,158,11,0.8), 0 0 14px rgba(245,158,11,0.4);
+      --led-fault-glow: 0 0 6px rgba(244,63,94,0.8),  0 0 14px rgba(244,63,94,0.4);
+      --led-busy-glow:  0 0 6px rgba(255,255,255,0.8), 0 0 14px rgba(255,255,255,0.3);
+
+      /* Motion */
+      --ease-press:  cubic-bezier(0.2,0,0,1);
+      --ease-spring: cubic-bezier(0.34,1.56,0.64,1);
+      --ease-smooth: cubic-bezier(0.4,0,0.2,1);
+
+      /* Typography */
+      --font-sans: 'Space Grotesk', system-ui, sans-serif;
+      --font-mono: 'Geist Mono', ui-monospace, monospace;
+    }
+
+    /* ─── Base ─────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { background: #050508; color: var(--text-pure); font-family: var(--font-sans);
+           -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+
+    body { min-height: 100vh; padding: 40px 32px 120px; max-width: 1200px; margin: 0 auto; }
+
+    /* ─── Page header ──────────────────────────────────────────────────── */
+    .page-header {
+      display: flex; align-items: baseline; gap: 16px; margin-bottom: 56px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid rgba(0,0,0,0.5);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.05);
+    }
+    .page-header h1 {
+      font-size: 1.25rem; font-weight: 700; letter-spacing: -0.03em;
+      text-shadow: 0 -1px 0 rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.12);
+    }
+    .page-header span {
+      font-family: var(--font-mono); font-size: 0.6875rem; color: var(--text-muted);
+      letter-spacing: 0.08em; text-transform: uppercase;
+      text-shadow: 0 1px 0 rgba(255,255,255,0.09), 0 -1px 0 rgba(0,0,0,0.70);
+    }
+
+    /* ─── Section layout ───────────────────────────────────────────────── */
+    .section { margin-bottom: 64px; }
+    .section-label {
+      font-family: var(--font-mono); font-size: 0.625rem; font-weight: 500;
+      letter-spacing: 0.12em; text-transform: uppercase; color: #6b7280;
+      text-shadow: 0 1px 0 rgba(255,255,255,0.09), 0 -1px 0 rgba(0,0,0,0.70);
+      margin-bottom: 20px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .section-label::after {
+      content: ''; flex: 1; height: 1px;
+      background: rgba(0,0,0,0.5);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.05);
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+    .col { display: flex; flex-direction: column; gap: 8px; }
+
+    /* ─── Token swatch ─────────────────────────────────────────────────── */
+    .token-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px;
+    }
+    .swatch {
+      border-radius: 6px; overflow: hidden;
+      border: 1px solid rgba(0,0,0,0.6);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+    .swatch-color { height: 52px; }
+    .swatch-info {
+      padding: 8px 10px; background: #0e1012;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .swatch-name {
+      font-family: var(--font-mono); font-size: 0.6rem; font-weight: 600;
+      color: var(--text-secondary); letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .swatch-hex {
+      font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ─── Material cards ───────────────────────────────────────────────── */
+    .metal-bezel {
+      background: var(--metal-scratch),
+        linear-gradient(var(--skeuo-light-angle), var(--metal-base) 0%, var(--metal-mid) 50%, var(--metal-light) 100%);
+      box-shadow:
+        inset 0  1px 0 var(--skeuo-highlight-top),
+        inset 0 -1px 0 var(--skeuo-shadow-deep),
+        inset  1px 0 0 var(--skeuo-highlight-sub),
+        inset -1px 0 0 var(--skeuo-shadow-mid),
+        0 4px 16px rgba(0,0,0,0.7),
+        0 1px 4px  rgba(0,0,0,0.5);
+      border: 1px solid rgba(0,0,0,0.6);
+      border-radius: 8px;
+    }
+    .panel-inset {
+      background: var(--panel-base);
+      box-shadow:
+        inset 0  2px 6px var(--skeuo-shadow-inner),
+        inset 0  1px 1px rgba(0,0,0,0.8),
+        inset 0 -1px 0 var(--panel-rim);
+      border: 1px solid var(--panel-rim);
+      border-top-color: rgba(0,0,0,0.5);
+    }
+    .glass-bezel {
+      background: var(--glass-base);
+      box-shadow: var(--glass-inner-shadow), inset 0 0 0 1px rgba(0,0,0,0.9);
+      border-top: 1px solid var(--glass-rim-lit);
+      border-left: 1px solid rgba(255,255,255,0.08);
+      border-right: 1px solid var(--glass-rim-dark);
+      border-bottom: 1px solid var(--glass-rim-dark);
+      border-radius: 4px;
+    }
+
+    .material-card {
+      width: 220px; padding: 20px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .material-label {
+      font-family: var(--font-mono); font-size: 0.625rem; font-weight: 500;
+      letter-spacing: 0.08em; text-transform: uppercase; color: #6b7280;
+      text-shadow: 0 1px 0 rgba(255,255,255,0.09), 0 -1px 0 rgba(0,0,0,0.70);
+    }
+    .material-desc {
+      font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4;
+    }
+    .material-class {
+      font-family: var(--font-mono); font-size: 0.625rem; color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* ─── Key-cap button ───────────────────────────────────────────────── */
+    .key-cap {
+      background: linear-gradient(180deg, var(--key-top) 0%, var(--key-base) 100%);
+      color: var(--key-label);
+      font-family: var(--font-mono); font-size: 0.6875rem; font-weight: 600;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      border: 1px solid rgba(0,0,0,0.6);
+      border-radius: 5px;
+      padding: 8px 20px;
+      box-shadow:
+        inset  0  1px 0 var(--skeuo-highlight-sub),
+        inset  1px 0 0 rgba(255,255,255,0.05),
+        inset  0 -1px 0 rgba(0,0,0,0.5),
+        inset -1px 0 0 rgba(0,0,0,0.3),
+        0 2px 0 rgba(0,0,0,0.6),
+        0 3px 6px rgba(0,0,0,0.4);
+      cursor: pointer;
+      transition: transform 80ms var(--ease-press), box-shadow 80ms var(--ease-press), background 80ms var(--ease-press);
+      transform: translateY(0px);
+    }
+    .key-cap:hover {
+      background: linear-gradient(180deg, #2d3038 0%, #252830 100%);
+      box-shadow:
+        inset  0  1px 0 rgba(255,255,255,0.12),
+        inset  1px 0 0 rgba(255,255,255,0.06),
+        inset  0 -1px 0 rgba(0,0,0,0.5),
+        inset -1px 0 0 rgba(0,0,0,0.3),
+        0 2px 0 rgba(0,0,0,0.6),
+        0 3px 8px rgba(0,0,0,0.5);
+    }
+    .key-cap:active {
+      background: linear-gradient(180deg, var(--key-pressed) 0%, var(--key-base) 100%);
+      transform: translateY(1px);
+      box-shadow:
+        inset 0  2px 4px rgba(0,0,0,0.6),
+        inset 0  1px 0 rgba(0,0,0,0.4),
+        0 1px 0 rgba(0,0,0,0.6);
+    }
+    .key-cap:not(:active) {
+      transition: transform 120ms var(--ease-spring), box-shadow 120ms var(--ease-spring), background 80ms var(--ease-press);
+    }
+    .key-cap:disabled {
+      opacity: 0.35; cursor: not-allowed; transform: none;
+    }
+    .key-cap.key-cap--sm { font-size: 0.625rem; padding: 6px 14px; }
+    .key-cap.key-cap--lg { font-size: 0.75rem;  padding: 11px 28px; }
+
+    /* ─── LED ──────────────────────────────────────────────────────────── */
+    .led {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--led-off);
+      transition: background 200ms ease-out, box-shadow 200ms ease-out;
+      flex-shrink: 0;
+    }
+    .led[data-state="ok"]    { background: var(--led-ok);    box-shadow: var(--led-ok-glow); }
+    .led[data-state="warn"]  { background: var(--led-warn);  box-shadow: var(--led-warn-glow); }
+    .led[data-state="fault"] { background: var(--led-fault); box-shadow: var(--led-fault-glow); }
+    .led[data-state="busy"]  { background: var(--led-busy);  animation: led-pulse 1.2s ease-in-out infinite; }
+    @keyframes led-pulse {
+      0%, 100% { opacity: 1; box-shadow: var(--led-busy-glow); }
+      50%       { opacity: 0.35; box-shadow: none; }
+    }
+
+    .led-row { display: flex; align-items: center; gap: 10px; }
+    .led-label {
+      font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted);
+      letter-spacing: 0.08em; text-transform: uppercase;
+      text-shadow: 0 1px 0 rgba(255,255,255,0.09), 0 -1px 0 rgba(0,0,0,0.70);
+      width: 36px;
+    }
+
+    /* ─── Toggle ───────────────────────────────────────────────────────── */
+    .toggle-track {
+      position: relative; display: inline-flex; align-items: center;
+      width: 40px; height: 22px; border-radius: 11px;
+      background: var(--panel-inset);
+      border: 1px solid rgba(0,0,0,0.6);
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
+      cursor: pointer;
+      transition: background 150ms var(--ease-press);
+    }
+    .toggle-track[data-checked="true"] {
+      background: #0f2b28;
+      border-color: rgba(20,184,166,0.25);
+    }
+    .toggle-thumb {
+      position: absolute; left: 3px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: linear-gradient(180deg, var(--key-top) 0%, var(--metal-base) 100%);
+      border: 1px solid rgba(0,0,0,0.5);
+      box-shadow: inset 0 1px 0 var(--skeuo-highlight-sub), 0 1px 3px rgba(0,0,0,0.6), 0 2px 0 rgba(0,0,0,0.4);
+      transition: left 150ms var(--ease-press);
+    }
+    .toggle-track[data-checked="true"] .toggle-thumb { left: calc(100% - 19px); }
+    .toggle-led {
+      position: absolute; right: 3px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--led-off);
+      transition: background 200ms ease-out, box-shadow 200ms ease-out;
+    }
+    .toggle-track[data-checked="true"] .toggle-led {
+      background: var(--led-ok); box-shadow: var(--led-ok-glow);
+    }
+
+    /* ─── Typography utilities ─────────────────────────────────────────── */
+    .label-engraved {
+      color: #6b7280;
+      text-shadow: 0 1px 0 rgba(255,255,255,0.09), 0 -1px 0 rgba(0,0,0,0.70);
+      letter-spacing: 0.08em; text-transform: uppercase;
+      font-size: 0.625rem; font-family: var(--font-mono); font-weight: 500;
+    }
+    .label-embossed {
+      color: #e4e4e7;
+      text-shadow: 0 -1px 0 rgba(0,0,0,0.80), 0 1px 0 rgba(255,255,255,0.12);
+      letter-spacing: 0.04em;
+    }
+    .divider-engraved {
+      border: none;
+      border-top: 1px solid rgba(0,0,0,0.50);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.05);
+      width: 100%;
+    }
+
+    /* ─── Sample repo card ─────────────────────────────────────────────── */
+    .repo-card { padding: 3px; width: 300px; }
+    .repo-card-inner { padding: 16px; border-radius: 6px; display: flex; flex-direction: column; gap: 12px; }
+    .repo-card-header { display: flex; justify-content: space-between; align-items: center; }
+    .repo-name { font-family: var(--font-mono); font-size: 0.875rem; font-weight: 600; }
+    .repo-metrics { display: flex; flex-direction: column; gap: 4px; }
+    .metric-row { display: flex; justify-content: space-between; align-items: center; }
+    .metric-val { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary); }
+    .repo-card-footer { display: flex; justify-content: flex-end; padding-top: 4px; }
+
+    /* ─── Motion timing display ────────────────────────────────────────── */
+    .motion-demo {
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .motion-row {
+      display: flex; align-items: center; gap: 16px;
+    }
+    .motion-bar-track {
+      width: 200px; height: 6px; border-radius: 3px; background: var(--panel-inset);
+      border: 1px solid rgba(0,0,0,0.5); overflow: visible; position: relative;
+    }
+    .motion-ball {
+      position: absolute; top: -5px; width: 16px; height: 16px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--metal-light), var(--metal-base));
+      box-shadow: inset 0 1px 0 var(--skeuo-highlight-sub), 0 2px 4px rgba(0,0,0,0.6);
+      left: 0;
+      transition: left 800ms linear;
+    }
+    .motion-ball[data-ease="press"]  { transition-timing-function: var(--ease-press); }
+    .motion-ball[data-ease="spring"] { transition-timing-function: var(--ease-spring); }
+    .motion-ball[data-ease="smooth"] { transition-timing-function: var(--ease-smooth); }
+    .motion-ball.playing { left: calc(200px - 16px); }
+    .motion-label-col { width: 80px; }
+
+    /* ─── Color policy warning ─────────────────────────────────────────── */
+    .policy-box {
+      padding: 14px 16px;
+      border-radius: 6px;
+      background: rgba(244, 63, 94, 0.06);
+      border: 1px solid rgba(244, 63, 94, 0.20);
+      box-shadow: inset 0 1px 4px rgba(0,0,0,0.4);
+    }
+    .policy-box p {
+      font-family: var(--font-mono); font-size: 0.6875rem;
+      color: var(--text-secondary); line-height: 1.6;
+    }
+    .policy-box strong { color: var(--led-fault); }
+    .policy-ok { border-color: rgba(20,184,166,0.20); background: rgba(20,184,166,0.06); }
+    .policy-ok strong { color: var(--led-ok); }
+
+    /* ─── Accessibility ────────────────────────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      .motion-ball, .key-cap, .toggle-thumb, .led { animation: none; transition: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="page-header">
+    <h1>Telex Controls</h1>
+    <span>Phase 1 Material System · Design Reference</span>
+  </header>
+
+  <!-- ─── 1. COLOR TOKENS ──────────────────────────────────────────────── -->
+  <section class="section" id="tokens">
+    <div class="section-label">1 — Color Tokens</div>
+
+    <p class="label-engraved" style="margin-bottom:12px;">Base chrome (2D surfaces)</p>
+    <div class="token-grid" style="margin-bottom:24px;">
+      <div class="swatch">
+        <div class="swatch-color" style="background:#050508;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">canvas</div>
+          <div class="swatch-hex">#050508</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#1a1c1f;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">--metal-base</div>
+          <div class="swatch-hex">#1a1c1f</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#222427;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">--metal-mid</div>
+          <div class="swatch-hex">#222427</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#2e3136;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">--metal-light</div>
+          <div class="swatch-hex">#2e3136</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#141618;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">--panel-base</div>
+          <div class="swatch-hex">#141618</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#0e1012;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">--panel-inset</div>
+          <div class="swatch-hex">#0e1012</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#080a0c;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">--glass-base</div>
+          <div class="swatch-hex">#080a0c</div>
+        </div>
+      </div>
+    </div>
+
+    <p class="label-engraved" style="margin-bottom:12px;">LED signal (LED elements only)</p>
+    <div class="token-grid">
+      <div class="swatch">
+        <div class="swatch-color" style="background:#1a1c1f;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">--led-off</div>
+          <div class="swatch-hex">#1a1c1f</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#14b8a6; box-shadow: 0 0 12px rgba(20,184,166,0.6);"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">--led-ok</div>
+          <div class="swatch-hex">#14b8a6</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#f59e0b; box-shadow: 0 0 12px rgba(245,158,11,0.6);"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">--led-warn</div>
+          <div class="swatch-hex">#f59e0b</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#f43f5e; box-shadow: 0 0 12px rgba(244,63,94,0.6);"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">--led-fault</div>
+          <div class="swatch-hex">#f43f5e</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#ffffff; box-shadow: 0 0 12px rgba(255,255,255,0.5);"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">--led-busy</div>
+          <div class="swatch-hex">#ffffff</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 2. MATERIALS ────────────────────────────────────────────────── -->
+  <section class="section" id="materials">
+    <div class="section-label">2 — Material Classes</div>
+    <div class="row">
+      <div class="material-card metal-bezel">
+        <div class="material-label">Brushed Metal</div>
+        <div class="material-desc">Chassis outer frame, card bezels, instrument panels.</div>
+        <div class="material-class">.metal-bezel</div>
+      </div>
+      <div class="material-card panel-inset" style="border-radius:6px;">
+        <div class="material-label">Anodized Panel</div>
+        <div class="material-desc">Content wells, sidebar body, data table cells.</div>
+        <div class="material-class">.panel-inset</div>
+      </div>
+      <div class="material-card glass-bezel">
+        <div class="material-label">Recessed Glass</div>
+        <div class="material-desc">3D canvas bezel, modal backdrops, terminal screens.</div>
+        <div class="material-class">.glass-bezel</div>
+      </div>
+    </div>
+
+    <div style="margin-top:24px;">
+      <p class="label-engraved" style="margin-bottom:12px;">Nesting: metal bezel → panel inset (correct layering)</p>
+      <div class="metal-bezel" style="padding:3px; width:320px; border-radius:8px;">
+        <div class="panel-inset" style="border-radius:5px; padding:16px;">
+          <div class="label-engraved" style="margin-bottom:8px;">Repo / metrics</div>
+          <div class="label-embossed" style="font-family:var(--font-mono); font-size:0.8125rem;">auth-service</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 3. KEY-CAP BUTTON ────────────────────────────────────────────── -->
+  <section class="section" id="buttons">
+    <div class="section-label">3 — Key-Cap Button</div>
+    <div class="row" style="align-items:center;">
+      <div class="col">
+        <span class="label-engraved">sm</span>
+        <button class="key-cap key-cap--sm" id="btn-sm">Connect</button>
+      </div>
+      <div class="col">
+        <span class="label-engraved">md (default)</span>
+        <button class="key-cap" id="btn-md">View Atlas</button>
+      </div>
+      <div class="col">
+        <span class="label-engraved">lg</span>
+        <button class="key-cap key-cap--lg" id="btn-lg">Analyze Repo</button>
+      </div>
+      <div class="col">
+        <span class="label-engraved">disabled</span>
+        <button class="key-cap" id="btn-disabled" disabled>Scanning…</button>
+      </div>
+    </div>
+    <p style="margin-top:16px; font-size:0.75rem; color:var(--text-muted);">
+      Press and hold to see 1 px travel + shadow collapse. Release → spring back.
+    </p>
+  </section>
+
+  <!-- ─── 4. LED LAMP ──────────────────────────────────────────────────── -->
+  <section class="section" id="leds">
+    <div class="section-label">4 — LED Lamp</div>
+    <div class="col" style="gap:14px;">
+      <div class="led-row">
+        <span class="led" data-state="off"></span>
+        <span class="label-engraved" style="width:auto;">off</span>
+        <span style="font-size:0.6875rem; font-family:var(--font-mono); color:var(--text-muted);">data-state="off"</span>
+      </div>
+      <div class="led-row">
+        <span class="led" data-state="ok"></span>
+        <span class="label-engraved" style="width:auto;">ok</span>
+        <span style="font-size:0.6875rem; font-family:var(--font-mono); color:var(--text-muted);">data-state="ok" — healthy, active, connected</span>
+      </div>
+      <div class="led-row">
+        <span class="led" data-state="warn"></span>
+        <span class="label-engraved" style="width:auto;">warn</span>
+        <span style="font-size:0.6875rem; font-family:var(--font-mono); color:var(--text-muted);">data-state="warn" — degraded, stale, risk pending</span>
+      </div>
+      <div class="led-row">
+        <span class="led" data-state="fault"></span>
+        <span class="label-engraved" style="width:auto;">fault</span>
+        <span style="font-size:0.6875rem; font-family:var(--font-mono); color:var(--text-muted);">data-state="fault" — broken, scan failed, severed</span>
+      </div>
+      <div class="led-row">
+        <span class="led" data-state="busy"></span>
+        <span class="label-engraved" style="width:auto;">busy</span>
+        <span style="font-size:0.6875rem; font-family:var(--font-mono); color:var(--text-muted);">data-state="busy" — scanning, analyzing, in-flight</span>
+      </div>
+    </div>
+
+    <div style="margin-top:32px;">
+      <p class="label-engraved" style="margin-bottom:12px;">Interactive: click to cycle state</p>
+      <div class="led-row" style="gap:20px;">
+        <button class="led" id="led-interactive" data-state="off" style="cursor:pointer; width:12px; height:12px; border:none; padding:0;"
+              type="button" aria-label="Cycle interactive LED indicator state" aria-live="polite"
+              title="Click or press Enter/Space to cycle: off → ok → warn → fault → busy → off"></button>
+        <span id="led-state-label" style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-secondary);">off</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 5. TOGGLE SWITCH ─────────────────────────────────────────────── -->
+  <section class="section" id="toggles">
+    <div class="section-label">5 — Toggle Switch</div>
+    <div class="row" style="gap:32px; align-items:center;">
+      <div class="col">
+        <span class="label-engraved">Off state</span>
+        <div class="toggle-track" data-checked="false">
+          <div class="toggle-thumb"></div>
+          <div class="toggle-led"></div>
+        </div>
+      </div>
+      <div class="col">
+        <span class="label-engraved">On state</span>
+        <div class="toggle-track" data-checked="true">
+          <div class="toggle-thumb"></div>
+          <div class="toggle-led"></div>
+        </div>
+      </div>
+      <div class="col">
+        <span class="label-engraved">Interactive</span>
+        <div class="toggle-track" id="toggle-interactive" data-checked="false"
+             style="cursor:pointer;" tabindex="0" role="switch" aria-checked="false"
+             aria-label="Demo toggle switch"
+             title="Click to toggle">
+          <div class="toggle-thumb"></div>
+          <div class="toggle-led"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 6. TYPOGRAPHY ───────────────────────────────────────────────── -->
+  <section class="section" id="typography">
+    <div class="section-label">6 — Typography</div>
+    <div class="metal-bezel" style="padding:3px; max-width:480px;">
+      <div class="panel-inset" style="border-radius:5px; padding:20px; display:flex; flex-direction:column; gap:12px;">
+        <div class="label-engraved">Field label / section header</div>
+        <div class="label-embossed" style="font-size:1rem; font-family:var(--font-mono);">Repo Name · embossed</div>
+        <hr class="divider-engraved" />
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="label-engraved">Last scan</span>
+          <span style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-secondary);">3 min ago</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="label-engraved">Risk score</span>
+          <span style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-secondary);">42 / 100</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 7. SAMPLE REPO CARD ──────────────────────────────────────────── -->
+  <section class="section" id="card">
+    <div class="section-label">7 — Sample Repo Card</div>
+    <div class="metal-bezel repo-card">
+      <div class="panel-inset repo-card-inner" style="border-radius:5px;">
+        <div class="repo-card-header">
+          <span class="label-embossed repo-name" style="font-family:var(--font-mono);">auth-service</span>
+          <span class="led" data-state="ok"></span>
+        </div>
+        <hr class="divider-engraved" />
+        <div class="repo-metrics">
+          <div class="metric-row">
+            <span class="label-engraved">imports</span>
+            <span class="metric-val">218</span>
+          </div>
+          <div class="metric-row">
+            <span class="label-engraved">broken</span>
+            <span class="metric-val">0</span>
+          </div>
+          <div class="metric-row">
+            <span class="label-engraved">risk</span>
+            <span class="metric-val">18</span>
+          </div>
+        </div>
+        <div class="repo-card-footer">
+          <button class="key-cap key-cap--sm" id="card-atlas-btn">View Atlas</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 8. MOTION EASING ─────────────────────────────────────────────── -->
+  <section class="section" id="motion">
+    <div class="section-label">8 — Motion Easing</div>
+    <div class="motion-demo">
+      <div class="motion-row">
+        <div class="motion-label-col"><span class="label-engraved">--ease-press</span></div>
+        <div class="motion-bar-track">
+          <div class="motion-ball" data-ease="press" id="ball-press"></div>
+        </div>
+        <span style="font-family:var(--font-mono); font-size:0.625rem; color:var(--text-muted);">cubicBezier(0.2, 0, 0, 1)</span>
+      </div>
+      <div class="motion-row">
+        <div class="motion-label-col"><span class="label-engraved">--ease-spring</span></div>
+        <div class="motion-bar-track">
+          <div class="motion-ball" data-ease="spring" id="ball-spring"></div>
+        </div>
+        <span style="font-family:var(--font-mono); font-size:0.625rem; color:var(--text-muted);">cubicBezier(0.34, 1.56, 0.64, 1) — overshoots</span>
+      </div>
+      <div class="motion-row">
+        <div class="motion-label-col"><span class="label-engraved">--ease-smooth</span></div>
+        <div class="motion-bar-track">
+          <div class="motion-ball" data-ease="smooth" id="ball-smooth"></div>
+        </div>
+        <span style="font-family:var(--font-mono); font-size:0.625rem; color:var(--text-muted);">cubicBezier(0.4, 0, 0.2, 1)</span>
+      </div>
+    </div>
+    <button class="key-cap" id="btn-play-motion" style="margin-top:20px;">▶ Play</button>
+  </section>
+
+  <!-- ─── 9. COLOR POLICY ──────────────────────────────────────────────── -->
+  <section class="section" id="policy">
+    <div class="section-label">9 — LED-Only Color Policy</div>
+    <div style="display:flex; flex-direction:column; gap:12px; max-width:600px;">
+      <div class="policy-box">
+        <p><strong>VIOLATION</strong> — <code>rgba(79, 209, 197, 0.6)</code> in RadialButton hover glow.<br>
+        LED signal colors (<code>--led-ok</code>, <code>--led-warn</code>, <code>--led-fault</code>) must NEVER appear in 2D chrome outside <code>.led</code> elements. No buttons, badges, loaders, or pills.</p>
+      </div>
+      <div class="policy-box policy-ok">
+        <p><strong>ALLOWED</strong> — LED signal colors on <code>.led[data-state]</code> elements only. The same teal (<code>#14b8a6</code>) is used for Atlas wire cores — intentional, semantic: <em>healthy connection</em>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FOOTER ───────────────────────────────────────────────────────── -->
+  <footer style="margin-top:80px; padding-top:20px; border-top:1px solid rgba(0,0,0,0.5);
+                 box-shadow:0 -1px 0 rgba(255,255,255,0.04);">
+    <p class="label-engraved">Telex Phase 1 Controls Reference — Generated 2026-09-28 — Source: globals.css / DESIGN.md</p>
+  </footer>
+
+  <script>
+    // LED interactive cycle
+    const ledInteractive = document.getElementById('led-interactive');
+    const ledStateLabel  = document.getElementById('led-state-label');
+    const states = ['off','ok','warn','fault','busy'];
+    let stateIdx = 0;
+    const cycleLed = () => {
+      stateIdx = (stateIdx + 1) % states.length;
+      ledInteractive.setAttribute('data-state', states[stateIdx]);
+      ledInteractive.setAttribute('aria-label', `Interactive LED indicator state: ${states[stateIdx]}`);
+      ledStateLabel.textContent = states[stateIdx];
+    };
+    ledInteractive.addEventListener('click', cycleLed);
+    ledInteractive.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        cycleLed();
+      }
+    });
+
+    // Toggle interactive
+    const toggleInteractive = document.getElementById('toggle-interactive');
+    toggleInteractive.addEventListener('click', () => {
+      const checked = toggleInteractive.getAttribute('data-checked') === 'true';
+      toggleInteractive.setAttribute('data-checked', String(!checked));
+      toggleInteractive.setAttribute('aria-checked', String(!checked));
+    });
+    toggleInteractive.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        toggleInteractive.click();
+      }
+    });
+
+    // Motion demo
+    const balls = document.querySelectorAll('.motion-ball');
+    let playing = false;
+    document.getElementById('btn-play-motion').addEventListener('click', () => {
+      if (playing) return;
+      playing = true;
+      balls.forEach(b => { b.style.transition = 'none'; b.classList.remove('playing'); });
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          balls.forEach(b => {
+            b.style.transition = '';
+            b.classList.add('playing');
+          });
+          setTimeout(() => {
+            balls.forEach(b => { b.style.transition = 'none'; b.classList.remove('playing'); });
+            setTimeout(() => { playing = false; }, 100);
+          }, 900);
+        });
+      });
+    });
+  </script>
+</body>
+</html>

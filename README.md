@@ -434,6 +434,8 @@ Located at `/dashboard/atlas`, **Repo Atlas** is Telex's 3D spatial cartography 
 - **Catenary Conduit Physics**: Imports render as dielectric cables with gravitational sag and tension. Healthy cables render teal (`#14B8A6`); breaking connections pulse crimson (`#F43F5E`).
 - **Live Incident Stream (SSE)**: Streams real-time breakage pulses to highlight impacted caller nodes over Server-Sent Events.
 - **In-Canvas Source Inspection**: Clicking any 3D node opens a slide-in code viewer displaying line-level AST references and commit metadata.
+- **Incremental Update Engine**: Webhook pushes trigger fine-grained graph updates (`atlas_nodes` / `atlas_edges`) fetching only changed files, with $O(1)$ reverse-dependency lookups (`ix_atlas_edges_target`).
+- **Precision Camera Rig**: Raycast cursor zoom, camera screen-plane panning (Right-drag, Space+drag, Middle-drag), and dynamic fog calibrated to graph bounding radius.
 
 <br>
 
@@ -441,6 +443,23 @@ Located at `/dashboard/atlas`, **Repo Atlas** is Telex's 3D spatial cartography 
   <img src="apps/web/public/repo-atlas-inspect.png" alt="Telex Repo Atlas - In-Canvas Card Inspection" width="100%" style="border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);" />
   <p><i>Figure 2: Slide-in AST card inspector showing line-level import references and breakage state.</i></p>
 </div>
+
+<br>
+
+### Evidence-Based Run Analysis & Physical Instrumentation
+
+Telex replaces arbitrary AI ratings with **deterministic, fact-grounded resilience scoring**. Every score is mathematically derived from verified AST facts and repository telemetry—the LLM writes prose explanations constrained strictly to computed facts and never invents a number.
+
+- **Deterministic Sub-Scores (`services/analysis_weights.py`)**:
+  - **Structure (30%)**: Tarjan SCC circular cycle detection, longest DAG path depth, fan-in/fan-out hub files, orphan file ratios.
+  - **Dependencies (30%)**: Breaking change blast radius, packages behind major versions, unpatched symbols.
+  - **Change Safety (25%)**: Test file detection, automated CI workflow presence, churn on high-centrality files.
+  - **Verification (15%)**: Historical patch merge rate, sandbox CI pass rate, open review queues.
+- **Physical Analog Dial Instrument (`RunAnalysisCard.tsx`)**:
+  - Skeuomorphic instrument cluster with machined aluminum bezel and recessed meter face.
+  - Rotating mechanical galvanometer needle calibrated from $-130^\circ$ (Score 0) to $+130^\circ$ (Score 100) with spring inertia.
+  - 4 horizontal sub-score gauges with explicit **"NOT MEASURED"** states for unavailable signals.
+  - Delta score badge vs prior runs and interactive findings with deep-links directly focusing nodes in 3D Repo Atlas.
 
 <br>
 

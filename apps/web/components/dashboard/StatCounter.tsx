@@ -23,16 +23,22 @@ export default function StatCounter({
   }, [value, suffix]);
 
   return (
-    <div className="glass-surface p-6 flex flex-col gap-2 transition-all hover:border-white/25 bg-black/70 backdrop-blur-xl">
-      <span
-        ref={numRef}
-        className="font-mono font-bold text-3xl sm:text-4xl tracking-tight text-white drop-shadow-[0_0_16px_rgba(255,255,255,0.2)]"
-      >
-        0{suffix}
-      </span>
-      <span className="font-sans text-xs text-[#A1A1AA] font-medium tracking-wide">
-        {label}
-      </span>
+    <div className="metal-bezel p-[2px] transition-all hover:brightness-105">
+      <div className="panel-inset p-5 rounded-[6px] flex flex-col justify-between gap-3">
+        <div className="flex items-center justify-between">
+          <span className="label-engraved text-[10px] tracking-widest">{label}</span>
+          <span className="led" data-state="ok" style={{ width: "6px", height: "6px" }} />
+        </div>
+        <div className="bg-[#080a0c] border border-black/90 rounded px-3 py-2 shadow-[inset_0_2px_8px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.05)]">
+          <span
+            ref={numRef}
+            className="font-mono font-bold text-3xl sm:text-4xl tracking-tight text-white drop-shadow-[0_0_14px_rgba(255,255,255,0.25)]"
+          >
+            0{suffix}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
+

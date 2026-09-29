@@ -135,7 +135,7 @@ export default function ReposPage() {
           <button
             onClick={handleSync}
             disabled={isSyncing}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-white/20 bg-white/[0.04] text-white hover:bg-white/[0.08] hover:border-white font-mono text-xs transition-all active:scale-[0.98] cursor-pointer"
+            className="key-cap key-cap--sm font-mono text-xs text-white flex items-center gap-2 cursor-pointer"
           >
             <svg
               className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin text-white" : "text-[#A1A1AA]"}`}
@@ -152,7 +152,7 @@ export default function ReposPage() {
             href={githubInstallUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-white text-black font-mono font-semibold text-xs transition-all hover:bg-white/90 hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] active:scale-[0.98]"
+            className="key-cap key-cap--sm font-mono text-xs flex items-center gap-1.5"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -309,188 +309,180 @@ export default function ReposPage() {
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.15 }}
               >
-                <SpotlightCard
-                  spotlightColor="rgba(255, 255, 255, 0.05)"
-                  className="p-5 bg-black/70 backdrop-blur-xl border border-white/10 hover:border-white/20 transition-all rounded-xl flex flex-col gap-4"
-                  enableTilt={false}
-                >
-                  {/* Repo Header */}
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded bg-white/10 border border-white/20 flex items-center justify-center font-mono text-xs font-bold text-white flex-shrink-0">
-                        {repo.name?.slice(0, 2).toUpperCase() || "RX"}
+                <div className="metal-bezel p-[2px] rounded-xl relative hover:brightness-105 transition-all shadow-xl">
+                  {/* Decorative machined corner rivets */}
+                  <span className="absolute top-2 left-2 w-1.5 h-1.5 rounded-full bg-[#3F3F46] shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_1px_0_rgba(0,0,0,0.8)] z-10 pointer-events-none" />
+                  <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[#3F3F46] shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_1px_0_rgba(0,0,0,0.8)] z-10 pointer-events-none" />
+                  <span className="absolute bottom-2 left-2 w-1.5 h-1.5 rounded-full bg-[#3F3F46] shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_1px_0_rgba(0,0,0,0.8)] z-10 pointer-events-none" />
+                  <span className="absolute bottom-2 right-2 w-1.5 h-1.5 rounded-full bg-[#3F3F46] shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_1px_0_rgba(0,0,0,0.8)] z-10 pointer-events-none" />
+
+                  <div className="panel-inset p-5 rounded-[10px] flex flex-col gap-4 relative">
+                    {/* Repo Header */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="badge-chip w-9 h-9 flex items-center justify-center font-mono text-xs font-bold text-white flex-shrink-0">
+                          {repo.name?.slice(0, 2).toUpperCase() || "RX"}
+                        </div>
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-2">
+                            <Link
+                              href={`/dashboard/repos/${repo.id}`}
+                              className="font-mono font-bold text-base text-white hover:underline transition-colors"
+                            >
+                              {repo.full_name}
+                            </Link>
+                            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-[#71717A] border border-white/10">
+                              {repo.default_branch}
+                            </span>
+                          </div>
+                          {repo.description && (
+                            <p className="font-sans text-xs text-[#A1A1AA] line-clamp-1 mt-0.5">
+                              {repo.description}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-2">
-                          <Link
-                            href={`/dashboard/repos/${repo.id}`}
-                            className="font-mono font-bold text-base text-white hover:underline transition-colors"
-                          >
-                            {repo.full_name}
-                          </Link>
-                          <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-[#71717A] border border-white/10">
-                            {repo.default_branch}
+
+                      <div className="flex items-center gap-2 self-start md:self-auto">
+                        <Link
+                          href={`/dashboard/repos/${repo.id}`}
+                          className="key-cap key-cap--sm font-mono text-xs text-white flex items-center gap-1.5"
+                        >
+                          <span>View Patches</span>
+                          <span>→</span>
+                        </Link>
+                      </div>
+                    </div>
+
+                    {/* Toggle Error Banner if mutation rejected */}
+                    {toggleErrors[repo.id] && (
+                      <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 font-mono text-xs flex items-center justify-between">
+                        <span>{toggleErrors[repo.id]}</span>
+                      </div>
+                    )}
+
+                    {/* Quality Gate Policy Toggles */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-white/[0.06]">
+                      {/* Toggle: requires_tests */}
+                      <div className="p-3 rounded-lg panel-inset border border-white/[0.06] flex items-center justify-between gap-3">
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-2 font-mono text-xs font-semibold text-white">
+                            <span className="led" data-state={repo.requires_tests ? "ok" : "off"} />
+                            <span>Require Passing Tests</span>
+                            {repo.requires_tests && (
+                              <span className="text-[9px] px-1 rounded bg-white/10 text-white font-mono">
+                                ACTIVE
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-sans text-[11px] text-[#71717A]">
+                            Block auto-PRs if repo test suite fails in sandbox
                           </span>
                         </div>
-                        {repo.description && (
-                          <p className="font-sans text-xs text-[#A1A1AA] line-clamp-1 mt-0.5">
-                            {repo.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
 
-                    <div className="flex items-center gap-2 self-start md:self-auto">
-                      <Link
-                        href={`/dashboard/repos/${repo.id}`}
-                        className="font-mono text-xs px-3.5 py-1.5 rounded-lg border border-white/15 bg-white/5 text-white hover:bg-white hover:text-black transition-all flex items-center gap-1.5"
-                      >
-                        <span>View Patches</span>
-                        <span>→</span>
-                      </Link>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={Boolean(repo.requires_tests)}
+                          onClick={() =>
+                            handleToggle(
+                              repo.id,
+                              "requires_tests",
+                              Boolean(repo.requires_tests)
+                            )
+                          }
+                          disabled={updatingId === `${repo.id}-requires_tests`}
+                          className="toggle-track flex-shrink-0 cursor-pointer disabled:opacity-50"
+                          data-checked={Boolean(repo.requires_tests)}
+                          aria-label="Toggle test requirement"
+                        >
+                          <div className="toggle-thumb" />
+                          <div className="toggle-led" data-state={repo.requires_tests ? "ok" : "off"} />
+                        </button>
+                      </div>
+
+                      {/* Toggle: requires_typecheck */}
+                      <div className="p-3 rounded-lg panel-inset border border-white/[0.06] flex items-center justify-between gap-3">
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-2 font-mono text-xs font-semibold text-white">
+                            <span className="led" data-state={repo.requires_typecheck ? "ok" : "off"} />
+                            <span>Require Typecheck</span>
+                            {repo.requires_typecheck && (
+                              <span className="text-[9px] px-1 rounded bg-white/10 text-white font-mono">
+                                ACTIVE
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-sans text-[11px] text-[#71717A]">
+                            Block auto-PRs if typechecker (tsc / mypy) fails
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={Boolean(repo.requires_typecheck)}
+                          onClick={() =>
+                            handleToggle(
+                              repo.id,
+                              "requires_typecheck",
+                              Boolean(repo.requires_typecheck)
+                            )
+                          }
+                          disabled={updatingId === `${repo.id}-requires_typecheck`}
+                          className="toggle-track flex-shrink-0 cursor-pointer disabled:opacity-50"
+                          data-checked={Boolean(repo.requires_typecheck)}
+                          aria-label="Toggle typecheck requirement"
+                        >
+                          <div className="toggle-thumb" />
+                          <div className="toggle-led" data-state={repo.requires_typecheck ? "ok" : "off"} />
+                        </button>
+                      </div>
+
+                      {/* Toggle: allow_install_scripts (GFI-2) */}
+                      <div className="p-3 rounded-lg panel-inset border border-white/[0.06] flex items-center justify-between gap-3 sm:col-span-2">
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-2 font-mono text-xs font-semibold text-white">
+                            <span className="led" data-state={repo.allow_install_scripts ? "warn" : "off"} />
+                            <span>Allow Install Scripts</span>
+                            {repo.allow_install_scripts ? (
+                              <span className="text-[9px] px-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
+                                OPT-IN ENABLED
+                              </span>
+                            ) : (
+                              <span className="text-[9px] px-1 rounded bg-white/10 text-[#A1A1AA] font-mono">
+                                BLOCKED (DEFAULT)
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-sans text-[11px] text-[#71717A]">
+                            Allow lifecycle install scripts during sandbox verification (disabled by default to prevent supply-chain execution)
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={Boolean(repo.allow_install_scripts)}
+                          onClick={() =>
+                            handleToggle(
+                              repo.id,
+                              "allow_install_scripts",
+                              Boolean(repo.allow_install_scripts)
+                            )
+                          }
+                          disabled={updatingId === `${repo.id}-allow_install_scripts`}
+                          className="toggle-track flex-shrink-0 cursor-pointer disabled:opacity-50"
+                          data-checked={Boolean(repo.allow_install_scripts)}
+                          aria-label="Toggle install scripts execution"
+                        >
+                          <div className="toggle-thumb" />
+                          <div className="toggle-led" data-state={repo.allow_install_scripts ? "warn" : "off"} />
+                        </button>
+                      </div>
                     </div>
                   </div>
-
-                  {/* Toggle Error Banner if mutation rejected */}
-                  {toggleErrors[repo.id] && (
-                    <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 font-mono text-xs flex items-center justify-between">
-                      <span>{toggleErrors[repo.id]}</span>
-                    </div>
-                  )}
-
-                  {/* Quality Gate Policy Toggles */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-white/[0.06]">
-                    {/* Toggle: requires_tests */}
-                    <div className="p-3 rounded-lg bg-black/40 border border-white/[0.06] flex items-center justify-between gap-3">
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5 font-mono text-xs font-semibold text-white">
-                          <span>Require Passing Tests</span>
-                          {repo.requires_tests && (
-                            <span className="text-[9px] px-1 rounded bg-white/10 text-white font-mono">
-                              ACTIVE
-                            </span>
-                          )}
-                        </div>
-                        <span className="font-sans text-[11px] text-[#71717A]">
-                          Block auto-PRs if repo test suite fails in sandbox
-                        </span>
-                      </div>
-
-                      <button
-                        onClick={() =>
-                          handleToggle(
-                            repo.id,
-                            "requires_tests",
-                            Boolean(repo.requires_tests)
-                          )
-                        }
-                        disabled={updatingId === `${repo.id}-requires_tests`}
-                        className={`w-11 h-6 rounded-full transition-colors relative flex items-center p-0.5 cursor-pointer disabled:opacity-50 ${
-                          repo.requires_tests ? "bg-white" : "bg-white/15"
-                        }`}
-                        aria-label="Toggle test requirement"
-                      >
-                        <motion.div
-                          className={`w-5 h-5 rounded-full shadow-md ${
-                            repo.requires_tests ? "bg-black" : "bg-white"
-                          }`}
-                          animate={{
-                            x: repo.requires_tests ? 20 : 0,
-                          }}
-                          transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                        />
-                      </button>
-                    </div>
-
-                    {/* Toggle: requires_typecheck */}
-                    <div className="p-3 rounded-lg bg-black/40 border border-white/[0.06] flex items-center justify-between gap-3">
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5 font-mono text-xs font-semibold text-white">
-                          <span>Require Typecheck</span>
-                          {repo.requires_typecheck && (
-                            <span className="text-[9px] px-1 rounded bg-white/10 text-white font-mono">
-                              ACTIVE
-                            </span>
-                          )}
-                        </div>
-                        <span className="font-sans text-[11px] text-[#71717A]">
-                          Block auto-PRs if typechecker (tsc / mypy) fails
-                        </span>
-                      </div>
-
-                      <button
-                        onClick={() =>
-                          handleToggle(
-                            repo.id,
-                            "requires_typecheck",
-                            Boolean(repo.requires_typecheck)
-                          )
-                        }
-                        disabled={updatingId === `${repo.id}-requires_typecheck`}
-                        className={`w-11 h-6 rounded-full transition-colors relative flex items-center p-0.5 cursor-pointer disabled:opacity-50 ${
-                          repo.requires_typecheck ? "bg-white" : "bg-white/15"
-                        }`}
-                        aria-label="Toggle typecheck requirement"
-                      >
-                        <motion.div
-                          className={`w-5 h-5 rounded-full shadow-md ${
-                            repo.requires_typecheck ? "bg-black" : "bg-white"
-                          }`}
-                          animate={{
-                            x: repo.requires_typecheck ? 20 : 0,
-                          }}
-                          transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                        />
-                      </button>
-                    </div>
-
-                    {/* Toggle: allow_install_scripts (GFI-2) */}
-                    <div className="p-3 rounded-lg bg-black/40 border border-white/[0.06] flex items-center justify-between gap-3 sm:col-span-2">
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5 font-mono text-xs font-semibold text-white">
-                          <span>Allow Install Scripts</span>
-                          {repo.allow_install_scripts ? (
-                            <span className="text-[9px] px-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
-                              OPT-IN ENABLED
-                            </span>
-                          ) : (
-                            <span className="text-[9px] px-1 rounded bg-white/10 text-[#A1A1AA] font-mono">
-                              BLOCKED (DEFAULT)
-                            </span>
-                          )}
-                        </div>
-                        <span className="font-sans text-[11px] text-[#71717A]">
-                          Allow lifecycle install scripts during sandbox verification (disabled by default to prevent supply-chain execution)
-                        </span>
-                      </div>
-
-                      <button
-                        onClick={() =>
-                          handleToggle(
-                            repo.id,
-                            "allow_install_scripts",
-                            Boolean(repo.allow_install_scripts)
-                          )
-                        }
-                        disabled={updatingId === `${repo.id}-allow_install_scripts`}
-                        className={`w-11 h-6 rounded-full transition-colors relative flex items-center p-0.5 cursor-pointer disabled:opacity-50 ${
-                          repo.allow_install_scripts ? "bg-amber-400" : "bg-white/15"
-                        }`}
-                        aria-label="Toggle install scripts execution"
-                      >
-                        <motion.div
-                          className={`w-5 h-5 rounded-full shadow-md ${
-                            repo.allow_install_scripts ? "bg-black" : "bg-white"
-                          }`}
-                          animate={{
-                            x: repo.allow_install_scripts ? 20 : 0,
-                          }}
-                          transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                        />
-                      </button>
-                    </div>
-                  </div>
-                </SpotlightCard>
+                </div>
               </motion.div>
             ))}
           </AnimatePresence>

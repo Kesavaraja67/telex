@@ -290,7 +290,7 @@ Provide a structured, high-tech architectural intelligence report. Return ONLY v
                     for c in commits[:3]
                 ],
                 "architecture_verdict": "Nominal — Tree-sitter AST validation and verification gates active.",
-                "risk_score": 12,
+                "risk_score": 0,
                 "recommended_actions": [
                     "Maintain continuous integration verification gate",
                     "Maintain webhook HMAC signature validation",

@@ -4,11 +4,17 @@ import React, { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
 import SpotlightCard from "@/components/ui/SpotlightCard";
-import BorderBeam from "@/components/ui/BorderBeam";
 import CyberGridBackground from "@/components/ui/CyberGridBackground";
 import { CyberSkeletonPatch } from "@/components/ui/CyberSkeleton";
 import DiffViewer from "@/components/dashboard/DiffViewer";
-import { type RepoDetails, type AIExplanation, type PatchSummary, API_BASE } from "@/lib/api";
+import { RunAnalysisCard } from "@/components/dashboard/RunAnalysisCard";
+import {
+  type RepoDetails,
+  type AIExplanation,
+  type PatchSummary,
+  type RepoAnalysisHistory,
+  API_BASE,
+} from "@/lib/api";
 
 export default function RepoDetailPage({
   params,
@@ -21,9 +27,9 @@ export default function RepoDetailPage({
   const [repo, setRepo] = useState<RepoDetails | null>(null);
   const [patches, setPatches] = useState<PatchSummary[]>([]);
   const [selectedPatchIndex, setSelectedPatchIndex] = useState<number>(0);
-  const [aiExplanation, setAiExplanation] = useState<AIExplanation | null>(null);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const [isLoadingAi, setIsLoadingAi] = useState(false);
+  const [analysisHistory, setAnalysisHistory] = useState<RepoAnalysisHistory | null>(null);
+  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [filterRisk, setFilterRisk] = useState<"all" | "semantic_only" | "mechanical_only">("all");
@@ -41,10 +47,11 @@ export default function RepoDetailPage({
     async function loadData() {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       try {
-        const { getRepoDetails, getRepoPatches } = await import("@/lib/api");
-        const [repoData, patchesData] = await Promise.allSettled([
+        const { getRepoDetails, getRepoPatches, getRepoAnalysis } = await import("@/lib/api");
+        const [repoData, patchesData, analysisData] = await Promise.allSettled([
           getRepoDetails(repoId),
           getRepoPatches(repoId),
+          getRepoAnalysis(repoId),
         ]);
 
         if (!isMounted) return;
@@ -58,6 +65,10 @@ export default function RepoDetailPage({
 
         if (patchesData.status === "fulfilled" && patchesData.value?.patches) {
           setPatches(patchesData.value.patches);
+        }
+
+        if (analysisData.status === "fulfilled" && analysisData.value) {
+          setAnalysisHistory(analysisData.value);
         }
       } catch {
         if (isMounted) {
@@ -89,18 +100,19 @@ export default function RepoDetailPage({
     };
   }, [repoId]);
 
-  async function handleRunGeminiExplain() {
-    setIsLoadingAi(true);
-    setAiError(null);
+  async function handleTriggerAnalysis() {
+    setIsLoadingAnalysis(true);
+    setAnalysisError(null);
     try {
-      const { explainRepoWithGemini } = await import("@/lib/api");
-      const result = await explainRepoWithGemini(repoId);
-      setAiExplanation(result);
+      const { explainRepoWithGemini, getRepoAnalysis } = await import("@/lib/api");
+      await explainRepoWithGemini(repoId);
+      const updated = await getRepoAnalysis(repoId);
+      setAnalysisHistory(updated);
     } catch (err: any) {
-      setAiExplanation(null);
-      setAiError(err?.message || "Failed to generate live Gemini analysis. Please verify API configuration.");
+      console.error("Failed to run repository analysis:", err);
+      setAnalysisError(err?.message || "Failed to trigger repository scan. Please try again.");
     } finally {
-      setIsLoadingAi(false);
+      setIsLoadingAnalysis(false);
     }
   }
 
@@ -627,114 +639,15 @@ export default function RepoDetailPage({
       )}
     </div>
 
-      {/* Gemini 2.5 Flash Architecture & Risk Radar */}
-      <SpotlightCard
-        spotlightColor="rgba(255, 255, 255, 0.08)"
-        className="p-5 bg-black/70 backdrop-blur-xl border border-white/15 relative overflow-hidden flex flex-col gap-4 rounded-xl shadow-lg"
-        enableTilt={false}
-      >
-        <BorderBeam size={220} duration={10} colorFrom="#FFFFFF" colorTo="rgba(255, 255, 255, 0.15)" />
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/[0.06] pb-3 relative z-10">
-          <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded bg-white/10 border border-white/20 flex items-center justify-center font-mono text-[10px] font-bold text-white">
-              AI
-            </div>
-            <div>
-              <h2 className="font-mono font-semibold text-sm text-white tracking-tight">
-                Gemini 2.5 Flash Architecture Radar
-              </h2>
-            </div>
-          </div>
-
-          <button
-            onClick={handleRunGeminiExplain}
-            disabled={isLoadingAi}
-            className="font-mono text-xs font-semibold px-3.5 py-1.5 rounded-lg bg-white text-black hover:bg-white/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 self-start sm:self-auto shadow-sm cursor-pointer"
-          >
-            {isLoadingAi ? (
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full border-2 border-black/30 border-t-black animate-spin" />
-                <span>Analyzing AST…</span>
-              </span>
-            ) : (
-              <>
-                <span>Run Gemini Analysis</span>
-                <span>→</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {aiError && (
-          <div className="p-3 rounded-lg bg-white/[0.04] border border-white/20 text-white font-mono text-xs mb-3">
-            <span className="font-semibold text-white/90">Error:</span> {aiError}
-          </div>
-        )}
-
-        {isLoadingAi && (
-          <div
-            role="status"
-            aria-label="Running Gemini Analysis"
-            className="p-8 rounded-xl border border-white/10 bg-black/60 relative overflow-hidden flex flex-col items-center justify-center text-center gap-3.5 my-2 animate-fade-in"
-          >
-            <div className="animate-terminal-scan" />
-            <div className="relative w-16 h-16 flex items-center justify-center">
-              <div className="absolute inset-0 rounded-full border border-white/10 animate-ping opacity-25" />
-              <div className="absolute inset-2 rounded-full border border-white/20 animate-pulse" />
-              <div className="absolute inset-0 rounded-full border border-dashed border-white/40 animate-spin [animation-duration:5s]" />
-              <span className="w-2.5 h-2.5 rounded-full bg-white shadow-[0_0_10px_#FFFFFF]" />
-            </div>
-            <div className="flex flex-col items-center gap-1">
-              <span className="font-mono text-xs text-white font-bold uppercase tracking-wider flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shadow-[0_0_6px_#FFFFFF]" />
-                Scanning AST Call Sites &amp; Breaking Changes
-              </span>
-              <span className="font-mono text-[11px] text-[#A1A1AA]">
-                Gemini 2.5 Flash computing semantic impact, migration diffs, and blast radius…
-              </span>
-            </div>
-          </div>
-        )}
-
-        {aiExplanation ? (
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col gap-4 relative z-10 font-mono text-xs"
-          >
-            <div className="p-3.5 rounded-lg bg-white/[0.02] border border-white/10">
-              <div className="text-[#71717A] uppercase text-[10px] tracking-wider mb-1">
-                Executive Architecture Summary
-              </div>
-              <p className="font-sans text-xs text-white leading-relaxed">
-                {aiExplanation.summary}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="p-3 rounded-lg bg-black/60 border border-white/[0.06] flex flex-col gap-0.5">
-                <span className="text-[#71717A] text-[10px] uppercase">Risk Score</span>
-                <span className="text-xl font-bold text-white">{aiExplanation.risk_score}/100</span>
-                <span className="text-[10px] text-[#A1A1AA]">
-                  {aiExplanation.risk_score < 30 ? "Nominal (Low Risk)" : "Medium Volatility"}
-                </span>
-              </div>
-
-              <div className="p-3 rounded-lg bg-black/60 border border-white/[0.06] flex flex-col gap-0.5 md:col-span-2">
-                <span className="text-[#71717A] text-[10px] uppercase">Architecture Verdict</span>
-                <span className="text-xs text-white font-medium mt-0.5 leading-relaxed">
-                  {aiExplanation.architecture_verdict}
-                </span>
-              </div>
-            </div>
-          </motion.div>
-        ) : !aiError ? (
-          <div className="py-4 text-center text-[#71717A] font-mono text-xs relative z-10">
-            Click &quot;Run Gemini Analysis&quot; to synthesize live architectural risk insights.
-          </div>
-        ) : null}
-      </SpotlightCard>
+      {/* Evidence-Based Architectural Run Analysis Physical Instrument */}
+      <RunAnalysisCard
+        repoId={repoId}
+        repoName={repo?.full_name || ""}
+        history={analysisHistory}
+        isLoading={isLoadingAnalysis}
+        error={analysisError}
+        onTriggerAnalysis={handleTriggerAnalysis}
+      />
 
       {/* Commit Stream & Dependencies */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -259,7 +259,7 @@ function DashboardContent({
               onClick={toggleSidebar}
               title="Expand sidebar (Normal view) [Ctrl+B]"
               aria-label="Expand sidebar"
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/90 hover:bg-black text-[#A1A1AA] hover:text-white border border-white/20 hover:border-white/40 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.8)] font-mono text-xs transition-all hover:scale-105 active:scale-95 cursor-pointer group"
+              className="key-cap flex items-center gap-2 px-3 py-1.5 font-mono text-xs cursor-pointer group"
             >
               <TelexLogo size={16} withBackground={true} />
               <svg
@@ -283,7 +283,7 @@ function DashboardContent({
 
         {/* Sidebar */}
         <aside
-          className={`flex-shrink-0 flex flex-col bg-black/90 backdrop-blur-2xl border-r border-white/[0.08] relative z-30 transition-all duration-300 ease-in-out ${
+          className={`flex-shrink-0 flex flex-col sidebar-panel relative z-30 transition-all duration-300 ease-in-out ${
             isSidebarCollapsed
               ? "w-0 p-0 border-r-transparent overflow-hidden opacity-0 pointer-events-none"
               : "w-64 py-6 px-4 opacity-100"
@@ -309,7 +309,7 @@ function DashboardContent({
                 onClick={toggleSidebar}
                 title="Collapse sidebar to full screen [Ctrl+B]"
                 aria-label="Collapse sidebar"
-                className="p-1.5 rounded-lg text-[#71717A] hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer group"
+                className="key-cap key-cap--sm p-1.5 cursor-pointer text-[#71717A] hover:text-white"
               >
                 <svg
                   className="w-4 h-4 text-[#71717A] group-hover:text-white transition-colors"
@@ -336,16 +336,14 @@ function DashboardContent({
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`relative font-mono text-xs tracking-wide px-3.5 py-2.5 rounded-xl transition-all flex items-center gap-3 group ${
-                      isActive
-                        ? "text-white bg-white/[0.08] border border-white/15 shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
-                        : "text-[#A1A1AA] hover:text-white hover:bg-white/[0.04] border border-transparent"
+                    className={`relative font-mono text-xs tracking-wide px-3.5 py-2.5 flex items-center gap-3 transition-all ${
+                      isActive ? "nav-item-active text-white" : "nav-item-inactive"
                     }`}
                   >
                     {isActive && (
                       <motion.div
                         layoutId="sidebar-active-indicator"
-                        className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-white shadow-[0_0_8px_#FFFFFF]"
+                        className="absolute left-1 top-2.5 bottom-2.5 w-1 rounded-full bg-white shadow-[0_0_8px_#FFFFFF]"
                         transition={{ type: "spring", stiffness: 380, damping: 30 }}
                       />
                     )}
@@ -360,7 +358,7 @@ function DashboardContent({
               {/* Quick link back to Landing Page */}
               <Link
                 href="/"
-                className="font-mono text-xs tracking-wide px-3.5 py-2.5 rounded-xl transition-all flex items-center gap-3 text-[#71717A] hover:text-white hover:bg-white/[0.04] border border-transparent mt-1 group"
+                className="nav-item-inactive font-mono text-xs tracking-wide px-3.5 py-2.5 flex items-center gap-3 mt-1"
               >
                 <svg className="w-4 h-4 text-[#71717A] group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -375,7 +373,7 @@ function DashboardContent({
                 href={`https://github.com/apps/${process.env.NEXT_PUBLIC_GITHUB_APP_NAME || "telex-agent-dev"}/installations/new`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-white text-black font-mono font-semibold text-xs transition-all hover:bg-white/90 hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] active:scale-[0.98]"
+                className="key-cap key-cap--wide py-2.5 text-xs text-white"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19" />
@@ -386,9 +384,9 @@ function DashboardContent({
             </div>
 
             {/* User Profile & Daemon Status Footer */}
-            <div className="mt-auto pt-6 border-t border-white/[0.08] flex flex-col gap-3">
+            <div className="mt-auto pt-6 border-t border-black/70 shadow-[0_1px_0_rgba(255,255,255,0.05)] flex flex-col gap-3">
               {/* Authenticated User Info */}
-              <div className="px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-between">
+              <div className="panel-inset px-3.5 py-2.5 rounded-lg flex items-center justify-between border border-black/80">
                 <div className="flex items-center gap-2.5 overflow-hidden">
                   {user?.avatar_url ? (
                     <img
@@ -397,15 +395,15 @@ function DashboardContent({
                       className="w-7 h-7 rounded-lg border border-white/20 object-cover shrink-0"
                     />
                   ) : (
-                    <div className="w-7 h-7 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center font-mono text-xs font-semibold text-white shrink-0">
+                    <div className="w-7 h-7 rounded-lg bg-black/40 border border-white/20 flex items-center justify-center font-mono text-xs font-semibold text-white shrink-0">
                       {user?.github_login ? user.github_login.slice(0, 2).toUpperCase() : "TX"}
                     </div>
                   )}
                   <div className="flex flex-col min-w-0">
-                    <span className="font-mono text-xs font-medium text-white truncate">
+                    <span className="font-mono text-xs font-medium text-white truncate label-embossed">
                       {user?.github_login || "Operator"}
                     </span>
-                    <span className="font-mono text-[9px] text-[#71717A] tracking-wider uppercase">
+                    <span className="label-engraved text-[9px]">
                       Connected
                     </span>
                   </div>
@@ -414,27 +412,30 @@ function DashboardContent({
                 <button
                   onClick={handleSignOut}
                   title="Sign Out"
-                  className="p-1.5 rounded-lg text-[#71717A] hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer shrink-0"
+                  aria-label="Sign out"
+                  className="key-cap key-cap--sm p-1.5 text-[#71717A] hover:text-white shrink-0 cursor-pointer"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
                 </button>
               </div>
 
               {/* Worker Pool Status */}
-              <div className="px-3 py-2 rounded-lg bg-black/40 border border-white/[0.04] flex items-center justify-between">
+              <div className="panel-inset px-3 py-2 rounded-lg flex items-center justify-between border border-black/80">
                 <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shadow-[0_0_6px_#FFFFFF]" />
-                  <span className="font-mono text-[11px] text-[#A1A1AA]">Radar Daemon</span>
+                  <span className="led" data-state="ok" />
+                  <span className="label-engraved text-[10px]">Radar Daemon</span>
                 </div>
-                <span className="font-mono text-[9px] text-white px-1.5 py-0.5 rounded bg-white/10 border border-white/20 font-medium">
+                <span className="badge-chip">
+                  <span className="led" data-state="ok" style={{ width: "6px", height: "6px" }} />
                   READY
                 </span>
               </div>
             </div>
           </div>
         </aside>
+
 
         {/* Main content */}
         <main

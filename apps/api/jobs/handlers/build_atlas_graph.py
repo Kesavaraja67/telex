@@ -3,14 +3,28 @@ build_atlas_graph — computes and caches the full import graph for one
 repo at one commit SHA. Triggered on cache-miss from routers/atlas.py.
 """
 
+import asyncio
 import logging
 import shutil
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
-from db.models import Installation, Repo, RepoAtlasGraph
+from db.models import (
+    AtlasEdge as DBAtlasEdge,
+)
+from db.models import (
+    AtlasNode as DBAtlasNode,
+)
+from db.models import (
+    AtlasState as DBAtlasState,
+)
+from db.models import (
+    Installation,
+    Repo,
+    RepoAtlasGraph,
+)
 from db.session import AsyncSessionLocal
 from services.import_graph import build_import_graph
 from services.repo_ingest import fetch_repo_snapshot
@@ -32,6 +46,10 @@ async def run(payload_or_session, maybe_job=None) -> None:
     commit_sha = payload["commit_sha"]
     repo_uuid = uuid.UUID(repo_id_str) if isinstance(repo_id_str, str) else repo_id_str
 
+    expected_head = payload.get("expected_head_sha") or payload.get("base_sha")
+    if expected_head and set(expected_head) == {"0"}:
+        expected_head = None
+
     # 1. Quick initial setup & metadata read with dedicated session
     async with AsyncSessionLocal() as init_session:
         result = await init_session.execute(
@@ -52,6 +70,7 @@ async def run(payload_or_session, maybe_job=None) -> None:
         else:
             row.status = "computing"
             row.error_message = None
+
         await init_session.commit()
 
         repo = await init_session.get(Repo, repo_uuid)
@@ -82,6 +101,7 @@ async def run(payload_or_session, maybe_job=None) -> None:
             "edges": [e.__dict__ for e in graph.edges],
             "folders": [f.__dict__ for f in graph.folders],
             "truncated": graph.truncated,
+            "build_mode": "full",
         }
         node_count = len(graph.nodes)
         edge_count = len(graph.edges)
@@ -103,15 +123,109 @@ async def run(payload_or_session, maybe_job=None) -> None:
                 row.truncated = truncated
                 row.status = "ready"
                 row.completed_at = datetime.now(timezone.utc)
-                await save_session.commit()
-                logger.info(
-                    "build_atlas_graph: repo=%s sha=%s nodes=%d edges=%d truncated=%s",
+
+            # Atomic repository-scoped expected-head check at final publication
+            state_query = (
+                select(DBAtlasState).where(DBAtlasState.repo_id == repo_uuid).with_for_update()
+            )
+            state_res = await save_session.execute(state_query)
+            candidate = state_res.scalar_one_or_none()
+            if isinstance(candidate, DBAtlasState):
+                state_row = candidate
+            else:
+                state_row = await save_session.get(DBAtlasState, repo_uuid)
+
+            is_stale = False
+            if state_row and state_row.head_sha:
+                if state_row.head_sha != commit_sha:
+                    if expected_head is not None:
+                        if state_row.head_sha != expected_head:
+                            is_stale = True
+                    else:
+                        is_stale = True
+            elif expected_head is not None and (not state_row or not state_row.head_sha):
+                is_stale = True
+
+            now_ts = datetime.now(timezone.utc)
+
+            if is_stale:
+                logger.warning(
+                    "build_atlas_graph: Stale build for %s @ %s (expected head was %s, but tracked head is now %s). Skipping normalized table update.",
                     repo_full_name,
                     commit_sha[:8],
-                    row.node_count,
-                    row.edge_count,
-                    row.truncated,
+                    expected_head[:8] if expected_head else "none",
+                    state_row.head_sha[:8] if (state_row and state_row.head_sha) else "none",
                 )
+                if state_row and state_row.status == "updating":
+                    state_row.status = "idle"
+
+            if not is_stale:
+                # Dual-write into normalized incremental tables (Phase 3)
+                await save_session.execute(
+                    delete(DBAtlasEdge).where(DBAtlasEdge.repo_id == repo_uuid)
+                )
+                await save_session.execute(
+                    delete(DBAtlasNode).where(DBAtlasNode.repo_id == repo_uuid)
+                )
+
+                for n in graph.nodes:
+                    node_row = DBAtlasNode(
+                        repo_id=repo_uuid,
+                        path=n.id,
+                        name=n.name,
+                        dir=n.dir,
+                        depth=n.depth,
+                        ext=n.ext,
+                        language=n.language or "plaintext",
+                        is_binary=n.is_binary,
+                        size_bytes=n.size_bytes,
+                        unresolved_specifiers=n.unresolved_specifiers or [],
+                        updated_sha=commit_sha,
+                    )
+                    save_session.add(node_row)
+
+                if hasattr(save_session, "flush"):
+                    flush_res = save_session.flush()
+                    if asyncio.iscoroutine(flush_res) or hasattr(flush_res, "__await__"):
+                        await flush_res
+
+                known_node_ids = {n.id for n in graph.nodes}
+                for e in graph.edges:
+                    if e.source in known_node_ids and e.target in known_node_ids:
+                        edge_row = DBAtlasEdge(
+                            repo_id=repo_uuid,
+                            source_path=e.source,
+                            target_path=e.target,
+                            kind=e.kind or "static",
+                            updated_sha=commit_sha,
+                        )
+                        save_session.add(edge_row)
+
+                if not state_row:
+                    state_row = DBAtlasState(
+                        repo_id=repo_uuid,
+                        head_sha=commit_sha,
+                        status="idle",
+                        last_full_scan_sha=commit_sha,
+                        last_full_scan_at=now_ts,
+                    )
+                    save_session.add(state_row)
+                else:
+                    state_row.head_sha = commit_sha
+                    state_row.status = "idle"
+                    state_row.error_message = None
+                    state_row.last_full_scan_sha = commit_sha
+                    state_row.last_full_scan_at = now_ts
+
+            await save_session.commit()
+            logger.info(
+                "build_atlas_graph: repo=%s sha=%s nodes=%d edges=%d truncated=%s (normalized tables synced)",
+                repo_full_name,
+                commit_sha[:8],
+                node_count,
+                edge_count,
+                truncated,
+            )
     except Exception as exc:
         logger.exception("build_atlas_graph failed for repo=%s sha=%s", repo_id_str, commit_sha)
         async with AsyncSessionLocal() as err_session:

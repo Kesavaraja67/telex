@@ -60,14 +60,9 @@ export default function ActivityPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/10 self-start sm:self-center">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white shadow-[0_0_6px_#FFFFFF]" />
-          </span>
-          <span className="font-mono text-[11px] text-white font-medium">
-            Live Stream Active
-          </span>
+        <div className="badge-chip px-3 py-1.5 font-mono text-[11px] text-white font-medium flex items-center gap-2 self-start sm:self-center">
+          <span className="led" data-state="ok" />
+          <span>Live Stream Active</span>
         </div>
       </div>
 
@@ -181,59 +176,73 @@ export default function ActivityPage() {
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.15 }}
               >
-                <div className="p-4 rounded-xl border border-white/[0.08] bg-black/60 backdrop-blur-xl hover:border-white/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-start sm:items-center gap-3 min-w-0">
-                    {/* Type icon badge */}
-                    <div className="w-8 h-8 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center font-mono text-[10px] font-bold text-white flex-shrink-0 mt-0.5 sm:mt-0">
-                      {item.type === "pull_request" ? "PR" : item.type === "patch" ? "FIX" : "EV"}
-                    </div>
-
-                    <div className="flex flex-col min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-xs font-bold text-white truncate">
-                          {item.title}
+                <div className="metal-bezel p-[2px] rounded-xl shadow-lg transition-all hover:brightness-105">
+                  <div className="panel-inset p-4 rounded-[10px] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+                      {/* Socketed type badge chip with dome LED */}
+                      <div className="badge-chip px-2.5 py-1 text-[10px] font-mono font-bold flex items-center gap-1.5 flex-shrink-0 mt-0.5 sm:mt-0">
+                        <span
+                          className="led"
+                          data-state={
+                            item.type === "pull_request"
+                              ? "ok"
+                              : item.type === "patch"
+                              ? "busy"
+                              : "warn"
+                          }
+                        />
+                        <span>
+                          {item.type === "pull_request" ? "PR" : item.type === "patch" ? "FIX" : "EV"}
                         </span>
-                        <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-[#A1A1AA] border border-white/10">
-                          {item.repo_name}
-                        </span>
-                        {item.merged && (
-                          <span className="font-mono text-[9px] px-1.5 py-0.2 rounded bg-white text-black font-bold">
-                            MERGED
-                          </span>
-                        )}
-                        {item.verification_mode && (
-                          <span className="font-mono text-[9px] px-1.5 py-0.2 rounded bg-white/10 text-white border border-white/15">
-                            {item.verification_mode === "full" ? "Sandbox Verified" : "Structural AST"}
-                          </span>
-                        )}
                       </div>
 
-                      <span className="font-sans text-xs text-[#71717A] truncate mt-0.5">
-                        {item.description}
-                      </span>
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs font-bold text-white truncate label-embossed">
+                            {item.title}
+                          </span>
+                          <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-[#A1A1AA] border border-white/10">
+                            {item.repo_name}
+                          </span>
+                          {item.merged && (
+                            <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-white text-black font-bold">
+                              MERGED
+                            </span>
+                          )}
+                          {item.verification_mode && (
+                            <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white border border-white/15">
+                              {item.verification_mode === "full" ? "Sandbox Verified" : "Structural AST"}
+                            </span>
+                          )}
+                        </div>
+
+                        <span className="font-sans text-xs text-[#8B9099] truncate mt-0.5">
+                          {item.description}
+                        </span>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-3 self-end sm:self-auto font-mono text-xs text-[#71717A] flex-shrink-0">
-                    {item.timestamp && (
-                      <span className="text-[11px] text-[#A1A1AA]">
-                        {new Date(item.timestamp).toLocaleString()}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-3 self-end sm:self-auto font-mono text-xs text-[#71717A] flex-shrink-0">
+                      {item.timestamp && (
+                        <span className="text-[11px] text-[#A1A1AA]">
+                          {new Date(item.timestamp).toLocaleString()}
+                        </span>
+                      )}
 
-                    {item.url && (
-                      <Link
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2.5 py-1 rounded border border-white/15 text-white hover:bg-white hover:text-black transition-all flex items-center gap-1 text-xs"
-                      >
-                        <span>View</span>
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </Link>
-                    )}
+                      {item.url && (
+                        <Link
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="key-cap key-cap--sm font-mono text-xs text-white flex items-center gap-1.5"
+                        >
+                          <span>View</span>
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </Link>
+                      )}
+                    </div>
                   </div>
                 </div>
               </motion.div>

@@ -11,6 +11,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Text,
@@ -476,3 +477,101 @@ class RepoAtlasGraph(Base):
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
     )
     completed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+
+
+# ─── Incremental Repo Atlas Tables (Phase 3) ──────────────────────────────────
+
+
+class AtlasNode(Base):
+    __tablename__ = "atlas_nodes"
+    __table_args__ = (Index("ix_atlas_nodes_repo", "repo_id"),)
+
+    repo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("repos.id", ondelete="CASCADE"), primary_key=True
+    )
+    path: Mapped[str] = mapped_column(Text, primary_key=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    dir: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    depth: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ext: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    language: Mapped[str] = mapped_column(Text, nullable=False, default="plaintext")
+    is_binary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    content_hash: Mapped[str | None] = mapped_column(Text)
+    unresolved_specifiers: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    updated_sha: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class AtlasEdge(Base):
+    __tablename__ = "atlas_edges"
+    __table_args__ = (
+        Index("ix_atlas_edges_target", "repo_id", "target_path"),
+        Index("ix_atlas_edges_source", "repo_id", "source_path"),
+        ForeignKeyConstraint(
+            ["repo_id", "source_path"],
+            ["atlas_nodes.repo_id", "atlas_nodes.path"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["repo_id", "target_path"],
+            ["atlas_nodes.repo_id", "atlas_nodes.path"],
+            ondelete="CASCADE",
+        ),
+    )
+
+    repo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("repos.id", ondelete="CASCADE"), primary_key=True
+    )
+    source_path: Mapped[str] = mapped_column(Text, primary_key=True)
+    target_path: Mapped[str] = mapped_column(Text, primary_key=True)
+    kind: Mapped[str] = mapped_column(Text, nullable=False, default="static")
+    updated_sha: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class AtlasState(Base):
+    __tablename__ = "atlas_state"
+
+    repo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("repos.id", ondelete="CASCADE"), primary_key=True
+    )
+    head_sha: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="idle")
+    error_message: Mapped[str | None] = mapped_column(Text)
+    last_full_scan_sha: Mapped[str | None] = mapped_column(Text)
+    last_full_scan_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    alias_config_hash: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+# ─── Repo Analysis Runs (Phase 4) ─────────────────────────────────────────────
+
+
+class RepoAnalysisRun(Base):
+    __tablename__ = "repo_analysis_runs"
+    __table_args__ = (Index("ix_repo_analysis_runs_repo", "repo_id", "created_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    repo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("repos.id", ondelete="CASCADE"), nullable=False
+    )
+    head_sha: Mapped[str] = mapped_column(Text, nullable=False)
+    score: Mapped[int] = mapped_column(Integer, nullable=False)
+    sub_scores: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    findings: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    signals: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    executive_summary: Mapped[str | None] = mapped_column(Text)
+    do_this_first: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
+    )

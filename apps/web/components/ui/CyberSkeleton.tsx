@@ -39,10 +39,10 @@ export function CyberSkeletonCard({
   className?: string;
 }) {
   return (
-    <div
-      className={`p-5 rounded-xl border border-white/10 bg-black/60 backdrop-blur-xl flex flex-col gap-4 animate-shimmer relative overflow-hidden ${className}`}
-    >
-      {children}
+    <div className={`metal-bezel p-[2px] ${className}`}>
+      <div className="panel-inset p-5 rounded-[6px] flex flex-col gap-4 animate-shimmer relative overflow-hidden">
+        {children}
+      </div>
     </div>
   );
 }
@@ -52,16 +52,18 @@ export function CyberSkeletonCard({
  */
 export function CyberSkeletonMetric() {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 rounded-xl border border-white/10 bg-black/60 backdrop-blur-xl divide-y md:divide-y-0 md:divide-x divide-white/[0.08] shadow-lg animate-shimmer">
-      {[...Array(4)].map((_, i) => (
-        <div key={i} className="p-4 flex flex-col gap-2">
-          <CyberSkeleton className="w-24 h-3 bg-white/[0.05]" />
-          <div className="flex items-baseline gap-2 mt-1">
-            <CyberSkeleton className="w-16 h-7 bg-white/[0.08]" />
-            <CyberSkeleton className="w-12 h-2.5 bg-white/[0.04]" />
+    <div className="metal-bezel p-[2px]">
+      <div className="panel-inset grid grid-cols-2 md:grid-cols-4 rounded-[6px] divide-y md:divide-y-0 md:divide-x divide-black/80 shadow-lg animate-shimmer">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="p-4 flex flex-col gap-2">
+            <CyberSkeleton className="w-24 h-3 bg-white/[0.05]" />
+            <div className="flex items-baseline gap-2 mt-1">
+              <CyberSkeleton className="w-16 h-7 bg-white/[0.08]" />
+              <CyberSkeleton className="w-12 h-2.5 bg-white/[0.04]" />
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
@@ -71,20 +73,22 @@ export function CyberSkeletonMetric() {
  */
 export function CyberSkeletonRepo() {
   return (
-    <div className="p-5 rounded-xl border border-white/10 bg-black/60 backdrop-blur-xl flex items-center justify-between gap-4 animate-shimmer">
-      <div className="flex items-center gap-4 flex-1">
-        <CyberSkeleton variant="circle" className="w-2.5 h-2.5 flex-shrink-0 bg-white/20" />
-        <div className="flex flex-col gap-2 flex-1 max-w-sm">
-          <div className="flex items-center gap-2">
-            <CyberSkeleton className="w-20 h-4 bg-white/[0.05]" />
-            <CyberSkeleton className="w-32 h-4 bg-white/[0.08]" />
+    <div className="metal-bezel p-[2px]">
+      <div className="panel-inset p-5 rounded-[6px] flex items-center justify-between gap-4 animate-shimmer">
+        <div className="flex items-center gap-4 flex-1">
+          <CyberSkeleton variant="circle" className="w-2.5 h-2.5 flex-shrink-0 bg-white/20" />
+          <div className="flex flex-col gap-2 flex-1 max-w-sm">
+            <div className="flex items-center gap-2">
+              <CyberSkeleton className="w-20 h-4 bg-white/[0.05]" />
+              <CyberSkeleton className="w-32 h-4 bg-white/[0.08]" />
+            </div>
+            <CyberSkeleton className="w-48 h-2.5 bg-white/[0.04]" />
           </div>
-          <CyberSkeleton className="w-48 h-2.5 bg-white/[0.04]" />
         </div>
-      </div>
-      <div className="flex items-center gap-3">
-        <CyberSkeleton className="w-20 h-6 rounded-full bg-white/[0.05]" />
-        <CyberSkeleton className="w-16 h-7 rounded-lg bg-white/[0.08]" />
+        <div className="flex items-center gap-3">
+          <CyberSkeleton className="w-20 h-6 rounded-full bg-white/[0.05]" />
+          <CyberSkeleton className="w-16 h-7 rounded-lg bg-white/[0.08]" />
+        </div>
       </div>
     </div>
   );
@@ -95,23 +99,26 @@ export function CyberSkeletonRepo() {
  */
 export function CyberSkeletonActivity() {
   return (
-    <div className="p-4 rounded-xl border border-white/10 bg-black/60 backdrop-blur-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-shimmer">
-      <div className="flex items-start sm:items-center gap-3.5 flex-1">
-        <CyberSkeleton variant="circle" className="w-8 h-8 flex-shrink-0 bg-white/[0.06]" />
-        <div className="flex flex-col gap-1.5 flex-1">
-          <div className="flex items-center gap-2">
-            <CyberSkeleton className="w-24 h-4 bg-white/[0.07]" />
-            <CyberSkeleton className="w-16 h-3 bg-white/[0.04]" />
+    <div className="metal-bezel p-[2px]">
+      <div className="panel-inset p-4 rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-shimmer">
+        <div className="flex items-start sm:items-center gap-3.5 flex-1">
+          <CyberSkeleton variant="circle" className="w-8 h-8 flex-shrink-0 bg-white/[0.06]" />
+          <div className="flex flex-col gap-1.5 flex-1">
+            <div className="flex items-center gap-2">
+              <CyberSkeleton className="w-24 h-4 bg-white/[0.07]" />
+              <CyberSkeleton className="w-16 h-3 bg-white/[0.04]" />
+            </div>
+            <CyberSkeleton className="w-64 max-w-full h-3 bg-white/[0.04]" />
           </div>
-          <CyberSkeleton className="w-64 max-w-full h-3 bg-white/[0.04]" />
         </div>
-      </div>
-      <div className="flex items-center gap-2.5 self-end sm:self-center">
-        <CyberSkeleton className="w-28 h-6 rounded-md bg-white/[0.05]" />
+        <div className="flex items-center gap-2.5 self-end sm:self-center">
+          <CyberSkeleton className="w-28 h-6 rounded-md bg-white/[0.05]" />
+        </div>
       </div>
     </div>
   );
 }
+
 
 /**
  * Detailed patch viewer skeleton for /dashboard/repos/[id].
@@ -175,19 +182,21 @@ export function CyberSkeletonPatch() {
 
         {/* Right Pane: Synthesized Unified Diff */}
         <div className="lg:col-span-8 flex flex-col gap-3">
-          <div className="p-4 rounded-xl border border-white/10 bg-black/80 flex flex-col gap-3">
-            <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
-              <CyberSkeleton className="w-48 h-4 bg-white/[0.08]" />
-              <CyberSkeleton className="w-28 h-4 bg-white/[0.05]" />
-            </div>
-            {/* Diff Lines Wireframe */}
-            <div className="flex flex-col gap-1 font-mono">
-              <CyberSkeleton className="w-full h-4 bg-white/[0.02]" />
-              <CyberSkeleton className="w-3/4 h-4 bg-white/[0.04]" />
-              <CyberSkeleton className="w-5/6 h-4 bg-white/[0.06]" />
-              <CyberSkeleton className="w-4/5 h-4 bg-white/[0.04]" />
-              <CyberSkeleton className="w-2/3 h-4 bg-white/[0.03]" />
-              <CyberSkeleton className="w-3/4 h-4 bg-white/[0.05]" />
+          <div className="metal-bezel p-[2px]">
+            <div className="panel-inset p-4 rounded-[6px] flex flex-col gap-3">
+              <div className="flex items-center justify-between pb-3 border-b border-black/80 shadow-[0_1px_0_rgba(255,255,255,0.05)]">
+                <CyberSkeleton className="w-48 h-4 bg-white/[0.08]" />
+                <CyberSkeleton className="w-28 h-4 bg-white/[0.05]" />
+              </div>
+              {/* Diff Lines Wireframe */}
+              <div className="flex flex-col gap-1 font-mono">
+                <CyberSkeleton className="w-full h-4 bg-white/[0.02]" />
+                <CyberSkeleton className="w-3/4 h-4 bg-white/[0.04]" />
+                <CyberSkeleton className="w-5/6 h-4 bg-white/[0.06]" />
+                <CyberSkeleton className="w-4/5 h-4 bg-white/[0.04]" />
+                <CyberSkeleton className="w-2/3 h-4 bg-white/[0.03]" />
+                <CyberSkeleton className="w-3/4 h-4 bg-white/[0.05]" />
+              </div>
             </div>
           </div>
         </div>
@@ -215,12 +224,12 @@ export function CyberRadarScanner({
         <div className="absolute inset-6 rounded-full border border-white/30" />
         {/* Rotating sweep line */}
         <div className="absolute inset-0 rounded-full border border-dashed border-white/40 animate-spin [animation-duration:8s]" />
-        <div className="w-3 h-3 rounded-full bg-white shadow-[0_0_12px_#FFFFFF]" />
+        <span className="led" data-state="ok" style={{ width: "10px", height: "10px" }} />
       </div>
 
       <div className="flex items-center gap-2 mb-1.5">
-        <span className="w-2 h-2 rounded-full bg-white animate-pulse shadow-[0_0_8px_#FFFFFF]" />
-        <span className="font-mono text-xs uppercase tracking-[0.2em] text-white font-semibold">
+        <span className="led" data-state="ok" />
+        <span className="label-engraved text-xs text-white">
           {label}
         </span>
       </div>
@@ -230,3 +239,4 @@ export function CyberRadarScanner({
     </div>
   );
 }
+

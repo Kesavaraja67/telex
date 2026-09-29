@@ -19,6 +19,7 @@ import { CameraRig } from "./render/CameraRig";
 
 export interface AtlasSceneOptions {
   onSelect: (selection: AtlasSelection) => void;
+  onDeselect?: () => void;
   repoId?: string;
   commitSha?: string;
 }
@@ -156,7 +157,12 @@ export class AtlasScene {
     this.wireRenderer = new WireRenderer2(this.scene, this.isMobile, this.envMap);
 
     // 9. Camera Rig with spring physics, idle parallax, and cinematic fly-in
-    this.cameraRig = new CameraRig(this.camera, this.container, this.isReducedMotion);
+    this.cameraRig = new CameraRig(
+      this.camera,
+      this.container,
+      this.isReducedMotion,
+      () => this.deselectNode()
+    );
 
     // 10. Drag & Interaction Controller
     this.dragController = new DragController(
@@ -216,7 +222,22 @@ export class AtlasScene {
     // 4. Calculate default camera radius based on repository node scale (expanded for spacious layout)
     const nodeCount = data.graph.nodes.length;
     this.defaultRadius = Math.max(26, Math.min(85, 24 + Math.sqrt(nodeCount) * 1.8));
-    this.cameraRig.init(this.defaultRadius);
+
+    // Calculate layout bounding radius
+    let maxDistSq = 1;
+    layout.nodePositions.forEach((np) => {
+      const d2 = np.x * np.x + np.y * np.y + np.z * np.z;
+      if (d2 > maxDistSq) maxDistSq = d2;
+    });
+    const boundingRadius = Math.sqrt(maxDistSq);
+    const maxRadius = Math.max(60, boundingRadius * 6);
+
+    // Dynamic fog calculation based on spec: density = 0.51 / maxRadius (~60% visibility at boundary)
+    this.scene.fog = new THREE.FogExp2(0x000000, 0.51 / maxRadius);
+    this.camera.far = Math.max(1000, boundingRadius * 8 + 100);
+    this.camera.updateProjectionMatrix();
+
+    this.cameraRig.init(this.defaultRadius, boundingRadius);
 
     // 5. Staggered hierarchical entrance director
     const entranceTargets: EntranceTarget[] = [];
@@ -453,6 +474,17 @@ export class AtlasScene {
       brokenBy,
       node: card.node,
     });
+  }
+
+  public deselectNode() {
+    this.cards.forEach((c) => {
+      if (c.isSelected) {
+        c.isSelected = false;
+        c.liftSpring.setTarget(0, 0, 0);
+        this.refreshCardTexture(c);
+      }
+    });
+    this.opts.onDeselect?.();
   }
 
   private handleDragStart(nodeId: string) {

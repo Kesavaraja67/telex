@@ -219,8 +219,10 @@ pytest -c apps/api/pyproject.toml apps/api
 # 2. Run standalone CLI tests (packages/telex-core)
 pytest packages/telex-core/tests
 
-# 3. Test polyglot AST scanner (Go, Rust, Java, Python, Ruby, C#, TS/JS)
+# 3. Test polyglot AST scanner, incremental atlas & run analysis
 pytest apps/api/tests/test_code_scanner.py
+pytest apps/api/tests/test_atlas_incremental.py
+pytest apps/api/tests/test_repo_analysis.py
 
 # 4. Run lint checks
 ruff check .

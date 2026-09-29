@@ -209,3 +209,40 @@ def test_build_classification_table_and_metadata():
     )
     assert title.startswith("[semantic-risk]")
     assert "[Review Required]" in rendered_table
+
+
+@pytest.mark.asyncio
+async def test_update_atlas_graph_handler_modes():
+    from jobs.handlers import update_atlas_graph
+
+    repo_id = uuid.uuid4()
+    p = {
+        "repo_id": str(repo_id),
+        "base_sha": "base111",
+        "head_sha": "head222",
+        "changed": {"added": ["src/a.ts"], "modified": [], "removed": []},
+    }
+
+    with patch(
+        "jobs.handlers.update_atlas_graph.update_incremental_graph",
+        AsyncMock(return_value={"status": "ok"}),
+    ) as mock_inc:
+        # 1. Dict payload
+        res1 = await update_atlas_graph.run(p)
+        assert res1 == {"status": "ok"}
+        assert mock_inc.call_args[1]["head_sha"] == "head222"
+
+        # 2. maybe_job passed
+        mock_job = MagicMock(payload=p)
+        res2 = await update_atlas_graph.run(None, maybe_job=mock_job)
+        assert res2 == {"status": "ok"}
+
+        # 3. Object with .payload attribute
+        res3 = await update_atlas_graph.run(mock_job)
+        assert res3 == {"status": "ok"}
+
+        # 4. Fallback commit_sha in payload
+        p_commit = {"repo_id": str(repo_id), "commit_sha": "commit333"}
+        res4 = await update_atlas_graph.run(p_commit)
+        assert res4 == {"status": "ok"}
+        assert mock_inc.call_args[1]["head_sha"] == "commit333"

@@ -67,56 +67,61 @@ export default function HowItWorks() {
           </p>
         </div>
 
-        {/* 3-Column Architectural Grid with Shallow/Hollow Rounded-3xl Cards */}
+        {/* 3-Column Architectural Grid with Realistic Machined Modules */}
         <div className="grid md:grid-cols-3 gap-5">
           {STEPS.map((step, idx) => (
             <div
               key={step.tag}
               onMouseEnter={() => setActiveStep(idx)}
               onMouseLeave={() => setActiveStep(null)}
-              className={`p-8 rounded-3xl flex flex-col justify-between gap-6 transition-all duration-300 relative overflow-hidden backdrop-blur-xl border ${
-                activeStep === idx
-                  ? "bg-white/[0.04] border-white/30 shadow-[0_12px_32px_rgba(255,255,255,0.06)] -translate-y-1"
-                  : "bg-white/[0.015] border-white/10"
+              className={`metal-bezel p-[2px] rounded-2xl transition-all duration-300 relative ${
+                activeStep === idx ? "-translate-y-1 shadow-[0_16px_40px_rgba(0,0,0,0.9)] brightness-105" : "shadow-xl"
               }`}
             >
-              <div>
-                <span
-                  className={`font-mono text-[10px] tracking-[0.2em] block mb-3 font-bold transition-colors duration-300 ${
-                    activeStep === idx ? "text-white" : "text-[#71717A]"
-                  }`}
-                >
-                  [{step.tag}]
-                </span>
-                <h3 className="font-header font-bold text-xl text-white tracking-tight mb-3">
-                  {step.title}
-                </h3>
-                <p className="font-sans text-xs sm:text-sm text-[#9E9E9E] leading-relaxed">
-                  {step.description}
-                </p>
-              </div>
+              {/* Corner rivets */}
+              <span className="absolute top-2.5 left-2.5 w-1.5 h-1.5 rounded-full bg-[#3F3F46] shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_1px_0_rgba(0,0,0,0.8)] z-10 pointer-events-none" />
+              <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 rounded-full bg-[#3F3F46] shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_1px_0_rgba(0,0,0,0.8)] z-10 pointer-events-none" />
+              <span className="absolute bottom-2.5 left-2.5 w-1.5 h-1.5 rounded-full bg-[#3F3F46] shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_1px_0_rgba(0,0,0,0.8)] z-10 pointer-events-none" />
+              <span className="absolute bottom-2.5 right-2.5 w-1.5 h-1.5 rounded-full bg-[#3F3F46] shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_1px_0_rgba(0,0,0,0.8)] z-10 pointer-events-none" />
 
-              {/* Code snippet block */}
-              <div
-                className={`font-mono text-[11px] p-4 rounded-2xl bg-black/80 border transition-all duration-300 text-white leading-relaxed overflow-x-auto mt-4 relative ${
-                  activeStep === idx ? "border-white/30 shadow-[0_0_20px_rgba(255,255,255,0.05)]" : "border-white/[0.08]"
-                }`}
-                style={{ whiteSpace: "pre" }}
-              >
-                {step.code.split("\n").map((line, i) => (
-                  <div
-                    key={i}
-                    className={
-                      line.startsWith("-")
-                        ? "text-white/40 bg-white/[0.03] px-1 rounded-sm"
-                        : line.startsWith("+")
-                        ? "text-white font-bold bg-white/[0.08] px-1 rounded-sm"
-                        : "text-[#71717A]"
-                    }
-                  >
-                    {line}
+              <div className="panel-inset p-7 rounded-[14px] flex flex-col justify-between gap-6 h-full relative">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="badge-chip px-2.5 py-1 text-[10px] font-mono font-bold flex items-center gap-1.5">
+                      <span className="led" data-state={idx === 2 ? "ok" : "busy"} />
+                      <span>{step.tag}</span>
+                    </span>
+                    <span className="font-mono text-[10px] text-[#52525B]">STAGE 0{idx + 1}</span>
                   </div>
-                ))}
+
+                  <h3 className="font-header font-bold text-xl text-white tracking-tight mb-3 label-embossed">
+                    {step.title}
+                  </h3>
+                  <p className="font-sans text-xs sm:text-sm text-[#9E9E9E] leading-relaxed">
+                    {step.description}
+                  </p>
+                </div>
+
+                {/* Recessed CRT Terminal Screen */}
+                <div
+                  className="font-mono text-[11px] p-4 rounded-xl glass-bezel text-white leading-relaxed overflow-x-auto relative"
+                  style={{ whiteSpace: "pre" }}
+                >
+                  {step.code.split("\n").map((line, i) => (
+                    <div
+                      key={i}
+                      className={
+                        line.startsWith("-")
+                          ? "text-[#FDA4AF] bg-[#E11D48]/10 px-1 rounded-sm"
+                          : line.startsWith("+")
+                          ? "text-[#5EEAD4] font-bold bg-[#14B8A6]/15 px-1 rounded-sm"
+                          : "text-[#71717A]"
+                      }
+                    >
+                      {line}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           ))}

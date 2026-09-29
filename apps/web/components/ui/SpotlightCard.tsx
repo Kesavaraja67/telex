@@ -59,12 +59,12 @@ export default function SpotlightCard({
       style={{
         transformStyle: "preserve-3d",
       }}
-      className={`glass-surface relative overflow-hidden rounded-2xl ${className}`}
+      className={`metal-bezel relative overflow-hidden rounded-xl transition-all duration-200 ${className}`}
       {...props}
     >
-      {/* Dynamic Pure White Radial Cursor Spotlight */}
+      {/* Dynamic Specular Light Glint across machined metal */}
       <div
-        className="pointer-events-none absolute -inset-px transition-opacity duration-300 rounded-[inherit]"
+        className="pointer-events-none absolute -inset-px transition-opacity duration-300 rounded-[inherit] z-10"
         style={{
           opacity: mousePos.opacity,
           background: `radial-gradient(450px circle at ${mousePos.x}px ${mousePos.y}px, ${spotlightColor}, transparent 65%)`,
@@ -73,4 +73,5 @@ export default function SpotlightCard({
       {children}
     </motion.div>
   );
+
 }

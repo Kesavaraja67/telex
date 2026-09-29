@@ -132,7 +132,7 @@ export default function DashboardOverview() {
           <button
             onClick={handleSync}
             disabled={isSyncing}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-white/20 bg-white/[0.04] text-white hover:bg-white/[0.08] hover:border-white font-mono text-xs transition-all active:scale-[0.98] cursor-pointer"
+            className="key-cap key-cap--sm flex items-center gap-2 cursor-pointer"
           >
             <svg
               className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin text-white" : "text-[#A1A1AA]"}`}
@@ -149,7 +149,7 @@ export default function DashboardOverview() {
             href={githubInstallUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-white text-black font-mono font-semibold text-xs transition-all hover:bg-white/90 hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] active:scale-[0.98]"
+            className="key-cap key-cap--sm flex items-center gap-1.5 text-white"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -158,14 +158,9 @@ export default function DashboardOverview() {
             <span>Connect Repository</span>
           </a>
 
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/10">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white shadow-[0_0_6px_#FFFFFF]" />
-            </span>
-            <span className="font-mono text-[11px] text-white font-medium">
-              Live GitHub Stream
-            </span>
+          <div className="badge-chip">
+            <span className="led" data-state="ok" style={{ width: "6px", height: "6px" }} />
+            <span>Live Stream</span>
           </div>
         </div>
       </div>
@@ -175,10 +170,12 @@ export default function DashboardOverview() {
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
-          className="px-4 py-2.5 rounded-xl bg-white/[0.08] border border-white/20 text-white font-mono text-xs flex items-center gap-2.5"
+          className="metal-bezel p-[2px]"
         >
-          <span className="w-2 h-2 rounded-full bg-white animate-pulse shadow-[0_0_8px_#FFFFFF]" />
-          <span>{syncNotice}</span>
+          <div className="panel-inset px-4 py-2.5 rounded-[6px] text-white font-mono text-xs flex items-center gap-2.5">
+            <span className="led" data-state="ok" />
+            <span>{syncNotice}</span>
+          </div>
         </motion.div>
       )}
 
@@ -190,23 +187,22 @@ export default function DashboardOverview() {
           {/* Recent Breaking Changes Skeleton */}
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <CyberSkeleton className="w-44 h-4 bg-white/[0.06]" />
+              <span className="label-engraved text-[11px]">Upstream Breaking Changes</span>
               <CyberSkeleton className="w-24 h-4 bg-white/[0.04]" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {[...Array(3)].map((_, i) => (
-                <div
-                  key={i}
-                  className="p-3.5 bg-black/60 border border-white/10 rounded-xl flex flex-col gap-2.5 animate-shimmer"
-                >
-                  <div className="flex items-center justify-between">
-                    <CyberSkeleton className="w-24 h-4 bg-white/[0.08]" />
-                    <CyberSkeleton className="w-16 h-4 rounded bg-white/[0.05]" />
-                  </div>
-                  <CyberSkeleton className="w-full h-3 bg-white/[0.04]" />
-                  <div className="pt-2 border-t border-white/[0.06] flex justify-between">
-                    <CyberSkeleton className="w-24 h-2.5 bg-white/[0.04]" />
-                    <CyberSkeleton className="w-16 h-2.5 bg-white/[0.03]" />
+                <div key={i} className="metal-bezel p-[2px]">
+                  <div className="panel-inset p-3.5 rounded-[6px] flex flex-col gap-2.5 animate-shimmer">
+                    <div className="flex items-center justify-between">
+                      <CyberSkeleton className="w-24 h-4 bg-white/[0.08]" />
+                      <CyberSkeleton className="w-16 h-4 rounded bg-white/[0.05]" />
+                    </div>
+                    <CyberSkeleton className="w-full h-3 bg-white/[0.04]" />
+                    <div className="pt-2 border-t border-black/80 shadow-[0_1px_0_rgba(255,255,255,0.05)] flex justify-between">
+                      <CyberSkeleton className="w-24 h-2.5 bg-white/[0.04]" />
+                      <CyberSkeleton className="w-16 h-2.5 bg-white/[0.03]" />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -216,7 +212,7 @@ export default function DashboardOverview() {
           {/* Fleet Controls & Monitored Repositories Skeleton */}
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <CyberSkeleton className="w-32 h-4 bg-white/[0.06]" />
+              <span className="label-engraved text-[11px]">Monitored Fleet</span>
               <CyberSkeleton className="w-20 h-4 bg-white/[0.04]" />
             </div>
             <CyberSkeletonRepo />
@@ -250,33 +246,35 @@ export default function DashboardOverview() {
         /* State 2: Empty State (0 repos in current view) */
         <SpotlightCard
           spotlightColor="rgba(255, 255, 255, 0.08)"
-          className="p-8 sm:p-12 bg-black/70 backdrop-blur-xl border border-white/15 rounded-2xl flex flex-col items-center text-center gap-6 shadow-2xl"
+          className="p-8 sm:p-12 flex flex-col items-center text-center gap-6 shadow-2xl"
           enableTilt={false}
         >
-          <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/15 flex items-center justify-center">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
-            </svg>
+          <div className="w-16 h-16 rounded-xl metal-bezel p-[2px] flex items-center justify-center">
+            <div className="panel-inset w-full h-full rounded-[6px] flex items-center justify-center text-white">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+              </svg>
+            </div>
           </div>
 
-          {/* Interactive tab switcher so user can toggle between tabs even when empty */}
-          <div className="flex items-center p-1 rounded-lg bg-white/5 border border-white/10">
+          {/* Interactive tab switcher */}
+          <div className="panel-inset inline-flex p-1 rounded-lg border border-black/80">
             <button
               onClick={() => switchTab("personal")}
-              className={`px-3 py-1 rounded-md font-mono text-xs font-medium transition-all ${
+              className={`px-3 py-1 rounded-md font-mono text-xs transition-all cursor-pointer ${
                 activeTab === "personal"
-                  ? "bg-white text-black shadow-sm"
-                  : "text-[#71717A] hover:text-white"
+                  ? "nav-item-active text-white font-semibold"
+                  : "nav-item-inactive text-[#71717A] hover:text-white"
               }`}
             >
               My Repositories
             </button>
             <button
               onClick={() => switchTab("benchmark")}
-              className={`px-3 py-1 rounded-md font-mono text-xs font-medium transition-all ${
+              className={`px-3 py-1 rounded-md font-mono text-xs transition-all cursor-pointer ${
                 activeTab === "benchmark"
-                  ? "bg-white text-black shadow-sm"
-                  : "text-[#71717A] hover:text-white"
+                  ? "nav-item-active text-white font-semibold"
+                  : "nav-item-inactive text-[#71717A] hover:text-white"
               }`}
             >
               Industry Benchmarks
@@ -284,7 +282,7 @@ export default function DashboardOverview() {
           </div>
 
           <div className="flex flex-col gap-2 max-w-lg">
-            <h2 className="font-mono font-bold text-xl text-white">
+            <h2 className="font-mono font-bold text-xl text-white label-embossed">
               {activeTab === "benchmark"
                 ? "No benchmark repositories found"
                 : "Connect your first repository"}
@@ -302,7 +300,7 @@ export default function DashboardOverview() {
                 href={githubInstallUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-white text-black font-mono font-bold text-xs hover:bg-white/90 transition-all shadow-lg hover:shadow-white/10"
+                className="key-cap text-white font-mono text-xs flex items-center gap-2"
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19" />
@@ -313,31 +311,37 @@ export default function DashboardOverview() {
             ) : (
               <button
                 onClick={() => switchTab("personal")}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-white text-black font-mono font-bold text-xs hover:bg-white/90 transition-all shadow-lg hover:shadow-white/10"
+                className="key-cap text-white font-mono text-xs flex items-center gap-2"
               >
                 <span>← View My Repositories</span>
               </button>
             )}
             <Link
               href="/dashboard/activity"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-white/20 bg-white/5 text-white font-mono text-xs hover:bg-white/10 transition-colors"
+              className="key-cap key-cap--ghost text-white font-mono text-xs flex items-center gap-2"
             >
               <span>View Global Activity Feed →</span>
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-white/10 w-full max-w-2xl text-left">
-            <div className="p-3.5 rounded-lg bg-white/[0.02] border border-white/5 flex flex-col gap-1">
-              <span className="font-mono text-[11px] font-semibold text-white">1. AST Call-Site Mapping</span>
-              <span className="text-[11px] text-[#71717A]">Extracts exact imported symbols across TypeScript and Python repos.</span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-black/80 shadow-[0_1px_0_rgba(255,255,255,0.05)] w-full max-w-2xl text-left">
+            <div className="metal-bezel p-[2px]">
+              <div className="panel-inset p-3.5 rounded-[6px] flex flex-col gap-1 h-full">
+                <span className="label-engraved text-[10px]">1. AST Call-Site Mapping</span>
+                <span className="text-[11px] text-[#A1A1AA]">Extracts exact imported symbols across TypeScript and Python repos.</span>
+              </div>
             </div>
-            <div className="p-3.5 rounded-lg bg-white/[0.02] border border-white/5 flex flex-col gap-1">
-              <span className="font-mono text-[11px] font-semibold text-white">2. Isolated Sandbox Gate</span>
-              <span className="text-[11px] text-[#71717A]">Ephemeral verification branches run real test suites and typechecks before PR.</span>
+            <div className="metal-bezel p-[2px]">
+              <div className="panel-inset p-3.5 rounded-[6px] flex flex-col gap-1 h-full">
+                <span className="label-engraved text-[10px]">2. Isolated Sandbox Gate</span>
+                <span className="text-[11px] text-[#A1A1AA]">Ephemeral verification branches run real test suites and typechecks before PR.</span>
+              </div>
             </div>
-            <div className="p-3.5 rounded-lg bg-white/[0.02] border border-white/5 flex flex-col gap-1">
-              <span className="font-mono text-[11px] font-semibold text-white">3. Honest Disclosure</span>
-              <span className="text-[11px] text-[#71717A]">Every PR transparently reports whether validation was full sandbox or structural.</span>
+            <div className="metal-bezel p-[2px]">
+              <div className="panel-inset p-3.5 rounded-[6px] flex flex-col gap-1 h-full">
+                <span className="label-engraved text-[10px]">3. Honest Disclosure</span>
+                <span className="text-[11px] text-[#A1A1AA]">Every PR transparently reports whether validation was full sandbox or structural.</span>
+              </div>
             </div>
           </div>
         </SpotlightCard>
@@ -369,44 +373,46 @@ export default function DashboardOverview() {
             </div>
           )}
           {/* Metric Strip */}
-          <div className="grid grid-cols-2 md:grid-cols-4 rounded-xl border border-white/10 bg-black/60 backdrop-blur-xl divide-y md:divide-y-0 md:divide-x divide-white/[0.08] shadow-lg">
-            <div className="p-4 flex flex-col gap-0.5">
-              <span className="font-mono text-[11px] text-[#71717A] uppercase tracking-wider">
-                Active Targets
-              </span>
-              <div className="flex items-baseline gap-1.5">
-                <span className="font-mono font-bold text-2xl text-white">{displayedRepos.length}</span>
-                <span className="font-mono text-[10px] text-[#A1A1AA]">monitored</span>
+          <div className="metal-bezel p-[2px]">
+            <div className="panel-inset grid grid-cols-2 md:grid-cols-4 rounded-[6px] divide-y md:divide-y-0 md:divide-x divide-black/80 shadow-lg">
+              <div className="p-4 flex flex-col gap-1">
+                <span className="label-engraved text-[10px]">
+                  Active Targets
+                </span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="font-mono font-bold text-2xl text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.25)]">{displayedRepos.length}</span>
+                  <span className="font-mono text-[10px] text-[#A1A1AA]">monitored</span>
+                </div>
               </div>
-            </div>
 
-            <div className="p-4 flex flex-col gap-0.5">
-              <span className="font-mono text-[11px] text-[#71717A] uppercase tracking-wider">
-                Verified PRs
-              </span>
-              <div className="flex items-baseline gap-1.5">
-                <span className="font-mono font-bold text-2xl text-white">{totalPrs}</span>
-                <span className="font-mono text-[10px] text-[#A1A1AA]">delivered</span>
+              <div className="p-4 flex flex-col gap-1">
+                <span className="label-engraved text-[10px]">
+                  Verified PRs
+                </span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="font-mono font-bold text-2xl text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.25)]">{totalPrs}</span>
+                  <span className="font-mono text-[10px] text-[#A1A1AA]">delivered</span>
+                </div>
               </div>
-            </div>
 
-            <div className="p-4 flex flex-col gap-0.5">
-              <span className="font-mono text-[11px] text-[#71717A] uppercase tracking-wider">
-                Synthesized Patches
-              </span>
-              <div className="flex items-baseline gap-1.5">
-                <span className="font-mono font-bold text-2xl text-white">{totalPatches}</span>
-                <span className="font-mono text-[10px] text-[#A1A1AA]">healed</span>
+              <div className="p-4 flex flex-col gap-1">
+                <span className="label-engraved text-[10px]">
+                  Synthesized Patches
+                </span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="font-mono font-bold text-2xl text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.25)]">{totalPatches}</span>
+                  <span className="font-mono text-[10px] text-[#A1A1AA]">healed</span>
+                </div>
               </div>
-            </div>
 
-            <div className="p-4 flex flex-col gap-0.5">
-              <span className="font-mono text-[11px] text-[#71717A] uppercase tracking-wider">
-                Merge Success
-              </span>
-              <div className="flex items-baseline gap-1.5">
-                <span className="font-mono font-bold text-2xl text-white">{mergeRateText}</span>
-                <span className="font-mono text-[10px] text-white/70">acceptance</span>
+              <div className="p-4 flex flex-col gap-1">
+                <span className="label-engraved text-[10px]">
+                  Merge Success
+                </span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="font-mono font-bold text-2xl text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.25)]">{mergeRateText}</span>
+                  <span className="font-mono text-[10px] text-white/70">acceptance</span>
+                </div>
               </div>
             </div>
           </div>
@@ -416,10 +422,10 @@ export default function DashboardOverview() {
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono font-semibold text-sm text-white">
+                  <span className="label-engraved text-[11px]">
                     Upstream Breaking Changes
                   </span>
-                  <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-[#A1A1AA] border border-white/15">
+                  <span className="badge-chip text-[9px]">
                     Latest {stats.recent_changes.length}
                   </span>
                 </div>
@@ -433,35 +439,35 @@ export default function DashboardOverview() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {stats.recent_changes.map((change) => (
-                  <SpotlightCard
+                  <div
                     key={change.id}
-                    spotlightColor="rgba(255, 255, 255, 0.05)"
-                    className="p-3.5 bg-black/60 backdrop-blur-xl border border-white/10 flex flex-col justify-between gap-2.5 rounded-xl hover:border-white/20 transition-all"
-                    enableTilt={false}
+                    className="metal-bezel p-[2px] transition-all hover:brightness-105"
                   >
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-xs font-bold text-white truncate">
-                          {change.symbol_old}
-                        </span>
-                        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white uppercase border border-white/15 flex-shrink-0">
-                          {change.change_type}
-                        </span>
+                    <div className="panel-inset p-3.5 rounded-[6px] flex flex-col justify-between gap-2.5 h-full">
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-xs font-bold text-white truncate label-embossed">
+                            {change.symbol_old}
+                          </span>
+                          <span className="badge-chip text-[9px]">
+                            {change.change_type}
+                          </span>
+                        </div>
+                        <p className="font-sans text-[11px] text-[#A1A1AA] line-clamp-2">
+                          {change.description}
+                        </p>
                       </div>
-                      <p className="font-sans text-[11px] text-[#A1A1AA] line-clamp-2">
-                        {change.description}
-                      </p>
-                    </div>
 
-                    <div className="flex items-center justify-between pt-2 border-t border-white/[0.06] font-mono text-[10px] text-[#71717A]">
-                      {change.symbol_new ? (
-                        <span className="text-white/80">→ {change.symbol_new}</span>
-                      ) : (
-                        <span>Call site affected</span>
-                      )}
-                      <span>{new Date(change.created_at).toLocaleDateString()}</span>
+                      <div className="flex items-center justify-between pt-2 border-t border-black/80 shadow-[0_1px_0_rgba(255,255,255,0.05)] font-mono text-[10px] text-[#71717A]">
+                        {change.symbol_new ? (
+                          <span className="text-white/80">→ {change.symbol_new}</span>
+                        ) : (
+                          <span>Call site affected</span>
+                        )}
+                        <span>{new Date(change.created_at).toLocaleDateString()}</span>
+                      </div>
                     </div>
-                  </SpotlightCard>
+                  </div>
                 ))}
               </div>
             </div>
@@ -470,30 +476,30 @@ export default function DashboardOverview() {
           {/* Fleet Controls & Monitored Repositories */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
             <div className="flex items-center gap-2">
-              <span className="font-mono font-semibold text-sm text-white">Connected Fleet</span>
-              <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-[#A1A1AA] border border-white/15">
+              <span className="label-engraved text-[11px]">Connected Fleet</span>
+              <span className="badge-chip text-[9px]">
                 {displayedRepos.length} in view
               </span>
             </div>
 
             <div className="flex items-center gap-2.5 self-start sm:self-auto">
-              <div className="inline-flex p-0.5 rounded-lg bg-white/[0.04] border border-white/10 backdrop-blur-md">
+              <div className="panel-inset inline-flex p-0.5 rounded-lg border border-black/80">
                 <button
                   onClick={() => switchTab("personal")}
-                  className={`px-3 py-1 rounded-md font-mono text-xs font-medium transition-all ${
+                  className={`px-3 py-1 rounded-md font-mono text-xs transition-all cursor-pointer ${
                     activeTab === "personal"
-                      ? "bg-white text-black shadow-sm"
-                      : "text-[#71717A] hover:text-white"
+                      ? "nav-item-active text-white font-semibold"
+                      : "nav-item-inactive text-[#71717A] hover:text-white"
                   }`}
                 >
                   My Repositories
                 </button>
                 <button
                   onClick={() => switchTab("benchmark")}
-                  className={`px-3 py-1 rounded-md font-mono text-xs font-medium transition-all ${
+                  className={`px-3 py-1 rounded-md font-mono text-xs transition-all cursor-pointer ${
                     activeTab === "benchmark"
-                      ? "bg-white text-black shadow-sm"
-                      : "text-[#71717A] hover:text-white"
+                      ? "nav-item-active text-white font-semibold"
+                      : "nav-item-inactive text-[#71717A] hover:text-white"
                   }`}
                 >
                   Industry Benchmarks
@@ -502,12 +508,13 @@ export default function DashboardOverview() {
 
               <Link
                 href="/dashboard/repos"
-                className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-white/20 bg-white/5 hover:bg-white/10 text-white font-mono text-xs font-medium transition-colors"
+                className="key-cap key-cap--sm hidden sm:inline-flex items-center gap-1 text-white font-mono text-xs"
               >
                 <span>Manage Policies →</span>
               </Link>
             </div>
           </div>
+
 
           {/* Repository Cards */}
           <div className="flex flex-col gap-3">
