@@ -58,14 +58,19 @@ async def test_get_core_repositories_benchmark_isolation():
 
 
 def test_parse_github_datetime():
+    from datetime import datetime, timedelta, timezone
     from services.repo_service import _parse_github_datetime
 
     assert _parse_github_datetime(None) == "recently"
     assert _parse_github_datetime("") == "recently"
-    assert (
-        "ago" in _parse_github_datetime("2026-09-17T12:00:00Z")
-        or _parse_github_datetime("2026-09-17T12:00:00Z") != ""
-    )
+
+    now = datetime.now(timezone.utc)
+    assert "s ago" in _parse_github_datetime((now - timedelta(seconds=10)).isoformat())
+    assert "m ago" in _parse_github_datetime((now - timedelta(minutes=5)).isoformat())
+    assert "h ago" in _parse_github_datetime((now - timedelta(hours=3)).isoformat())
+    assert "d ago" in _parse_github_datetime((now - timedelta(days=4)).isoformat())
+    assert _parse_github_datetime((now - timedelta(days=45)).isoformat()) != ""
+    assert _parse_github_datetime("invalid-date-format") == "invalid-da"
 
 
 def test_fetch_live_github_commits_mocked():

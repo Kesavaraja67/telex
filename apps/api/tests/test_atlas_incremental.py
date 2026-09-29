@@ -278,3 +278,147 @@ async def test_incremental_update_success_execution():
             assert res["mode"] == "incremental"
             assert res["head_sha"] == "sha111"
             assert mock_session.commit.called
+
+
+def test_specifier_matches_added():
+    from services.atlas_incremental import _specifier_matches_added
+
+    added = {"src/components/Button.tsx", "src/utils.ts", "lib/index.js"}
+
+    # Relative matching
+    assert _specifier_matches_added("./Button", "src/components/App.tsx", added)
+    assert _specifier_matches_added("../utils", "src/components/App.tsx", added)
+    assert not _specifier_matches_added("./Missing", "src/components/App.tsx", added)
+
+    # Alias / non-relative matching
+    assert _specifier_matches_added("@/utils", "src/index.ts", added)
+    assert _specifier_matches_added("lib", "src/index.ts", added)
+    assert not _specifier_matches_added("external-pkg", "src/index.ts", added)
+    assert not _specifier_matches_added("", "src/index.ts", added)
+
+
+@pytest.mark.asyncio
+async def test_incremental_already_at_head_sha_skips():
+    repo_id = uuid.uuid4()
+    inst_id = uuid.uuid4()
+    repo = Repo(id=repo_id, full_name="owner/repo", installation_id=inst_id, default_branch="main")
+    inst = Installation(id=inst_id, github_installation_id=123)
+    state = AtlasState(repo_id=repo_id, head_sha="sha_target", status="ready")
+
+    with patch("services.atlas_incremental.AsyncSessionLocal") as mock_ctx:
+        mock_session = MagicMock()
+        mock_session.__aenter__.return_value = mock_session
+        mock_session.__aexit__.return_value = None
+
+        async def fake_get(model, pk):
+            if model is Repo:
+                return repo
+            if model is Installation:
+                return inst
+            if model is AtlasState:
+                return state
+            return None
+
+        mock_session.get = AsyncMock(side_effect=fake_get)
+        mock_session.execute = AsyncMock(return_value=MagicMock(scalar=MagicMock(return_value=10)))
+        mock_ctx.return_value = mock_session
+
+        res = await update_atlas_incremental(
+            repo_id=repo_id,
+            base_sha="sha_old",
+            head_sha="sha_target",
+            changed={"added": [], "modified": [], "removed": []},
+        )
+        assert res["mode"] == "incremental"
+        assert res["status"] == "ready"
+        assert res.get("skipped") is True
+
+
+@pytest.mark.asyncio
+async def test_incremental_stale_base_sha_aborts():
+    repo_id = uuid.uuid4()
+    inst_id = uuid.uuid4()
+    repo = Repo(id=repo_id, full_name="owner/repo", installation_id=inst_id, default_branch="main")
+    inst = Installation(id=inst_id, github_installation_id=123)
+    state = AtlasState(repo_id=repo_id, head_sha="sha_tracked", status="ready")
+
+    with patch("services.atlas_incremental.AsyncSessionLocal") as mock_ctx:
+        mock_session = MagicMock()
+        mock_session.__aenter__.return_value = mock_session
+        mock_session.__aexit__.return_value = None
+
+        async def fake_get(model, pk):
+            if model is Repo:
+                return repo
+            if model is Installation:
+                return inst
+            if model is AtlasState:
+                return state
+            return None
+
+        mock_session.get = AsyncMock(side_effect=fake_get)
+        mock_session.execute = AsyncMock(return_value=MagicMock(scalar=MagicMock(return_value=10)))
+        mock_ctx.return_value = mock_session
+
+        res = await update_atlas_incremental(
+            repo_id=repo_id,
+            base_sha="sha_different",
+            head_sha="sha_incoming",
+            changed={"added": [], "modified": [], "removed": []},
+        )
+        assert res["mode"] == "aborted"
+        assert res["status"] == "stale"
+        assert "base_sha mismatch" in res["reason"]
+
+
+@pytest.mark.asyncio
+async def test_incremental_fetch_content_none_falls_back_to_full():
+    repo_id = uuid.uuid4()
+    inst_id = uuid.uuid4()
+    repo = Repo(id=repo_id, full_name="owner/repo", installation_id=inst_id, default_branch="main")
+    inst = Installation(id=inst_id, github_installation_id=123)
+    state = AtlasState(
+        repo_id=repo_id,
+        head_sha="sha_base",
+        status="idle",
+        last_full_scan_at=datetime.now(timezone.utc),
+    )
+
+    with patch("services.atlas_incremental.AsyncSessionLocal") as mock_ctx:
+        mock_session = MagicMock()
+        mock_session.__aenter__.return_value = mock_session
+        mock_session.__aexit__.return_value = None
+
+        async def fake_get(model, pk):
+            if model is Repo:
+                return repo
+            if model is Installation:
+                return inst
+            if model is AtlasState:
+                return state
+            return None
+
+        mock_session.get = AsyncMock(side_effect=fake_get)
+        mock_session.execute = AsyncMock(
+            return_value=MagicMock(
+                scalar=MagicMock(return_value=10),
+                scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[]))),
+            )
+        )
+        mock_session.commit = AsyncMock()
+        mock_session.flush = AsyncMock()
+        mock_session.add = MagicMock()
+        mock_ctx.return_value = mock_session
+
+        with patch("services.atlas_incremental.fetch_file_content", return_value=None):
+            with patch("jobs.handlers.build_atlas_graph.run", AsyncMock()) as mock_full_scan:
+                res = await update_atlas_incremental(
+                    repo_id=repo_id,
+                    base_sha="sha_base",
+                    head_sha="sha_head",
+                    changed={"added": ["src/missing.ts"], "modified": [], "removed": []},
+                )
+                assert res["mode"] == "full"
+                assert mock_full_scan.called
+                call_args = mock_full_scan.call_args[0][0]
+                assert call_args.get("from_incremental") is True

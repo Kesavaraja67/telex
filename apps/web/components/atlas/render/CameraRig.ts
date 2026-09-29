@@ -242,12 +242,14 @@ export class CameraRig {
     };
 
     // Touch support (pinch to zoom, 2-finger pan, 1-finger orbit)
+    let isTouchInsideContainer = false;
     let initialTouchDistance = 0;
     let initialTouchRadius = 0;
     let prevTouchX = 0;
     let prevTouchY = 0;
 
     const onTouchStart = (e: TouchEvent) => {
+      isTouchInsideContainer = true;
       if (e.cancelable && e.touches.length > 1) {
         e.preventDefault();
       }
@@ -267,6 +269,9 @@ export class CameraRig {
     };
 
     const onTouchMove = (e: TouchEvent) => {
+      if (!isTouchInsideContainer) {
+        return;
+      }
       if (e.cancelable) {
         e.preventDefault();
       }
@@ -312,9 +317,12 @@ export class CameraRig {
       }
     };
 
-    const onTouchEnd = () => {
-      this.isOrbiting = false;
-      initialTouchDistance = 0;
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length === 0) {
+        isTouchInsideContainer = false;
+        this.isOrbiting = false;
+        initialTouchDistance = 0;
+      }
     };
 
     this.container.addEventListener("mousedown", onMouseDown);
@@ -328,6 +336,7 @@ export class CameraRig {
     this.container.addEventListener("touchstart", onTouchStart, { passive: false });
     window.addEventListener("touchmove", onTouchMove, { passive: false });
     window.addEventListener("touchend", onTouchEnd, { passive: false });
+    window.addEventListener("touchcancel", onTouchEnd, { passive: false });
 
     this.unsubscribers.push(() => {
       this.container.removeEventListener("mousedown", onMouseDown);
@@ -340,6 +349,7 @@ export class CameraRig {
       this.container.removeEventListener("touchstart", onTouchStart);
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchcancel", onTouchEnd);
     });
   }
 

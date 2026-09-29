@@ -120,13 +120,14 @@ async def run(payload_or_session, maybe_job=None) -> None:
                 row.completed_at = datetime.now(timezone.utc)
 
             # Guard full-scan replacement against stale builds
+            from_incremental = bool(payload.get("from_incremental"))
             state_row = await save_session.get(DBAtlasState, repo_uuid)
             is_stale = False
             if (
-                state_row
+                not from_incremental
+                and state_row
                 and state_row.head_sha
                 and state_row.head_sha != commit_sha
-                and state_row.status != "updating"
             ):
                 logger.warning(
                     "build_atlas_graph: Stale build for %s @ %s (tracked head is %s). Skipping normalized table update.",

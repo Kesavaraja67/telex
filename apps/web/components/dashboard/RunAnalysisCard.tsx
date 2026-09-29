@@ -25,7 +25,7 @@ export function RunAnalysisCard({
 
   const buildAtlasLink = (deepLink?: string) => {
     const params = new URLSearchParams();
-    params.set("repoId", repoId);
+    params.set("repo", repoId);
     if (deepLink) {
       const searchPart = deepLink.startsWith("?") ? deepLink.slice(1) : deepLink;
       const parsed = new URLSearchParams(searchPart);

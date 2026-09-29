@@ -242,6 +242,7 @@ async def update_incremental_graph(
                 {
                     "repo_id": str(repo_uuid),
                     "commit_sha": head_sha,
+                    "from_incremental": True,
                 }
             )
             return {"mode": "full", "head_sha": head_sha, "status": "ready"}
@@ -334,7 +335,13 @@ async def update_incremental_graph(
                     )
                     from jobs.handlers import build_atlas_graph
 
-                    await build_atlas_graph.run({"repo_id": str(repo_uuid), "commit_sha": head_sha})
+                    await build_atlas_graph.run(
+                        {
+                            "repo_id": str(repo_uuid),
+                            "commit_sha": head_sha,
+                            "from_incremental": True,
+                        }
+                    )
                     return {"mode": "full", "head_sha": head_sha, "status": "ready"}
 
                 source_bytes = content_text.encode("utf-8")
