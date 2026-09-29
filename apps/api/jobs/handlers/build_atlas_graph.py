@@ -46,6 +46,10 @@ async def run(payload_or_session, maybe_job=None) -> None:
     commit_sha = payload["commit_sha"]
     repo_uuid = uuid.UUID(repo_id_str) if isinstance(repo_id_str, str) else repo_id_str
 
+    expected_head = payload.get("expected_head_sha") or payload.get("base_sha")
+    if expected_head and set(expected_head) == {"0"}:
+        expected_head = None
+
     # 1. Quick initial setup & metadata read with dedicated session
     async with AsyncSessionLocal() as init_session:
         result = await init_session.execute(
@@ -66,6 +70,7 @@ async def run(payload_or_session, maybe_job=None) -> None:
         else:
             row.status = "computing"
             row.error_message = None
+
         await init_session.commit()
 
         repo = await init_session.get(Repo, repo_uuid)
@@ -119,25 +124,40 @@ async def run(payload_or_session, maybe_job=None) -> None:
                 row.status = "ready"
                 row.completed_at = datetime.now(timezone.utc)
 
-            # Guard full-scan replacement against stale builds
-            from_incremental = bool(payload.get("from_incremental"))
-            state_row = await save_session.get(DBAtlasState, repo_uuid)
+            # Atomic repository-scoped expected-head check at final publication
+            state_query = (
+                select(DBAtlasState).where(DBAtlasState.repo_id == repo_uuid).with_for_update()
+            )
+            state_res = await save_session.execute(state_query)
+            candidate = state_res.scalar_one_or_none()
+            if isinstance(candidate, DBAtlasState):
+                state_row = candidate
+            else:
+                state_row = await save_session.get(DBAtlasState, repo_uuid)
+
             is_stale = False
-            if (
-                not from_incremental
-                and state_row
-                and state_row.head_sha
-                and state_row.head_sha != commit_sha
-            ):
-                logger.warning(
-                    "build_atlas_graph: Stale build for %s @ %s (tracked head is %s). Skipping normalized table update.",
-                    repo_full_name,
-                    commit_sha[:8],
-                    state_row.head_sha[:8],
-                )
+            if state_row and state_row.head_sha:
+                if state_row.head_sha != commit_sha:
+                    if expected_head is not None:
+                        if state_row.head_sha != expected_head:
+                            is_stale = True
+                    else:
+                        is_stale = True
+            elif expected_head is not None and (not state_row or not state_row.head_sha):
                 is_stale = True
 
             now_ts = datetime.now(timezone.utc)
+
+            if is_stale:
+                logger.warning(
+                    "build_atlas_graph: Stale build for %s @ %s (expected head was %s, but tracked head is now %s). Skipping normalized table update.",
+                    repo_full_name,
+                    commit_sha[:8],
+                    expected_head[:8] if expected_head else "none",
+                    state_row.head_sha[:8] if (state_row and state_row.head_sha) else "none",
+                )
+                if state_row and state_row.status == "updating":
+                    state_row.status = "idle"
 
             if not is_stale:
                 # Dual-write into normalized incremental tables (Phase 3)

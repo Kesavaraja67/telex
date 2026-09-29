@@ -422,3 +422,75 @@ async def test_incremental_fetch_content_none_falls_back_to_full():
                 assert mock_full_scan.called
                 call_args = mock_full_scan.call_args[0][0]
                 assert call_args.get("from_incremental") is True
+                assert call_args.get("expected_head_sha") == "sha_base"
+
+
+@pytest.mark.asyncio
+async def test_incremental_concurrent_head_conflict_at_publication_aborts_and_rollbacks():
+    repo_id = uuid.uuid4()
+    inst_id = uuid.uuid4()
+    repo = Repo(id=repo_id, full_name="owner/repo", installation_id=inst_id, default_branch="main")
+    inst = Installation(id=inst_id, github_installation_id=123)
+    state_initial = AtlasState(
+        repo_id=repo_id,
+        head_sha="sha_parent",
+        status="idle",
+        last_full_scan_at=datetime.now(timezone.utc),
+    )
+    # State that was concurrently published by a faster job
+    state_concurrent = AtlasState(
+        repo_id=repo_id,
+        head_sha="sha_newer",
+        status="idle",
+        last_full_scan_at=datetime.now(timezone.utc),
+    )
+
+    with patch("services.atlas_incremental.AsyncSessionLocal") as mock_ctx:
+        mock_session = MagicMock()
+        mock_session.__aenter__.return_value = mock_session
+        mock_session.__aexit__.return_value = None
+
+        get_call_count = 0
+
+        async def fake_get(model, pk):
+            nonlocal get_call_count
+            if model is Repo:
+                return repo
+            if model is Installation:
+                return inst
+            if model is AtlasState:
+                get_call_count += 1
+                # First check passes with sha_parent, but final publication check sees sha_newer
+                if get_call_count == 1:
+                    return state_initial
+                return state_concurrent
+            return None
+
+        mock_session.get = AsyncMock(side_effect=fake_get)
+        mock_session.execute = AsyncMock(
+            return_value=MagicMock(
+                scalar=MagicMock(return_value=10),
+                scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[]))),
+                scalar_one_or_none=MagicMock(return_value=None),
+            )
+        )
+        mock_session.commit = AsyncMock()
+        mock_session.rollback = AsyncMock()
+        mock_session.flush = AsyncMock()
+        mock_session.add = MagicMock()
+        mock_ctx.return_value = mock_session
+
+        with patch(
+            "services.atlas_incremental.fetch_file_content", return_value="export const a = 1;"
+        ):
+            res = await update_atlas_incremental(
+                repo_id=repo_id,
+                base_sha="sha_parent",
+                head_sha="sha_older_job",
+                changed={"added": ["src/new.ts"], "modified": [], "removed": []},
+            )
+            assert res["mode"] == "aborted"
+            assert res["status"] == "conflict"
+            assert mock_session.rollback.called
+            # The concurrent newer head was not overwritten
+            assert state_concurrent.head_sha == "sha_newer"

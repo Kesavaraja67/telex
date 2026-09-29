@@ -306,7 +306,12 @@ async def _handle_push(payload: dict) -> None:
             await enqueue_job(
                 session,
                 "build_atlas_graph",
-                {"repo_id": str(repo.id), "commit_sha": head_sha},
+                {
+                    "repo_id": str(repo.id),
+                    "commit_sha": head_sha,
+                    "expected_head_sha": base_sha,
+                    "base_sha": base_sha,
+                },
             )
             await session.commit()
             logger.info(
@@ -322,6 +327,7 @@ async def _handle_push(payload: dict) -> None:
             "repo_id": str(repo.id),
             "commit_sha": head_sha,
             "base_sha": base_sha,
+            "expected_head_sha": base_sha,
             "changed": {
                 "added": sorted(added),
                 "modified": sorted(modified),

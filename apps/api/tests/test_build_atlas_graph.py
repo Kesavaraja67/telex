@@ -245,7 +245,7 @@ async def test_build_atlas_graph_stale_build_skips_normalized_tables():
 
 
 @pytest.mark.asyncio
-async def test_build_atlas_graph_from_incremental_bypasses_stale_check():
+async def test_build_atlas_graph_from_incremental_stale_expected_head_skips_normalized_tables():
     repo_id = uuid.uuid4()
     inst_id = uuid.uuid4()
     repo = Repo(id=repo_id, full_name="owner/repo", installation_id=inst_id)
@@ -299,9 +299,74 @@ async def test_build_atlas_graph_from_incremental_bypasses_stale_check():
                             "repo_id": str(repo_id),
                             "commit_sha": "older_sha",
                             "from_incremental": True,
+                            "expected_head_sha": "older_base",
                         }
                     )
 
                     assert graph_row.status == "ready"
-                    # state_row head_sha was updated because from_incremental bypassed stale check
-                    assert state_row.head_sha == "older_sha"
+                    # state_row head_sha was NOT overwritten because expected_head_sha (older_base) != state_row.head_sha (newer_sha)
+                    assert state_row.head_sha == "newer_sha"
+
+
+@pytest.mark.asyncio
+async def test_build_atlas_graph_from_incremental_matching_expected_head_updates():
+    repo_id = uuid.uuid4()
+    inst_id = uuid.uuid4()
+    repo = Repo(id=repo_id, full_name="owner/repo", installation_id=inst_id)
+    inst = Installation(id=inst_id, github_installation_id=123)
+    graph_row = RepoAtlasGraph(
+        id=uuid.uuid4(),
+        repo_id=repo_id,
+        commit_sha="new_sha",
+        status="computing",
+    )
+    from db.models import AtlasState
+
+    state_row = AtlasState(
+        repo_id=repo_id,
+        head_sha="expected_base",
+        status="updating",
+    )
+    fake_graph = AtlasGraph(nodes=[], edges=[], folders=[], truncated=False)
+
+    with patch("jobs.handlers.build_atlas_graph.AsyncSessionLocal") as mock_session_ctx:
+        mock_session = MagicMock()
+        mock_session.__aenter__.return_value = mock_session
+        mock_session.__aexit__.return_value = None
+
+        def fake_get(model, pk):
+            if model == Repo:
+                return repo
+            if model == Installation:
+                return inst
+            if model == AtlasState:
+                return state_row
+            return None
+
+        mock_session.get = AsyncMock(side_effect=fake_get)
+        mock_res = MagicMock()
+        mock_res.scalar_one_or_none.return_value = graph_row
+        mock_session.execute = AsyncMock(return_value=mock_res)
+        mock_session.commit = AsyncMock()
+        mock_session_ctx.return_value = mock_session
+
+        with patch(
+            "jobs.handlers.build_atlas_graph.fetch_repo_snapshot",
+            AsyncMock(return_value=Path("/tmp/fake/sub")),
+        ):
+            with patch(
+                "jobs.handlers.build_atlas_graph.build_import_graph", return_value=fake_graph
+            ):
+                with patch("shutil.rmtree"):
+                    await build_atlas_graph.run(
+                        {
+                            "repo_id": str(repo_id),
+                            "commit_sha": "new_sha",
+                            "from_incremental": True,
+                            "expected_head_sha": "expected_base",
+                        }
+                    )
+
+                    assert graph_row.status == "ready"
+                    # state_row head_sha WAS updated because expected_head_sha matched current head_sha
+                    assert state_row.head_sha == "new_sha"

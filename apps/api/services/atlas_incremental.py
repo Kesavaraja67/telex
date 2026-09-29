@@ -238,11 +238,14 @@ async def update_incremental_graph(
             from jobs.handlers import build_atlas_graph
 
             logger.info("Running full scan for %s @ %s", repo_full_name, head_sha[:8])
+            expected_head = base_sha if base_sha else (state.head_sha if state else None)
             await build_atlas_graph.run(
                 {
                     "repo_id": str(repo_uuid),
                     "commit_sha": head_sha,
                     "from_incremental": True,
+                    "expected_head_sha": expected_head,
+                    "base_sha": base_sha,
                 }
             )
             return {"mode": "full", "head_sha": head_sha, "status": "ready"}
@@ -335,11 +338,14 @@ async def update_incremental_graph(
                     )
                     from jobs.handlers import build_atlas_graph
 
+                    expected_head = base_sha if base_sha else (state.head_sha if state else None)
                     await build_atlas_graph.run(
                         {
                             "repo_id": str(repo_uuid),
                             "commit_sha": head_sha,
                             "from_incremental": True,
+                            "expected_head_sha": expected_head,
+                            "base_sha": base_sha,
                         }
                     )
                     return {"mode": "full", "head_sha": head_sha, "status": "ready"}
@@ -500,24 +506,45 @@ async def update_incremental_graph(
                 graph_row.edge_count = len(final_edges)
                 graph_row.completed_at = datetime.now(timezone.utc)
 
-            # Update AtlasState conditionally
-            cur_state = await session.get(AtlasState, repo_uuid)
+            # Atomic publication check on AtlasState
+            state_query = (
+                select(AtlasState).where(AtlasState.repo_id == repo_uuid).with_for_update()
+            )
+            cur_state_res = await session.execute(state_query)
+            cur_candidate = cur_state_res.scalar_one_or_none()
+            if isinstance(cur_candidate, AtlasState):
+                cur_state = cur_candidate
+            else:
+                cur_state = await session.get(AtlasState, repo_uuid)
+
+            expected_head = base_sha if base_sha else (state.head_sha if state else None)
+            if cur_state and cur_state.head_sha:
+                if cur_state.head_sha != head_sha:
+                    if expected_head is not None and cur_state.head_sha != expected_head:
+                        logger.warning(
+                            "AtlasState head_sha changed concurrently to %s (expected %s), aborting",
+                            cur_state.head_sha,
+                            expected_head,
+                        )
+                        await session.rollback()
+                        return {
+                            "mode": "aborted",
+                            "head_sha": cur_state.head_sha,
+                            "status": "conflict",
+                        }
+                    elif expected_head is None:
+                        logger.warning(
+                            "AtlasState head_sha set concurrently to %s, aborting",
+                            cur_state.head_sha,
+                        )
+                        await session.rollback()
+                        return {
+                            "mode": "aborted",
+                            "head_sha": cur_state.head_sha,
+                            "status": "conflict",
+                        }
+
             if cur_state:
-                if (
-                    base_sha
-                    and cur_state.head_sha
-                    and cur_state.head_sha != base_sha
-                    and cur_state.head_sha != head_sha
-                ):
-                    logger.warning(
-                        "AtlasState head_sha changed concurrently to %s, aborting",
-                        cur_state.head_sha,
-                    )
-                    return {
-                        "mode": "aborted",
-                        "head_sha": cur_state.head_sha,
-                        "status": "conflict",
-                    }
                 cur_state.head_sha = head_sha
                 cur_state.status = "idle"
                 cur_state.error_message = None
