@@ -76,6 +76,7 @@ scratch/
 
 
 # Agent skills (ignore heavy media, audio, scripts, binaries, code)
+.agents
 .agents/**/assets/
 .agents/**/scripts/
 .agents/**/bin/
@@ -104,4 +105,4 @@ scratch/
 .agents/**/*.c
 .agents/**/*.swift
 .agents/**/*.Dockerfile
-
+
