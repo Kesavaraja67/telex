@@ -28,7 +28,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from db.models import Job, RepoAtlasGraph
+from db.models import AtlasEdge, AtlasState, Job, RepoAtlasGraph
 from db.session import AsyncSessionLocal
 from jobs.queue import enqueue_job
 from routers.auth import get_authorized_repo, require_auth
@@ -77,6 +77,28 @@ async def get_atlas_graph(
         row = result.scalar_one_or_none()
 
         if row is not None and row.status == "ready":
+            state_row = None
+            try:
+                state_res = await session.execute(
+                    select(AtlasState).where(AtlasState.repo_id == repo.id)
+                )
+                state_row = state_res.scalar_one_or_none()
+            except Exception:
+                pass
+
+            last_scan_iso = None
+            mode = "full"
+            if state_row:
+                if getattr(state_row, "last_full_scan_at", None) and isinstance(
+                    state_row.last_full_scan_at, datetime
+                ):
+                    last_scan_iso = state_row.last_full_scan_at.isoformat()
+                if (
+                    getattr(state_row, "last_full_scan_sha", None)
+                    and state_row.last_full_scan_sha != resolved_sha
+                ):
+                    mode = "incremental"
+
             return {
                 "status": "ready",
                 "repo_full_name": repo.full_name,
@@ -85,6 +107,8 @@ async def get_atlas_graph(
                 "edge_count": row.edge_count,
                 "truncated": row.truncated,
                 "graph": row.graph_json,
+                "last_full_scan_at": last_scan_iso,
+                "mode": mode,
             }
 
         if row is not None and row.status == "failed":
@@ -201,3 +225,74 @@ async def get_atlas_last_edited(
         ref,
     )
     return {"path": path, "ref": ref, "last_edited": info}
+
+
+async def _get_node_neighbors(session, repo_id, path: str) -> dict:
+    norm_path = path.replace("\\", "/").lstrip("/")
+
+    # Query outgoing edges (what this file imports)
+    out_res = await session.execute(
+        select(AtlasEdge.target_path).where(
+            AtlasEdge.repo_id == repo_id,
+            AtlasEdge.source_path == norm_path,
+        )
+    )
+    imports = list(out_res.scalars().all())
+
+    # Query incoming edges (what imports this file)
+    inc_res = await session.execute(
+        select(AtlasEdge.source_path).where(
+            AtlasEdge.repo_id == repo_id,
+            AtlasEdge.target_path == norm_path,
+        )
+    )
+    imported_by = list(inc_res.scalars().all())
+
+    # Fallback to latest ready RepoAtlasGraph if no rows in AtlasEdge
+    if not imports and not imported_by:
+        latest_graph_res = await session.execute(
+            select(RepoAtlasGraph)
+            .where(
+                RepoAtlasGraph.repo_id == repo_id,
+                RepoAtlasGraph.status == "ready",
+            )
+            .order_by(RepoAtlasGraph.created_at.desc())
+            .limit(1)
+        )
+        latest_graph = latest_graph_res.scalar_one_or_none()
+        if latest_graph and latest_graph.graph_json:
+            for e in latest_graph.graph_json.get("edges", []):
+                src = e.get("source")
+                tgt = e.get("target")
+                if src == norm_path and tgt:
+                    imports.append(tgt)
+                if tgt == norm_path and src:
+                    imported_by.append(src)
+
+    return {
+        "path": norm_path,
+        "imports": sorted(list(set(imports))),
+        "imported_by": sorted(list(set(imported_by))),
+    }
+
+
+@router.get("/neighbors")
+async def get_atlas_neighbors(
+    repo_id: str,
+    path: str = Query(...),
+    auth_data: dict = Depends(require_auth),
+):
+    async with AsyncSessionLocal() as session:
+        repo, _ = await get_authorized_repo(session, repo_id, auth_data)
+        return await _get_node_neighbors(session, repo.id, path)
+
+
+@router.get("/node/{path:path}/neighbors")
+async def get_atlas_node_neighbors(
+    repo_id: str,
+    path: str,
+    auth_data: dict = Depends(require_auth),
+):
+    async with AsyncSessionLocal() as session:
+        repo, _ = await get_authorized_repo(session, repo_id, auth_data)
+        return await _get_node_neighbors(session, repo.id, path)

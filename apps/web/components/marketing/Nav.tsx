@@ -78,78 +78,69 @@ export default function Nav() {
 
   return (
     <header className="fixed top-5 left-0 right-0 z-50 px-4 sm:px-8 pointer-events-none">
-      <div className="max-w-5xl mx-auto flex items-center justify-between gap-4 px-6 py-2.5 rounded-full border border-white/10 bg-black/65 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] pointer-events-auto transition-all duration-300 hover:border-white/20">
-        {/* Brand wordmark with Minimalist Bold White T Logo */}
-        <Link
-          href="/"
-          className="font-display font-bold text-sm tracking-[0.25em] text-white hover:text-white/90 transition-colors flex items-center gap-2.5 uppercase group shrink-0 whitespace-nowrap"
-        >
-          <TelexLogo size={20} withBackground={true} />
-          <span>TELEX</span>
-        </Link>
+      <div className="max-w-5xl mx-auto pointer-events-auto metal-bezel p-[2px] rounded-full overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.85)]">
+        <div className="panel-inset px-6 py-2 rounded-full flex items-center justify-between gap-4">
+          {/* Brand wordmark with Minimalist Bold White T Logo */}
+          <Link
+            href="/"
+            className="font-display font-bold text-sm tracking-[0.25em] text-white hover:text-white/90 transition-colors flex items-center gap-2.5 uppercase group shrink-0 whitespace-nowrap"
+          >
+            <TelexLogo size={20} withBackground={true} />
+            <span className="label-embossed">TELEX</span>
+          </Link>
 
-        {/* Nav links */}
-        <div className="hidden md:flex items-center gap-6 lg:gap-8 font-mono text-[11px] uppercase tracking-[0.18em] text-[#A1A1AA] shrink-0 whitespace-nowrap">
-          {NAV_LINKS.map((link, idx) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onMouseEnter={() => setHoveredIdx(idx)}
-              onMouseLeave={() => setHoveredIdx(null)}
-              className="relative h-5 overflow-hidden flex flex-col justify-center transition-colors whitespace-nowrap select-none shrink-0"
-            >
-              <span
-                className="transition-transform duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] whitespace-nowrap block leading-5"
-                style={{
-                  transform: hoveredIdx === idx ? "translateY(-140%)" : "translateY(0%)",
-                  color: hoveredIdx === idx ? "#FFFFFF" : "#888888",
-                }}
+          {/* Nav links */}
+          <div className="hidden md:flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.18em] shrink-0 whitespace-nowrap">
+            {NAV_LINKS.map((link, idx) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onMouseEnter={() => setHoveredIdx(idx)}
+                onMouseLeave={() => setHoveredIdx(null)}
+                className={`px-3.5 py-1.5 rounded-full transition-all select-none ${
+                  hoveredIdx === idx
+                    ? "bg-white/[0.08] text-white font-semibold shadow-inner"
+                    : "text-[#A1A1AA] hover:text-white"
+                }`}
               >
-                {link.label}
-              </span>
-              <span
-                className="absolute transition-transform duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] text-white font-medium whitespace-nowrap block leading-5"
-                style={{
-                  transform: hoveredIdx === idx ? "translateY(0%)" : "translateY(140%)",
-                }}
-              >
-                {link.label}
-              </span>
-            </Link>
-          ))}
-        </div>
+                <span>{link.label}</span>
+              </Link>
+            ))}
+          </div>
 
-        {/* Sign In / User Dashboard CTA */}
-        {user ? (
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Sign In / User Dashboard CTA */}
+          {user ? (
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                id="nav-signin-btn"
+                onClick={handleAuthAction}
+                className="key-cap key-cap--sm font-mono text-[10px] uppercase tracking-[0.18em] px-3.5 sm:px-4 py-1.5 flex items-center gap-2 whitespace-nowrap cursor-pointer"
+              >
+                <span className="led" data-state="ok" />
+                <span>{`${user} // Deck →`}</span>
+              </button>
+              <button
+                onClick={handleSignOut}
+                title="Sign Out"
+                aria-label="Sign Out"
+                className="key-cap key-cap--sm p-2 flex items-center justify-center cursor-pointer text-[#71717A] hover:text-white"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
+            </div>
+          ) : (
             <button
               id="nav-signin-btn"
               onClick={handleAuthAction}
-              className="font-mono text-[10px] uppercase tracking-[0.18em] px-3.5 sm:px-4 py-2 rounded-full border border-white/20 hover:border-white text-white hover:bg-white/[0.08] backdrop-blur-md transition-all active:scale-95 cursor-pointer shadow-sm flex items-center gap-2 whitespace-nowrap"
+              className="key-cap key-cap--sm key-cap--primary font-mono text-[10px] uppercase tracking-[0.18em] px-4 sm:px-5 py-1.5 flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-              <span>{`${user} // Deck →`}</span>
+              <span className="led" data-state="ok" />
+              <span>Sign in →</span>
             </button>
-            <button
-              onClick={handleSignOut}
-              title="Sign Out"
-              aria-label="Sign Out"
-              className="p-2 rounded-full border border-white/15 text-[#71717A] hover:text-white hover:border-white/30 hover:bg-white/[0.08] transition-all cursor-pointer"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </button>
-          </div>
-        ) : (
-          <button
-            id="nav-signin-btn"
-            onClick={handleAuthAction}
-            className="font-mono text-[10px] uppercase tracking-[0.18em] px-4 sm:px-5 py-2 rounded-full border border-white/20 hover:border-white text-white hover:bg-white/[0.08] backdrop-blur-md transition-all active:scale-95 cursor-pointer shadow-sm flex items-center gap-2 shrink-0 whitespace-nowrap"
-          >
-            <span>Sign in →</span>
-          </button>
-        )}
+          )}
+        </div>
       </div>
     </header>
   );

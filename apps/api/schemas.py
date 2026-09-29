@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -79,6 +80,30 @@ class AIExplainOut(BaseModel):
     architecture_verdict: str
     risk_score: int
     recommended_actions: list[str] = []
+    score: int | None = None
+    sub_scores: dict[str, int | None] | None = None
+    findings: list[dict[str, Any]] | None = None
+    delta_score: int | None = None
+    do_this_first: list[str] | None = None
+
+
+class RepoAnalysisRunOut(BaseModel):
+    id: str
+    repo_id: str
+    head_sha: str
+    score: int
+    sub_scores: dict[str, int | None] = {}
+    findings: list[dict[str, Any]] = []
+    signals: dict[str, Any] = {}
+    executive_summary: str | None = None
+    do_this_first: list[str] = []
+    created_at: str
+
+
+class RepoAnalysisHistoryOut(BaseModel):
+    latest: RepoAnalysisRunOut | None = None
+    previous: dict[str, Any] | None = None
+    delta_score: int = 0
 
 
 class RepoToggleIn(BaseModel):

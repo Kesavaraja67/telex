@@ -355,3 +355,76 @@ async def test_github_webhook_dispatch_events(monkeypatch):
     )
     assert res == {"ok": True}
     assert created_called
+
+
+@pytest.mark.asyncio
+async def test_handle_push_enqueues_update_atlas_graph(monkeypatch):
+    from routers.webhooks import _handle_push
+
+    repo_id = uuid.uuid4()
+    mock_repo = Repo(id=repo_id, github_repo_id=999, full_name="owner/repo", is_active=True)
+
+    session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_repo
+    session.execute = AsyncMock(return_value=mock_result)
+    session.commit = AsyncMock()
+
+    mock_ctx = MagicMock()
+    mock_ctx.__aenter__ = AsyncMock(return_value=session)
+    mock_ctx.__aexit__ = AsyncMock(return_value=None)
+    monkeypatch.setattr("routers.webhooks.AsyncSessionLocal", lambda: mock_ctx)
+
+    mock_enqueue = AsyncMock()
+    monkeypatch.setattr("routers.webhooks.enqueue_job", mock_enqueue)
+
+    payload = {
+        "ref": "refs/heads/main",
+        "repository": {
+            "id": 999,
+            "default_branch": "main",
+            "full_name": "owner/repo",
+        },
+        "after": "deadbeef1234",
+        "commits": [
+            {
+                "added": ["src/new.ts"],
+                "modified": ["src/index.ts"],
+                "removed": ["src/old.ts"],
+            }
+        ],
+    }
+
+    await _handle_push(payload)
+
+    assert mock_enqueue.called
+    args, kwargs = mock_enqueue.call_args
+    job_type = args[1]
+    job_payload = args[2]
+    assert job_type == "update_atlas_graph"
+    assert job_payload["repo_id"] == str(repo_id)
+    assert job_payload["commit_sha"] == "deadbeef1234"
+    assert job_payload["changed"]["added"] == ["src/new.ts"]
+    assert job_payload["changed"]["modified"] == ["src/index.ts"]
+    assert job_payload["changed"]["removed"] == ["src/old.ts"]
+
+
+@pytest.mark.asyncio
+async def test_handle_push_ignored_for_non_default_branch(monkeypatch):
+    from routers.webhooks import _handle_push
+
+    mock_enqueue = AsyncMock()
+    monkeypatch.setattr("routers.webhooks.enqueue_job", mock_enqueue)
+
+    payload = {
+        "ref": "refs/heads/feature-branch",
+        "repository": {
+            "id": 999,
+            "default_branch": "main",
+            "full_name": "owner/repo",
+        },
+        "after": "deadbeef1234",
+    }
+
+    await _handle_push(payload)
+    assert not mock_enqueue.called

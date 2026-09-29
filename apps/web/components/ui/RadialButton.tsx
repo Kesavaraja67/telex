@@ -93,7 +93,7 @@ export default function RadialButton({
               left: cursorPos.x,
               top: cursorPos.y,
               transform: "translate(-50%, -50%)",
-              boxShadow: "0 0 40px rgba(79, 209, 197, 0.6)",
+              boxShadow: "0 0 40px rgba(255, 255, 255, 0.06)",
             }}
           />
         )}
@@ -113,9 +113,9 @@ export default function RadialButton({
 
   const sharedStyles = {
     borderRadius: `${rounded}px`,
-    border: `${borderWidth}px solid ${isHovered ? "rgba(79, 209, 197, 0.6)" : borderColor}`,
+    border: `${borderWidth}px solid ${isHovered ? "rgba(255, 255, 255, 0.22)" : borderColor}`,
     boxShadow: isHovered
-      ? "0 0 30px rgba(79, 209, 197, 0.35), inset 0 1px 1px rgba(255,255,255,0.4)"
+      ? "0 0 24px rgba(255,255,255,0.08), inset 0 1px 1px rgba(255,255,255,0.10)"
       : "0 10px 30px -10px rgba(0, 0, 0, 0.8), inset 0 1px 1px rgba(255,255,255,0.12)",
   };
 

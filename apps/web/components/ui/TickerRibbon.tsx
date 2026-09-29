@@ -27,10 +27,10 @@ export default function TickerRibbon({
   const repeated = [...items, ...items];
 
   return (
-    <div className={`w-full overflow-hidden border-y border-white/[0.08] bg-black/50 backdrop-blur-md py-2.5 relative select-none ${className}`}>
+    <div className={`w-full overflow-hidden panel-inset border-y border-black/80 py-2.5 relative select-none shadow-[inset_0_2px_5px_rgba(0,0,0,0.8),0_1px_0_rgba(255,255,255,0.05)] ${className}`}>
       {/* Edge gradient masks */}
-      <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-black to-transparent z-10 pointer-events-none" />
-      <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-black to-transparent z-10 pointer-events-none" />
+      <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-[#0e1012] to-transparent z-10 pointer-events-none" />
+      <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-[#0e1012] to-transparent z-10 pointer-events-none" />
 
       <motion.div
         animate={{ x: ["0%", "-50%"] }}
@@ -43,13 +43,14 @@ export default function TickerRibbon({
       >
         {repeated.map((text, i) => (
           <div key={i} className="flex items-center gap-8 flex-shrink-0">
-            <span className="font-mono text-[11px] tracking-widest uppercase text-[#A1A1AA] hover:text-white transition-colors">
+            <span className="label-engraved text-[11px] tracking-widest uppercase hover:text-white transition-colors">
               {text}
             </span>
-            <span className="h-1 w-1 rounded-full bg-white/40" />
+            <span className="led" data-state="ok" style={{ width: "5px", height: "5px" }} />
           </div>
         ))}
       </motion.div>
     </div>
   );
 }
+

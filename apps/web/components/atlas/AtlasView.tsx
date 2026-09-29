@@ -370,7 +370,7 @@ export default function AtlasView({
           {showBackButton && (
             <button
               onClick={() => router.push("/dashboard/repos")}
-              className="font-mono text-xs px-3.5 py-1.5 rounded-lg border border-white/15 bg-black/70 backdrop-blur text-[#A1A1AA] hover:text-white hover:border-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60 focus-visible:outline-offset-2 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+              className="key-cap key-cap--sm font-mono text-xs text-[#A1A1AA] hover:text-white flex items-center gap-1.5 cursor-pointer"
             >
               <span>←</span>
               <span>Repositories</span>
@@ -378,7 +378,8 @@ export default function AtlasView({
           )}
 
           {repoName && (
-            <div className="flex items-center gap-2 font-mono text-xs text-[#E4E4E7] bg-black/70 backdrop-blur px-3 py-1.5 rounded-lg border border-white/10 shadow-sm">
+            <div className="badge-chip px-3 py-1.5 font-mono text-xs flex items-center gap-2">
+              <span className="led" data-state="ok" />
               <svg className="w-3.5 h-3.5 text-white/80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
                 <path d="M9 18c-4.51 2-5-2-7-2" />
@@ -399,7 +400,7 @@ export default function AtlasView({
             <button
               onClick={() => sceneRef.current?.resetView()}
               title="Reset camera perspective (F)"
-              className="font-mono text-xs px-2.5 py-1.5 rounded-lg border border-white/15 bg-black/70 backdrop-blur text-[#A1A1AA] hover:text-white hover:border-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60 focus-visible:outline-offset-2 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+              className="key-cap key-cap--sm font-mono text-xs text-[#A1A1AA] hover:text-white flex items-center gap-1.5 cursor-pointer"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
                 <circle cx="12" cy="12" r="3" />
@@ -410,7 +411,7 @@ export default function AtlasView({
           )}
 
           {state.kind === "ready" && (
-            <div className="flex items-center gap-3 font-mono text-xs text-[#7E7E8A] bg-black/70 backdrop-blur px-3.5 py-1.5 rounded-lg border border-white/10">
+            <div className="panel-inset px-3 py-1.5 rounded-lg flex items-center gap-3 font-mono text-xs text-[#7E7E8A]">
               <span className="text-white font-medium">{state.data.node_count} files</span>
               <span className="text-[#3F3F46]">·</span>
               <span>{state.data.edge_count} imports</span>
@@ -421,8 +422,8 @@ export default function AtlasView({
           )}
 
           {(state.kind === "computing" || state.kind === "idle") && (
-            <div className="flex items-center gap-2 font-mono text-xs text-[#A1A1AA] bg-black/70 backdrop-blur px-3 py-1.5 rounded-lg border border-white/10">
-              <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+            <div className="badge-chip px-3 py-1.5 font-mono text-xs flex items-center gap-2 text-[#A1A1AA]">
+              <span className="led" data-state="busy" />
               <span>{state.kind === "idle" ? "Loading graph…" : `Computing graph… (${computeSeconds}s)`}</span>
             </div>
           )}
@@ -434,7 +435,7 @@ export default function AtlasView({
               load({ refresh: true });
             }}
             title="Force re-scan and rebuild import graph (R)"
-            className="font-mono text-xs px-3 py-1.5 rounded-lg border border-white/15 bg-black/70 backdrop-blur text-[#E4E4E7] hover:text-white hover:border-white/35 hover:bg-white/[0.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60 focus-visible:outline-offset-2 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+            className="key-cap key-cap--sm font-mono text-xs text-white flex items-center gap-1.5 cursor-pointer"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -475,7 +476,7 @@ export default function AtlasView({
               pollStartedAt.current = 0;
               load({ refresh: true });
             }}
-            className="mt-2 px-4 py-2 rounded-lg bg-white text-black font-mono text-xs font-semibold hover:bg-white/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60 focus-visible:outline-offset-2 transition-all cursor-pointer"
+            className="key-cap font-mono text-xs font-semibold cursor-pointer"
           >
             Re-scan repository
           </button>
@@ -492,7 +493,7 @@ export default function AtlasView({
               pollStartedAt.current = 0;
               load({ refresh: true });
             }}
-            className="mt-2 px-4 py-2 rounded-lg bg-white text-black font-mono text-xs font-semibold hover:bg-white/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60 focus-visible:outline-offset-2 transition-all cursor-pointer"
+            className="key-cap font-mono text-xs font-semibold cursor-pointer"
           >
             Try again
           </button>
@@ -503,45 +504,45 @@ export default function AtlasView({
       {state.kind === "ready" && (
         <div className="absolute bottom-4 left-5 z-40 font-mono text-[11px] text-[#A1A1AA]">
           {legendOpen ? (
-            <div className="bg-black/70 backdrop-blur border border-white/10 rounded-lg p-3 flex flex-col gap-2 min-w-[200px]">
-              <div className="flex items-center justify-between text-[#7E7E8A] text-[10px] pb-1 border-b border-white/10">
-                <span>GRAPH LEGEND (L)</span>
-                <button
-                  onClick={() => setLegendOpen(false)}
-                  className="min-w-[28px] min-h-[28px] p-1 flex items-center justify-center rounded hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60 transition-colors cursor-pointer"
-                  title="Close legend"
-                  aria-label="Close legend"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3.5 h-0.5 bg-white/30 rounded" />
-                <span className="text-[#D4D4D8]">Folder hierarchy</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3.5 h-1 bg-[#14B8A6] rounded-full shadow-[0_0_6px_#14B8A6]" />
-                <span className="text-[#D4D4D8]">Healthy cable</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#5EEAD4] shadow-[0_0_8px_#5EEAD4]" />
-                <span className="text-[#D4D4D8]">Photon data packet</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3.5 h-1 bg-[#F43F5E] rounded-full shadow-[0_0_6px_#F43F5E]" />
-                <span className="text-[#FDA4AF]">Severed / incident</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-[9px] text-[#F59E0B]">
-                  ⚠
-                </span>
-                <span className="text-[#D4D4D8]">Unresolved import</span>
+            <div className="metal-bezel p-[2px] rounded-lg shadow-2xl">
+              <div className="panel-inset p-3 rounded-[6px] flex flex-col gap-2 min-w-[210px]">
+                <div className="flex items-center justify-between text-[#7E7E8A] text-[10px] pb-1 border-b border-white/10">
+                  <span className="font-bold tracking-wider text-white">GRAPH LEGEND (L)</span>
+                  <button
+                    onClick={() => setLegendOpen(false)}
+                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+                    title="Close legend"
+                    aria-label="Close legend"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <span className="w-3.5 h-0.5 bg-white/40 rounded" />
+                  <span className="text-[#D4D4D8]">Folder hierarchy</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <span className="led" data-state="ok" />
+                  <span className="text-[#D4D4D8]">Healthy cable</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <span className="led" data-state="busy" />
+                  <span className="text-[#D4D4D8]">Photon data packet</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <span className="led" data-state="fault" />
+                  <span className="text-[#FDA4AF]">Severed / incident</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <span className="led" data-state="warn" />
+                  <span className="text-[#D4D4D8]">Unresolved import</span>
+                </div>
               </div>
             </div>
           ) : (
             <button
               onClick={() => setLegendOpen(true)}
-              className="px-2.5 py-1.5 rounded-lg border border-white/15 bg-black/60 backdrop-blur hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60 focus-visible:outline-offset-2 transition-all cursor-pointer flex items-center gap-1.5"
+              className="key-cap key-cap--sm font-mono text-xs flex items-center gap-1.5 cursor-pointer"
             >
               <span>ⓘ</span>
               <span>Legend (L)</span>
@@ -552,29 +553,34 @@ export default function AtlasView({
 
       {/* Floating 3D Navigation Controls Guide — bottom center */}
       {state.kind === "ready" && controlsOpen && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 hidden sm:flex items-center gap-3 px-4 py-1.5 rounded-full bg-black/80 backdrop-blur-md border border-white/10 font-mono text-[10px] text-[#A1A1AA] shadow-xl">
-          <span className="text-white font-medium">✦ 3D Atlas</span>
-          <span className="text-[#3F3F46]">·</span>
-          <span>Left Drag to Orbit</span>
-          <span className="text-[#3F3F46]">·</span>
-          <span>Scroll to Zoom</span>
-          <span className="text-[#3F3F46]">·</span>
-          <span>Drag Card to Spring</span>
-          <span className="text-[#3F3F46]">·</span>
-          <span>Click to Inspect</span>
-          <span className="text-[#3F3F46]">·</span>
-          <span className="flex items-center gap-1">
-            <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-white text-[9px]">F</kbd>
-            <span>Center</span>
-          </span>
-          <button
-            onClick={() => setControlsOpen(false)}
-            className="min-w-[24px] min-h-[24px] p-0.5 flex items-center justify-center rounded text-[#7E7E8A] hover:text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60 ml-1 transition-colors cursor-pointer"
-            title="Dismiss hint"
-            aria-label="Dismiss hint"
-          >
-            ✕
-          </button>
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 hidden sm:flex metal-bezel p-[2px] rounded-full overflow-hidden shadow-2xl">
+          <div className="panel-inset px-4 py-1.5 rounded-full flex items-center gap-3 font-mono text-[10px] text-[#A1A1AA]">
+            <span className="text-white font-medium flex items-center gap-1.5">
+              <span className="led" data-state="ok" />
+              <span>3D Atlas</span>
+            </span>
+            <span className="text-[#3F3F46]">·</span>
+            <span>Left Drag to Orbit</span>
+            <span className="text-[#3F3F46]">·</span>
+            <span>Scroll to Zoom</span>
+            <span className="text-[#3F3F46]">·</span>
+            <span>Drag Card to Spring</span>
+            <span className="text-[#3F3F46]">·</span>
+            <span>Click to Inspect</span>
+            <span className="text-[#3F3F46]">·</span>
+            <span className="flex items-center gap-1">
+              <kbd className="key-cap key-cap--sm px-1.5 py-0.5 text-[9px]">F</kbd>
+              <span>Center</span>
+            </span>
+            <button
+              onClick={() => setControlsOpen(false)}
+              className="min-w-[20px] min-h-[20px] flex items-center justify-center rounded text-[#7E7E8A] hover:text-white hover:bg-white/10 ml-1 transition-colors cursor-pointer"
+              title="Dismiss hint"
+              aria-label="Dismiss hint"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       )}
 
@@ -586,6 +592,16 @@ export default function AtlasView({
           activeIncidents={activeIncidents}
           commitSha={state.kind === "ready" ? state.data.commit_sha : "HEAD"}
           onClose={() => setSelection(null)}
+          onSelectNode={(targetPath) => {
+            if (state.kind === "ready" && state.data.graph) {
+              const targetNode = state.data.graph.nodes.find((n: any) => n.id === targetPath);
+              if (targetNode) {
+                const b = breakageMap.get(targetPath) || [];
+                setSelection({ nodeId: targetPath, brokenBy: b, node: targetNode });
+                sceneRef.current?.focusNode(targetPath);
+              }
+            }
+          }}
         />
       )}
     </div>

@@ -122,7 +122,7 @@ function AtlasContent() {
     <div className="w-full h-full flex flex-col bg-black overflow-hidden relative">
       {/* Top Header Bar: Repository Switcher & Meta */}
       <header
-        className={`h-14 border-b border-white/[0.08] bg-black/85 backdrop-blur-xl ${
+        className={`h-14 sidebar-panel border-b border-black/80 shadow-[0_2px_10px_rgba(0,0,0,0.8)] ${
           isSidebarCollapsed ? "pl-36 pr-5" : "px-5"
         } flex items-center justify-between z-40 flex-shrink-0 transition-all duration-300`}
       >
@@ -131,14 +131,14 @@ function AtlasContent() {
           <div className="relative">
             <button
               onClick={() => setIsDropdownOpen((prev) => !prev)}
-              className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/15 hover:border-white/30 text-white font-mono text-xs transition-all cursor-pointer group"
+              className="key-cap key-cap--sm flex items-center gap-2.5 cursor-pointer text-white"
             >
-              <span className="w-2 h-2 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)]" />
-              <span className="text-[#71717A] text-[11px]">REPO:</span>
+              <span className="led" data-state="ok" style={{ width: "6px", height: "6px" }} />
+              <span className="label-engraved text-[10px]">REPO:</span>
               <span className="font-semibold text-white tracking-wide">
                 {selectedRepo?.full_name || "Select repo"}
               </span>
-              <span className="text-[#71717A] text-[10px] bg-white/[0.06] px-1.5 py-0.5 rounded border border-white/5">
+              <span className="badge-chip text-[9px] py-0 px-1.5">
                 {selectedRepo?.default_branch || "main"}
               </span>
               <svg
@@ -161,35 +161,37 @@ function AtlasContent() {
                   className="fixed inset-0 z-40"
                   onClick={() => setIsDropdownOpen(false)}
                 />
-                <div className="absolute left-0 top-full mt-1.5 w-72 rounded-xl bg-black/95 border border-white/15 shadow-2xl p-1.5 z-50 backdrop-blur-2xl flex flex-col gap-1 font-mono text-xs">
-                  <div className="px-2.5 py-1 text-[10px] text-[#71717A] tracking-wider uppercase border-b border-white/5">
-                    Select Repository ({repos.length})
-                  </div>
-                  <div className="max-h-60 overflow-y-auto flex flex-col gap-0.5">
-                    {repos.map((repo) => {
-                      const isCurrent = repo.id === selectedRepo?.id;
-                      return (
-                        <button
-                          key={repo.id}
-                          onClick={() => handleSelectRepo(repo.id)}
-                          className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-all cursor-pointer ${
-                            isCurrent
-                              ? "bg-white/10 text-white font-semibold"
-                              : "text-[#A1A1AA] hover:text-white hover:bg-white/5"
-                          }`}
-                        >
-                          <div className="flex flex-col min-w-0">
-                            <span className="truncate">{repo.full_name}</span>
-                            <span className="text-[10px] text-[#71717A]">
-                              branch: {repo.default_branch}
-                            </span>
-                          </div>
-                          {isCurrent && (
-                            <span className="text-white text-xs">✓</span>
-                          )}
-                        </button>
-                      );
-                    })}
+                <div className="absolute left-0 top-full mt-1.5 w-72 metal-bezel p-[2px] z-50 shadow-2xl">
+                  <div className="panel-inset rounded-[6px] p-2 flex flex-col gap-1 font-mono text-xs">
+                    <div className="px-2.5 py-1 label-engraved text-[9px] border-b border-black/80 shadow-[0_1px_0_rgba(255,255,255,0.05)]">
+                      Select Repository ({repos.length})
+                    </div>
+                    <div className="max-h-60 overflow-y-auto flex flex-col gap-1 pt-1">
+                      {repos.map((repo) => {
+                        const isCurrent = repo.id === selectedRepo?.id;
+                        return (
+                          <button
+                            key={repo.id}
+                            onClick={() => handleSelectRepo(repo.id)}
+                            className={`flex items-center justify-between px-2.5 py-2 rounded text-left transition-all cursor-pointer ${
+                              isCurrent
+                                ? "nav-item-active text-white font-semibold"
+                                : "nav-item-inactive text-[#A1A1AA] hover:text-white"
+                            }`}
+                          >
+                            <div className="flex flex-col min-w-0">
+                              <span className="truncate">{repo.full_name}</span>
+                              <span className="text-[10px] text-[#71717A]">
+                                branch: {repo.default_branch}
+                              </span>
+                            </div>
+                            {isCurrent && (
+                              <span className="led" data-state="ok" style={{ width: "6px", height: "6px" }} />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </>
@@ -200,7 +202,7 @@ function AtlasContent() {
           {selectedRepo && (
             <Link
               href={`/dashboard/repos/${selectedRepo.id}`}
-              className="hidden sm:flex items-center gap-1.5 font-mono text-[11px] text-[#71717A] hover:text-[#E4E4E7] transition-colors"
+              className="hidden sm:flex items-center gap-1.5 label-engraved text-[11px] hover:text-white transition-colors"
             >
               <span>View Patches & Policies</span>
               <span>→</span>
@@ -210,14 +212,14 @@ function AtlasContent() {
 
         {/* Right Info Pill */}
         <div className="flex items-center gap-2 font-mono text-xs">
-          <div className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.03] border border-white/10 text-[#71717A] text-[11px]">
-            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-            <span>3D Architecture Visualizer</span>
+          <div className="badge-chip hidden md:flex items-center gap-2">
+            <span className="led" data-state="ok" style={{ width: "6px", height: "6px" }} />
+            <span>3D Visualizer</span>
           </div>
 
           <Link
             href="/dashboard/repos"
-            className="font-mono text-xs px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/20 bg-white/[0.04] text-[#A1A1AA] hover:text-white transition-all"
+            className="key-cap key-cap--sm text-white"
           >
             All Repos
           </Link>

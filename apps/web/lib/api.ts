@@ -103,12 +103,60 @@ export interface CommitInsight {
   risk_level: string;
 }
 
+export interface AnalysisFinding {
+  severity: "critical" | "warning" | "info";
+  title: string;
+  evidence: Record<string, any>;
+  why_it_matters: string;
+  what_to_do: string;
+  atlas_deep_link?: string;
+}
+
+export interface RepoAnalysisRun {
+  id: string;
+  repo_id: string;
+  head_sha: string;
+  score: number;
+  sub_scores: {
+    structure: number | null;
+    dependency: number | null;
+    change_safety: number | null;
+    verification: number | null;
+  };
+  findings: AnalysisFinding[];
+  signals: Record<string, any>;
+  executive_summary?: string | null;
+  do_this_first: string[];
+  created_at: string;
+}
+
+export interface RepoAnalysisHistory {
+  latest: RepoAnalysisRun | null;
+  previous: {
+    id: string;
+    head_sha: string;
+    score: number;
+    created_at: string;
+  } | null;
+  delta_score: number;
+}
+
 export interface AIExplanation {
   summary: string;
   commit_insights: CommitInsight[];
   architecture_verdict: string;
   risk_score: number;
   recommended_actions: string[];
+  score?: number;
+  sub_scores?: {
+    structure: number | null;
+    dependency: number | null;
+    change_safety: number | null;
+    verification: number | null;
+  };
+  findings?: AnalysisFinding[];
+  delta_score?: number;
+  do_this_first?: string[];
 }
 
 export const getRepos = (sync: boolean = false, includeBenchmarks: boolean = false) => {
@@ -125,6 +173,9 @@ export const syncRepos = (includeBenchmarks: boolean = false) => {
 };
 
 export const getRepoDetails = (id: string) => apiFetch<RepoDetails>(`/api/repos/${id}`);
+
+export const getRepoAnalysis = (id: string) =>
+  apiFetch<RepoAnalysisHistory>(`/api/repos/${id}/analysis`);
 
 export const explainRepoWithGemini = (id: string) =>
   apiFetch<AIExplanation>(`/api/repos/${id}/ai-explain`, {

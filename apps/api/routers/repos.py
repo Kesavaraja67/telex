@@ -9,12 +9,21 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import and_, func, or_, select
 
-from db.models import CodeUsage, DetectedChange, Patch, PullRequest, Repo, ValidationRun
+from db.models import (
+    CodeUsage,
+    DetectedChange,
+    Patch,
+    PullRequest,
+    Repo,
+    RepoAnalysisRun,
+    ValidationRun,
+)
 from db.session import AsyncSessionLocal
 from routers.auth import get_authorized_repo, require_auth
 from schemas import (
     AIExplainOut,
     PatchOut,
+    RepoAnalysisHistoryOut,
     RepoDetailOut,
     RepoOut,
     RepoPatchesOut,
@@ -143,13 +152,85 @@ async def ai_explain_repo(
     _AI_EXPLAIN_COOLDOWN[(user_id, str(db_repo.id))] = now
 
     try:
-        explanation = await explain_repo_with_gemini(repo_target)
-        return explanation
+        from services.repo_analysis import run_repo_analysis
+
+        return await run_repo_analysis(db_repo.id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Repo not found")
     except Exception as exc:
-        logger.warning("AI explanation generation failed: %s", exc)
-        raise HTTPException(status_code=502, detail="Failed to generate AI explanation")
+        logger.warning("run_repo_analysis failed: %s; trying fallback", exc)
+        try:
+            explanation = await explain_repo_with_gemini(repo_target)
+            return explanation
+        except KeyError:
+            raise HTTPException(status_code=404, detail="Repo not found")
+        except Exception:
+            raise HTTPException(status_code=502, detail="Failed to generate AI explanation")
+
+
+@router.get("/{repo_id}/analysis", response_model=RepoAnalysisHistoryOut)
+async def get_repo_analysis(
+    repo_id: str,
+    auth_data: dict = Depends(require_auth),
+):
+    """Retrieve latest and previous evidence-based analysis runs for a repository."""
+    async with AsyncSessionLocal() as session:
+        db_repo, _ = await get_authorized_repo(session, repo_id, auth_data)
+
+        runs_res = await session.execute(
+            select(RepoAnalysisRun)
+            .where(RepoAnalysisRun.repo_id == db_repo.id)
+            .order_by(RepoAnalysisRun.created_at.desc())
+            .limit(2)
+        )
+        runs = runs_res.scalars().all()
+
+        if not runs:
+            return {"latest": None, "previous": None, "delta_score": 0}
+
+        latest = runs[0]
+        prev = runs[1] if len(runs) > 1 else None
+        delta = (latest.score - prev.score) if prev else 0
+
+        latest_created_str = (
+            latest.created_at.isoformat()
+            if getattr(latest, "created_at", None)
+            else datetime.now(timezone.utc).isoformat()
+        )
+        prev_created_str = (
+            prev.created_at.isoformat()
+            if prev and getattr(prev, "created_at", None)
+            else (datetime.now(timezone.utc).isoformat() if prev else None)
+        )
+
+        latest_dict = {
+            "id": str(latest.id),
+            "repo_id": str(latest.repo_id),
+            "head_sha": latest.head_sha,
+            "score": latest.score,
+            "sub_scores": latest.sub_scores,
+            "findings": latest.findings,
+            "signals": latest.signals,
+            "executive_summary": latest.executive_summary,
+            "do_this_first": latest.do_this_first,
+            "created_at": latest_created_str,
+        }
+        prev_dict = (
+            {
+                "id": str(prev.id),
+                "head_sha": prev.head_sha,
+                "score": prev.score,
+                "created_at": prev_created_str,
+            }
+            if prev
+            else None
+        )
+
+        return {
+            "latest": latest_dict,
+            "previous": prev_dict,
+            "delta_score": delta,
+        }
 
 
 @router.post("/{repo_id}/toggle", response_model=dict)

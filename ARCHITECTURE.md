@@ -224,6 +224,22 @@ Sibling folders at the same depth level are distributed along concentric polar r
 $$\text{radius} = 4.8 + 0.85 \times \text{siblingCount}$$
 Individual file cards cluster around their folder anchor with constrained 2D collision repulsion.
 
+### Incremental Cartography & Reverse Index (Engine Update)
+In addition to baseline full-repo graph snapshots, Telex implements an **incremental graph update engine**:
+- **Normalized Relational Model**:
+  - `atlas_nodes`: Tracks per-file metadata (`(repo_id, path)` PK, language, size, depth, content hash, unresolved specifiers, update SHA).
+  - `atlas_edges`: Tracks directional dependencies (`(repo_id, source_path, target_path)` PK, kind).
+  - `ix_atlas_edges_target`: Reverse-import index enabling $O(1)$ lookup of all upstream importers (`GET /api/repos/{id}/atlas/node/{path}/neighbors`).
+  - `atlas_state`: Tracks `head_sha`, status (`idle`, `updating`, `full_scan`, `failed`), and scan timestamp.
+- **Webhook Push Delta Pipeline**:
+  - Webhook pushes on default branches enqueue an asynchronous `update_atlas_graph` job.
+  - Pulls only touched files via GitHub API; updates modified nodes and cascades edge mutations without full repository re-ingestion.
+  - Automatic fallback to full scan when delta exceeds 40% of codebase or graph is older than 7 days.
+- **Camera Rig & Spatial Navigation**:
+  - Raycast cursor zoom: zooms toward cursor intersection point on the graph plane.
+  - Screen-plane panning: Right-drag, Space+drag, or Middle-drag pans in the camera screen plane.
+  - Dynamic atmospheric fog: Fog density calibrated to $0.51 / \text{maxRadius}$, maintaining 60% visibility at boundary.
+
 ### Role in the Autonomous Pipeline
 1. **Blast Radius Visualization**: When an upstream dependency change is discovered, Repo Atlas calculates the transitive closure of affected callers and illuminates them across 3D space.
 2. **Real-Time Breakage Overlay (SSE)**: Subscribes to `/api/repos/{id}/incidents/stream` to flash severed cables and affected cards in rose-crimson (`#E11D48`).
@@ -252,6 +268,61 @@ FOR UPDATE SKIP LOCKED;
 - **Fair-Share Multi-Tenancy**: Enforces concurrency caps per GitHub installation, preventing noisy-neighbor starvation.
 - **Heartbeat Leases**: Active jobs refresh heartbeat timestamps. If a worker terminates abruptly, orphaned jobs are reclaimed automatically.
 - **Exponential Backoff**: Transient network or rate-limit errors retry with exponential backoff and jitter.
+
+<br>
+
+<p align="right"><a href="#top"><b>▲ Back to Top</b></a></p>
+
+---
+
+<br>
+
+## <a id="run-analysis"></a>07. Evidence-Based Run Analysis Substrate
+
+Telex enforces a strict architectural doctrine: **Scores are computed from verified facts; LLMs only write prose about those facts and never invent a number.**
+
+```text
+ ┌────────────────────────────────────────────────────────────────────────┐
+ │                      DETERMINISTIC FACT EXTRACTION                     │
+ ├────────────────────────────────────────────────────────────────────────┤
+ │ 1. Structure (Tarjan SCC circular cycles, deepest DAG chain, hubs)    │
+ │ 2. Dependencies (Breaking change blast radius, packages behind major)  │
+ │ 3. Change Safety (Test suite presence, CI workflows, hub churn)       │
+ │ 4. Verification History (Merge rate, pass rate, open review backlog)   │
+ └────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+ ┌────────────────────────────────────────────────────────────────────────┐
+ │               MATHEMATICAL WEIGHT ENGINE (services/analysis_weights.py)│
+ │   Score = Structure*30% + Dependency*30% + Safety*25% + Verification*15%│
+ │         (Degraded gracefully: unmeasured signals excluded from denominator)│
+ └────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+ ┌────────────────────────────────────────────────────────────────────────┐
+ │                 SYNTHESIS & PHYSICAL AUDIT INSTRUMENT                  │
+ │ - LLM writes executive prose constrained strictly to computed findings │
+ │ - repo_analysis_runs audit table tracks historical drift & deltas     │
+ │ - Skeuomorphic analog dial with rotating needle & 4 sub-gauges in UI   │
+ └────────────────────────────────────────────────────────────────────────┘
+```
+
+### Deterministic Sub-Score Breakdown
+All weights and clamp limits are defined in a single source of truth (`services/analysis_weights.py`):
+1. **Structure Score (30% weight)**:
+   - Evaluated via Tarjan's Strongly Connected Components algorithm for circular dependency loops (-10 per cycle).
+   - Penalties for extreme fan-in/fan-out hub files (-5 per hub file with $>30$ incoming imports) and high orphan file ratios (-3 per 10% orphan files).
+   - Bonus (+10) for complete import resolution.
+2. **Dependency Score (30% weight)**:
+   - Penalties for unpatched breaking changes (-20 per package) and outdated dependencies (-5 per package behind major version).
+3. **Change Safety Score (25% weight)**:
+   - Assesses automated test coverage availability (-15 if no test files present) and active CI configuration (-10 if no CI workflow files).
+4. **Verification Score (15% weight)**:
+   - Rewards empirical merge rate (>80% gives +20) and patch verification rate (>90% gives +15).
+
+### Audit Trail & Physical Instrument Interface
+- **Relational Persistence**: Runs are stored in `repo_analysis_runs` with Head SHA binding and historical delta calculation.
+- **Physical Instrument Component**: Rendered in the UI via `RunAnalysisCard.tsx` featuring an analog meter with physical needle rotation (`-130deg` to `+130deg`), LED severity lamps, and deep-links directly focusing nodes in the 3D Atlas.
 
 <br>
 

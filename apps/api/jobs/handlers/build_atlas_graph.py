@@ -8,9 +8,22 @@ import shutil
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
-from db.models import Installation, Repo, RepoAtlasGraph
+from db.models import (
+    AtlasEdge as DBAtlasEdge,
+)
+from db.models import (
+    AtlasNode as DBAtlasNode,
+)
+from db.models import (
+    AtlasState as DBAtlasState,
+)
+from db.models import (
+    Installation,
+    Repo,
+    RepoAtlasGraph,
+)
 from db.session import AsyncSessionLocal
 from services.import_graph import build_import_graph
 from services.repo_ingest import fetch_repo_snapshot
@@ -103,15 +116,64 @@ async def run(payload_or_session, maybe_job=None) -> None:
                 row.truncated = truncated
                 row.status = "ready"
                 row.completed_at = datetime.now(timezone.utc)
-                await save_session.commit()
-                logger.info(
-                    "build_atlas_graph: repo=%s sha=%s nodes=%d edges=%d truncated=%s",
-                    repo_full_name,
-                    commit_sha[:8],
-                    row.node_count,
-                    row.edge_count,
-                    row.truncated,
+
+            # Dual-write into normalized incremental tables (Phase 3)
+            await save_session.execute(delete(DBAtlasEdge).where(DBAtlasEdge.repo_id == repo_uuid))
+            await save_session.execute(delete(DBAtlasNode).where(DBAtlasNode.repo_id == repo_uuid))
+
+            for n in graph.nodes:
+                node_row = DBAtlasNode(
+                    repo_id=repo_uuid,
+                    path=n.id,
+                    name=n.name,
+                    dir=n.dir,
+                    depth=n.depth,
+                    ext=n.ext,
+                    language=n.language or "plaintext",
+                    is_binary=n.is_binary,
+                    size_bytes=n.size_bytes,
+                    unresolved_specifiers=n.unresolved_specifiers or [],
+                    updated_sha=commit_sha,
                 )
+                save_session.add(node_row)
+
+            for e in graph.edges:
+                edge_row = DBAtlasEdge(
+                    repo_id=repo_uuid,
+                    source_path=e.source,
+                    target_path=e.target,
+                    kind=e.kind or "static",
+                    updated_sha=commit_sha,
+                )
+                save_session.add(edge_row)
+
+            now_ts = datetime.now(timezone.utc)
+            state_row = await save_session.get(DBAtlasState, repo_uuid)
+            if not state_row:
+                state_row = DBAtlasState(
+                    repo_id=repo_uuid,
+                    head_sha=commit_sha,
+                    status="idle",
+                    last_full_scan_sha=commit_sha,
+                    last_full_scan_at=now_ts,
+                )
+                save_session.add(state_row)
+            else:
+                state_row.head_sha = commit_sha
+                state_row.status = "idle"
+                state_row.error_message = None
+                state_row.last_full_scan_sha = commit_sha
+                state_row.last_full_scan_at = now_ts
+
+            await save_session.commit()
+            logger.info(
+                "build_atlas_graph: repo=%s sha=%s nodes=%d edges=%d truncated=%s (normalized tables synced)",
+                repo_full_name,
+                commit_sha[:8],
+                node_count,
+                edge_count,
+                truncated,
+            )
     except Exception as exc:
         logger.exception("build_atlas_graph failed for repo=%s sha=%s", repo_id_str, commit_sha)
         async with AsyncSessionLocal() as err_session:

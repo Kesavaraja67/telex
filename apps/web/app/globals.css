@@ -289,227 +289,539 @@ h1, h2, h3, h4, h5, h6 {
   background: rgba(255, 255, 255, 0.4);
 }
 
-/* ─── Phase 1: Skeuomorphic Material Utilities ──────────────────────────── */
+/* ─── Phase 1: Skeuomorphic Material Utilities — Maximum Realism ────────── */
 
-/* Metal bezel — outer chassis / card frames */
+/* Dual-angle scratch texture (two brushing passes = more convincing machined metal) */
+:root {
+  --metal-scratch-a: repeating-linear-gradient(
+    82deg, transparent, transparent 2px,
+    rgba(255,255,255,0.013) 2px, rgba(255,255,255,0.013) 3px
+  );
+  --metal-scratch-b: repeating-linear-gradient(
+    88deg, transparent, transparent 5px,
+    rgba(255,255,255,0.007) 5px, rgba(255,255,255,0.007) 6px
+  );
+}
+
+/* ── Metal Bezel — machined chassis / card outer frame ──────────────────── */
 .metal-bezel {
   background:
-    var(--metal-scratch),
-    linear-gradient(var(--skeuo-light-angle), var(--metal-base) 0%, var(--metal-mid) 50%, var(--metal-light) 100%);
+    var(--metal-scratch-a),
+    var(--metal-scratch-b),
+    linear-gradient(
+      var(--skeuo-light-angle),
+      var(--metal-light) 0%,       /* lit corner: top-left */
+      var(--metal-mid)   20%,
+      var(--metal-base)  65%,
+      #141618 100%                 /* dark corner: bottom-right */
+    );
+  /* 6-layer bevel stack: inner + outer bevels mirroring the light model */
   box-shadow:
-    /* outer bevel: lit edge top-left, shadow edge bottom-right */
-    inset 0  1px 0 var(--skeuo-highlight-top),
-    inset 0 -1px 0 var(--skeuo-shadow-deep),
-    inset  1px 0 0 var(--skeuo-highlight-sub),
-    inset -1px 0 0 var(--skeuo-shadow-mid),
-    /* outer drop shadow */
-    0 4px 16px rgba(0, 0, 0, 0.7),
-    0 1px 4px  rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(0, 0, 0, 0.6);
+    /* Primary inner bevel — bright top-left edge */
+    inset  0  1px 0 rgba(255, 255, 255, 0.24),
+    inset  1px 0 0 rgba(255, 255, 255, 0.11),
+    /* Primary inner bevel — shadow bottom-right edge */
+    inset  0 -1px 0 rgba(0, 0, 0, 0.75),
+    inset -1px 0 0 rgba(0, 0, 0, 0.50),
+    /* Secondary inner bevel — softer machined step */
+    inset  0  2px 2px rgba(255, 255, 255, 0.05),
+    inset  0 -3px 4px rgba(0, 0, 0, 0.35),
+    /* Outer drop shadow — component lifts off background */
+    0 4px 16px rgba(0, 0, 0, 0.80),
+    0 1px 3px  rgba(0, 0, 0, 0.60),
+    0 8px 32px rgba(0, 0, 0, 0.40);
+  border: 1px solid rgba(0, 0, 0, 0.70);
+  border-top-color: rgba(255, 255, 255, 0.08);
+  border-left-color: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
 }
 
-/* Anodized panel — inset content well */
-.panel-inset {
-  background: var(--panel-base);
-  box-shadow:
-    inset 0  2px 6px var(--skeuo-shadow-inner),
-    inset 0  1px 1px rgba(0, 0, 0, 0.8),
-    /* lit rim at top (reflecting light from above) */
-    inset 0 -1px 0 var(--panel-rim);
-  border: 1px solid var(--panel-rim);
-  border-top-color: rgba(0, 0, 0, 0.5);
+.metal-bezel.rounded-full,
+.panel-inset.rounded-full {
+  border-radius: 9999px !important;
 }
 
-/* Recessed black glass — atlas canvas frame and modal backdrops */
-.glass-bezel {
-  background: var(--glass-base);
+.metal-bezel.rounded-2xl,
+.panel-inset.rounded-2xl {
+  border-radius: 1rem !important;
+}
+
+.metal-bezel.rounded-xl,
+.panel-inset.rounded-xl {
+  border-radius: 0.75rem !important;
+}
+
+.metal-bezel.rounded-lg,
+.panel-inset.rounded-lg {
+  border-radius: 0.5rem !important;
+}
+
+/* ── Anodized Panel — recessed content well / instrument face ───────────── */
+.panel-inset {
+  background:
+    /* Subtle grain to differentiate from metal */
+    repeating-linear-gradient(
+      0deg, transparent, transparent 1px,
+      rgba(255,255,255,0.003) 1px, rgba(255,255,255,0.003) 2px
+    ),
+    var(--panel-base);
   box-shadow:
-    var(--glass-inner-shadow),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.9);
-  border-top: 1px solid var(--glass-rim-lit);
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
-  border-right: 1px solid var(--glass-rim-dark);
-  border-bottom: 1px solid var(--glass-rim-dark);
+    /* Deep primary recess shadow */
+    inset 0  3px 8px rgba(0, 0, 0, 0.65),
+    inset 0  1px 2px rgba(0, 0, 0, 0.90),
+    /* Left-wall shadow (right side is brighter from light source) */
+    inset 1px 0 4px rgba(0, 0, 0, 0.30),
+    /* Bottom reflection — faint light bouncing up from below */
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.60);
+  border-top-color: rgba(0, 0, 0, 0.80);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+/* ── Recessed Black Glass — atlas canvas bezel / modal backdrop ─────────── */
+.glass-bezel {
+  background:
+    /* Subtle horizontal scanline texture — like a real CRT/LCD */
+    repeating-linear-gradient(
+      0deg,
+      rgba(255,255,255,0.014) 0px,
+      rgba(255,255,255,0.014) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    var(--glass-base);
+  box-shadow:
+    /* Deep screen recess */
+    inset 0 3px 12px rgba(0, 0, 0, 0.95),
+    inset 0 1px 4px  rgba(0, 0, 0, 1.0),
+    /* Inner rim glint (top reflection of room light) */
+    inset 0 0 0 1px rgba(0, 0, 0, 0.95);
+  border-top:    1px solid var(--glass-rim-lit);
+  border-left:   1px solid rgba(255, 255, 255, 0.08);
+  border-right:  1px solid rgba(0, 0, 0, 0.85);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.85);
   border-radius: 4px;
 }
 
-/* Key-cap button — physical tactile press button */
+/* ── Key-Cap Button — physical tactile key with 3px wall depth ──────────── */
 .key-cap {
-  background: linear-gradient(180deg, var(--key-top) 0%, var(--key-base) 100%);
+  --key-rubber: repeating-linear-gradient(
+    0deg, transparent, transparent 1px,
+    rgba(255,255,255,0.02) 1px, rgba(255,255,255,0.02) 2px
+  );
+  background:
+    var(--key-rubber),
+    linear-gradient(180deg, var(--key-top) 0%, var(--key-base) 60%, #1a1d21 100%);
   color: var(--key-label);
   font-family: var(--font-mono);
-  font-size: 0.6875rem;   /* 11px */
+  font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
-  border: 1px solid rgba(0, 0, 0, 0.6);
+  /* Text shadow: engraved into key surface */
+  text-shadow: 0 1px 0 rgba(0,0,0,0.8), 0 -1px 0 rgba(255,255,255,0.07);
+  border: 1px solid rgba(0, 0, 0, 0.70);
+  border-top-color: rgba(255, 255, 255, 0.06);
   border-radius: 5px;
   box-shadow:
-    /* top-left lit bevel */
-    inset  0  1px 0 var(--skeuo-highlight-sub),
-    inset  1px 0 0 rgba(255, 255, 255, 0.05),
-    /* bottom-right shadow bevel */
-    inset  0 -1px 0 rgba(0, 0, 0, 0.5),
-    inset -1px 0 0 rgba(0, 0, 0, 0.3),
-    /* physical depth: key sits above chassis */
-    0 2px 0 rgba(0, 0, 0, 0.6),
-    0 3px 6px rgba(0, 0, 0, 0.4);
+    /* Top lit bevel */
+    inset  0  1px 0 rgba(255, 255, 255, 0.16),
+    inset  1px 0 0 rgba(255, 255, 255, 0.08),
+    /* Bottom shadow bevel */
+    inset  0 -2px 0 rgba(0, 0, 0, 0.55),
+    inset -1px 0 0 rgba(0, 0, 0, 0.40),
+    /* Physical wall depth: 3 layers create visible key height */
+    0 2px 0 #0f1113,
+    0 3px 0 #0b0d0f,
+    0 4px 0 rgba(0, 0, 0, 0.50),
+    /* Ambient shadow under the key */
+    0 4px 10px rgba(0, 0, 0, 0.55);
   cursor: pointer;
   transition:
-    transform 80ms var(--ease-press),
-    box-shadow 80ms var(--ease-press),
-    background 80ms var(--ease-press);
-  transform: translateY(0px);
+    transform 70ms var(--ease-press),
+    box-shadow 70ms var(--ease-press),
+    background 70ms var(--ease-press);
+  transform: translateY(0);
+  line-height: 1;
+  user-select: none;
 }
 
 .key-cap:hover {
-  background: linear-gradient(180deg, #2d3038 0%, #252830 100%);
+  background:
+    var(--key-rubber),
+    linear-gradient(180deg, #2e3240 0%, #252830 60%, #1c1f24 100%);
   box-shadow:
-    inset  0  1px 0 rgba(255, 255, 255, 0.12),
-    inset  1px 0 0 rgba(255, 255, 255, 0.06),
-    inset  0 -1px 0 rgba(0, 0, 0, 0.5),
-    inset -1px 0 0 rgba(0, 0, 0, 0.3),
-    0 2px 0 rgba(0, 0, 0, 0.6),
-    0 3px 8px rgba(0, 0, 0, 0.5);
+    inset  0  1px 0 rgba(255, 255, 255, 0.20),
+    inset  1px 0 0 rgba(255, 255, 255, 0.10),
+    inset  0 -2px 0 rgba(0, 0, 0, 0.55),
+    inset -1px 0 0 rgba(0, 0, 0, 0.40),
+    0 2px 0 #0f1113,
+    0 3px 0 #0b0d0f,
+    0 4px 0 rgba(0, 0, 0, 0.50),
+    0 4px 14px rgba(0, 0, 0, 0.60);
 }
 
 .key-cap:active, .key-cap[data-pressed="true"] {
-  background: linear-gradient(180deg, var(--key-pressed) 0%, var(--key-base) 100%);
-  transform: translateY(1px);
+  /* Key travels DOWN 2px: wall collapses, inner shadow compresses */
+  background:
+    var(--key-rubber),
+    linear-gradient(180deg, var(--key-pressed) 0%, #1a1d21 100%);
+  transform: translateY(2px);
   box-shadow:
-    inset 0  2px 4px rgba(0, 0, 0, 0.6),
-    inset 0  1px 0 rgba(0, 0, 0, 0.4),
-    0 1px 0 rgba(0, 0, 0, 0.6);
-  transition: transform 80ms var(--ease-press), box-shadow 80ms var(--ease-press);
+    /* Compressed spring: strong top inset shadow */
+    inset 0  3px 6px rgba(0, 0, 0, 0.75),
+    inset 0  1px 2px rgba(0, 0, 0, 0.90),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.60),
+    /* Wall collapses to 1px */
+    0 1px 0 #0b0d0f,
+    0 1px 4px rgba(0, 0, 0, 0.50);
+  transition: transform 70ms var(--ease-press), box-shadow 70ms var(--ease-press);
 }
 
-.key-cap:disabled, .key-cap[disabled] {
-  opacity: 0.35;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* Spring settle after press release */
-.key-cap:not(:active) {
+/* Spring-back after release */
+.key-cap:not(:active):not([data-pressed="true"]) {
   transition:
-    transform 120ms var(--ease-spring),
-    box-shadow 120ms var(--ease-spring),
+    transform 140ms var(--ease-spring),
+    box-shadow 140ms var(--ease-spring),
     background 80ms var(--ease-press);
 }
 
-/* LED lamp — status indicator dot */
+.key-cap:disabled, .key-cap[disabled] {
+  opacity: 0.32;
+  cursor: not-allowed;
+  transform: none !important;
+  pointer-events: none;
+}
+
+/* Size modifiers */
+.key-cap--sm  { font-size: 0.5625rem; padding: 5px 12px; border-radius: 4px; }
+.key-cap--lg  { font-size: 0.75rem;   padding: 10px 28px; }
+.key-cap--wide { width: 100%; justify-content: center; display: flex; align-items: center; gap: 6px; }
+
+/* Ghost secondary variant */
+.key-cap--ghost {
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(255,255,255,0.012) 1px, rgba(255,255,255,0.012) 2px),
+    linear-gradient(180deg, #171a1e 0%, #141618 60%, #111315 100%);
+  color: var(--text-secondary);
+  text-shadow: 0 1px 0 rgba(0,0,0,0.8);
+  box-shadow:
+    inset  0  1px 0 rgba(255, 255, 255, 0.08),
+    inset  1px 0 0 rgba(255, 255, 255, 0.04),
+    inset  0 -2px 0 rgba(0, 0, 0, 0.50),
+    inset -1px 0 0 rgba(0, 0, 0, 0.35),
+    0 2px 0 #0a0b0d,
+    0 3px 0 #080909,
+    0 3px 8px rgba(0, 0, 0, 0.45);
+}
+.key-cap--ghost:hover { color: var(--text-pure); }
+
+/* ── LED Lamp — physical dome lens with specular highlight ──────────────── */
+/* The LED is a convex dome sitting in a dark housing ring.
+   Light model: specular glint top-left (room light reflection).
+   Emitted color shows through the center, darkens toward housing edge. */
 .led {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
-  background: var(--led-off);
-  transition: background 200ms ease-out, box-shadow 200ms ease-out;
   flex-shrink: 0;
+  position: relative;
+  /* Off state: very dark dome, minimal specular */
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255,255,255,0.55) 0%, transparent 34%),
+    radial-gradient(circle at 48% 44%, #1a1c1f 0%, #0c0e10 55%, #040506 100%);
+  box-shadow:
+    /* Housing ring: 1.5px dark band around dome */
+    0 0 0 1.5px rgba(0,0,0,0.88),
+    /* Outer housing bevel: subtly raised socket */
+    0 0 0 2.5px #0a0b0d,
+    /* Dome surface curvature shadows */
+    inset 0  1px 2px rgba(255, 255, 255, 0.12),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.70);
+  transition: background 200ms ease-out, box-shadow 200ms ease-out;
 }
-.led[data-state="ok"]    { background: var(--led-ok);    box-shadow: var(--led-ok-glow); }
-.led[data-state="warn"]  { background: var(--led-warn);  box-shadow: var(--led-warn-glow); }
-.led[data-state="fault"] { background: var(--led-fault); box-shadow: var(--led-fault-glow); }
-.led[data-state="busy"]  { background: var(--led-busy);  animation: led-pulse 1.2s ease-in-out infinite; }
+
+/* OK — healthy / active / connected : teal */
+.led[data-state="ok"] {
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255,255,255,0.82) 0%, transparent 36%),
+    radial-gradient(circle at 48% 44%, #14b8a6 0%, color-mix(in srgb, #14b8a6 25%, #020d0c) 58%, #020d0c 90%);
+  box-shadow:
+    0 0 0 1.5px rgba(0,0,0,0.85),
+    0 0 0 2.5px #031210,
+    inset 0  1px 2px rgba(255, 255, 255, 0.22),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.45),
+    /* Emitted glow — 3 falloff rings */
+    0 0  5px rgba(20, 184, 166, 0.95),
+    0 0 12px rgba(20, 184, 166, 0.55),
+    0 0 24px rgba(20, 184, 166, 0.22);
+}
+
+/* WARN — degraded / stale / risk pending : amber */
+.led[data-state="warn"] {
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255,255,255,0.80) 0%, transparent 36%),
+    radial-gradient(circle at 48% 44%, #f59e0b 0%, color-mix(in srgb, #f59e0b 22%, #0e0800) 58%, #0e0800 90%);
+  box-shadow:
+    0 0 0 1.5px rgba(0,0,0,0.85),
+    0 0 0 2.5px #0d0700,
+    inset 0  1px 2px rgba(255, 255, 255, 0.20),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.50),
+    0 0  5px rgba(245, 158, 11, 0.95),
+    0 0 12px rgba(245, 158, 11, 0.55),
+    0 0 24px rgba(245, 158, 11, 0.22);
+}
+
+/* FAULT — broken / failed / severed : red */
+.led[data-state="fault"] {
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255,255,255,0.78) 0%, transparent 36%),
+    radial-gradient(circle at 48% 44%, #f43f5e 0%, color-mix(in srgb, #f43f5e 22%, #0e0005) 58%, #0e0005 90%);
+  box-shadow:
+    0 0 0 1.5px rgba(0,0,0,0.85),
+    0 0 0 2.5px #0d0004,
+    inset 0  1px 2px rgba(255, 255, 255, 0.18),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.50),
+    0 0  5px rgba(244, 63, 94, 0.95),
+    0 0 12px rgba(244, 63, 94, 0.55),
+    0 0 24px rgba(244, 63, 94, 0.22);
+}
+
+/* BUSY — scanning / in-flight : white pulsing */
+.led[data-state="busy"] {
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255,255,255,1.0) 0%, transparent 40%),
+    radial-gradient(circle at 48% 44%, #d4d4d8 0%, #484848 55%, #1a1a1a 90%);
+  box-shadow:
+    0 0 0 1.5px rgba(0,0,0,0.85),
+    0 0 0 2.5px #141414,
+    inset 0  1px 2px rgba(255, 255, 255, 0.30),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.45),
+    0 0  5px rgba(255, 255, 255, 0.90),
+    0 0 12px rgba(255, 255, 255, 0.50),
+    0 0 24px rgba(255, 255, 255, 0.18);
+  animation: led-pulse 1.4s ease-in-out infinite;
+}
 
 @keyframes led-pulse {
-  0%, 100% { opacity: 1; box-shadow: var(--led-busy-glow); }
-  50%       { opacity: 0.35; box-shadow: none; }
+  0%, 100% { opacity: 1; filter: brightness(1); }
+  50%       { opacity: 0.30; filter: brightness(0.3); }
 }
 
-/* Engraved label — text recessed into surface */
+/* ── Engraved / Embossed Typography ─────────────────────────────────────── */
+
+/* Engraved: text is CUT into the metal surface.
+   Light from top-left → bright below the cut, dark above. */
 .label-engraved {
-  color: #6b7280;
+  color: #5a6270;
   text-shadow:
-     0  1px 0 rgba(255, 255, 255, 0.09),
-     0 -1px 0 rgba(0, 0, 0, 0.70);
-  letter-spacing: 0.08em;
+    0  1px 0 rgba(255, 255, 255, 0.10),  /* lit bottom of cut */
+    0 -1px 0 rgba(0, 0, 0, 0.80);         /* shadow top of cut */
+  letter-spacing: 0.09em;
   text-transform: uppercase;
-  font-size: 0.625rem;   /* 10px */
+  font-size: 0.5625rem;   /* 9px */
   font-family: var(--font-mono);
-  font-weight: 500;
+  font-weight: 600;
+  line-height: 1;
 }
 
-/* Embossed label — text raised above surface */
+/* Embossed: text is STAMPED up from surface.
+   Light from top-left → dark below (hidden face), bright above (lit face). */
 .label-embossed {
   color: #e4e4e7;
   text-shadow:
-     0 -1px 0 rgba(0, 0, 0, 0.80),
-     0  1px 0 rgba(255, 255, 255, 0.12);
-  letter-spacing: 0.04em;
+    0 -1px 0 rgba(0, 0, 0, 0.90),         /* shadow below raised text */
+    0  1px 0 rgba(255, 255, 255, 0.14),   /* light on top face */
+    0  0 8px rgba(255, 255, 255, 0.04);   /* very faint fill glow */
+  letter-spacing: 0.03em;
 }
 
-/* Engraved divider — recessed horizontal rule */
+/* Engraved divider — groove cut across the panel */
 .divider-engraved {
   border: none;
-  border-top: 1px solid rgba(0, 0, 0, 0.50);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05);
+  height: 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.60);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.055);
+  margin: 0;
 }
 
-/* Toggle switch — physical on/off slider */
+/* ── Toggle Switch — machined slider with dome thumb ────────────────────── */
 .toggle-track {
   position: relative;
   display: inline-flex;
   align-items: center;
-  width: 40px;
+  width: 42px;
   height: 22px;
   border-radius: 11px;
-  background: var(--panel-inset);
-  border: 1px solid rgba(0, 0, 0, 0.6);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+  background:
+    /* Recessed oval track */
+    linear-gradient(180deg, var(--panel-inset) 0%, #0a0c0e 100%);
+  border: 1px solid rgba(0, 0, 0, 0.70);
+  border-top-color: rgba(0, 0, 0, 0.85);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.75),
+    inset 0 1px 2px rgba(0, 0, 0, 0.90),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04);
   cursor: pointer;
-  transition: background 150ms var(--ease-press);
+  transition: background 200ms var(--ease-press), border-color 200ms var(--ease-press);
 }
 .toggle-track[data-checked="true"] {
-  background: #0f2b28;  /* very dark teal tint — not the LED color */
-  border-color: rgba(20, 184, 166, 0.25);
+  background: linear-gradient(180deg, #0c2420 0%, #071a17 100%);
+  border-color: rgba(20, 184, 166, 0.22);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.70),
+    inset 0 -1px 0 rgba(20, 184, 166, 0.08);
 }
+
+/* Machined metal dome thumb */
 .toggle-thumb {
   position: absolute;
-  left: 3px;
-  width: 16px;
-  height: 16px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  background: linear-gradient(180deg, var(--key-top) 0%, var(--metal-base) 100%);
-  border: 1px solid rgba(0, 0, 0, 0.5);
+  background:
+    /* Specular highlight on dome */
+    radial-gradient(circle at 35% 30%, rgba(255,255,255,0.40) 0%, transparent 50%),
+    /* Main dome gradient: lit top-left, dark bottom-right */
+    linear-gradient(135deg, var(--metal-light) 0%, var(--metal-mid) 50%, var(--metal-base) 100%);
+  border: 1px solid rgba(0, 0, 0, 0.60);
   box-shadow:
-    inset 0 1px 0 var(--skeuo-highlight-sub),
-    0 1px 3px rgba(0, 0, 0, 0.6),
-    0 2px 0 rgba(0, 0, 0, 0.4);
-  transition: left 150ms var(--ease-press), box-shadow 150ms var(--ease-press);
+    /* Dome lit bevel */
+    inset  0  1px 0 rgba(255, 255, 255, 0.28),
+    inset  1px 0 0 rgba(255, 255, 255, 0.14),
+    inset  0 -1px 0 rgba(0, 0, 0, 0.45),
+    inset -1px 0 0 rgba(0, 0, 0, 0.25),
+    /* Thumb sits above track */
+    0 1px 4px rgba(0, 0, 0, 0.70),
+    0 2px 0 rgba(0, 0, 0, 0.50);
+  transition: left 160ms var(--ease-press), box-shadow 160ms var(--ease-press);
 }
 .toggle-track[data-checked="true"] .toggle-thumb {
-  left: calc(100% - 19px);
+  left: calc(100% - 20px);
+  box-shadow:
+    inset  0  1px 0 rgba(255, 255, 255, 0.28),
+    inset  1px 0 0 rgba(255, 255, 255, 0.14),
+    inset  0 -1px 0 rgba(0, 0, 0, 0.45),
+    inset -1px 0 0 rgba(0, 0, 0, 0.25),
+    0 1px 4px rgba(0, 0, 0, 0.60),
+    0 2px 0 rgba(0, 0, 0, 0.40),
+    /* Teal glow from LED reflecting on thumb */
+    0 0 8px rgba(20, 184, 166, 0.20);
 }
-/* LED pip at right end of toggle track */
+
+/* LED pip inside the toggle track */
 .toggle-led {
   position: absolute;
-  right: 3px;
+  right: 4px;
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--led-off);
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255,255,255,0.40) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, #1a1c1f 0%, #080a0b 100%);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.80),
+    inset 0 1px 1px rgba(255,255,255,0.08);
   transition: background 200ms ease-out, box-shadow 200ms ease-out;
 }
 .toggle-track[data-checked="true"] .toggle-led {
-  background: var(--led-ok);
-  box-shadow: var(--led-ok-glow);
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255,255,255,0.80) 0%, transparent 36%),
+    radial-gradient(circle at 48% 44%, #14b8a6 0%, #041f1c 65%, #020d0c 100%);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.80),
+    inset 0 1px 1px rgba(255,255,255,0.22),
+    0 0  4px rgba(20, 184, 166, 0.90),
+    0 0 10px rgba(20, 184, 166, 0.45);
 }
 
-/* ─── Reduced Motion Coverage ────────────────────────────────────────────── */
+/* ── Sidebar Panel — physical rack-mounted instrument panel ─────────────── */
+.sidebar-panel {
+  background:
+    var(--metal-scratch-a),
+    var(--metal-scratch-b),
+    linear-gradient(90deg, var(--metal-base) 0%, var(--metal-mid) 60%, #202327 100%);
+  /* Right edge: lit from inside the rack (left-to-right light) */
+  box-shadow:
+    inset -1px 0 0 rgba(255, 255, 255, 0.06),
+    /* Cast shadow onto main content area */
+    3px 0 14px rgba(0, 0, 0, 0.75),
+    6px 0 28px rgba(0, 0, 0, 0.45);
+  border-right: 1px solid rgba(0, 0, 0, 0.80);
+}
+
+/* ── Nav Item States — panel recess (active) and flat label (inactive) ───── */
+/* Active: item is pressed/recessed INTO the panel */
+.nav-item-active {
+  background: var(--panel-inset);
+  color: #e4e4e7;
+  border: 1px solid rgba(0, 0, 0, 0.65);
+  border-top-color: rgba(0, 0, 0, 0.80);
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.70),
+    inset 0 1px 2px rgba(0, 0, 0, 0.85),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+}
+
+/* Inactive: engraved label on the panel face */
+.nav-item-inactive {
+  color: #6b7280;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  transition: all 100ms var(--ease-press);
+}
+.nav-item-inactive:hover {
+  color: #a1a1aa;
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.05);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+}
+
+/* ── Badge Chip — engraved data plate with LED pip ──────────────────────── */
+.badge-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 5px;
+  border-radius: 4px;
+  background: var(--panel-inset);
+  border: 1px solid rgba(0, 0, 0, 0.65);
+  border-top-color: rgba(0, 0, 0, 0.80);
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.60),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+    0 1px 0 rgba(255, 255, 255, 0.05);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: #5a6270;
+  /* Engraved text */
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08),
+    0 -1px 0 rgba(0, 0, 0, 0.75);
+  white-space: nowrap;
+}
+
+/* ── Reduced Motion ─────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .animate-shimmer::after,
   .animate-radar-ping,
   .led[data-state="busy"],
-  .key-cap,
-  .key-cap:hover,
-  .key-cap:active,
-  .key-cap:not(:active),
-  .toggle-thumb,
-  .toggle-track,
+  .key-cap, .key-cap:hover, .key-cap:active, .key-cap:not(:active),
+  .toggle-thumb, .toggle-track, .toggle-led, .nav-item-inactive,
   .led {
-    animation: none;
-    transition: none;
+    animation: none !important;
+    transition: none !important;
   }
 }
+
+

@@ -4,24 +4,22 @@ import { useEffect, useRef, ButtonHTMLAttributes } from "react";
 import { attachMagneticButton } from "@/lib/animations";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "ghost" | "danger";
+  variant?: "primary" | "ghost" | "danger" | "key-cap";
   size?: "sm" | "md" | "lg";
   magnetic?: boolean;
 }
 
 const variantStyles: Record<string, string> = {
-  primary:
-    "bg-white text-black font-semibold hover:bg-white/90 shadow-[0_0_20px_rgba(255,255,255,0.2)]",
-  ghost:
-    "border border-white/20 text-white hover:border-white/40 hover:bg-white/5",
-  danger:
-    "border border-white/20 text-[#A1A1AA] hover:bg-white/5 hover:text-white",
+  primary: "key-cap",
+  ghost: "key-cap key-cap--ghost",
+  danger: "key-cap border-rose-950/80 text-rose-300 hover:text-white shadow-[0_2px_0_#1a080c,0_3px_0_#100508,0_4px_10px_rgba(244,63,94,0.15)]",
+  "key-cap": "key-cap",
 };
 
 const sizeStyles: Record<string, string> = {
-  sm: "px-4 py-1.5 text-xs",
-  md: "px-6 py-2.5 text-sm",
-  lg: "px-8 py-3 text-base",
+  sm: "key-cap--sm",
+  md: "px-5 py-2 text-xs sm:text-sm",
+  lg: "key-cap--lg",
 };
 
 export default function Button({
@@ -47,11 +45,10 @@ export default function Button({
     <button
       ref={ref}
       className={[
-        "font-mono tracking-tight rounded-lg transition-all duration-200 cursor-pointer",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
-        "disabled:opacity-40 disabled:cursor-not-allowed",
-        variantStyles[variant],
-        sizeStyles[size],
+        "font-mono tracking-wider inline-flex items-center justify-center gap-2 select-none",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
+        variantStyles[variant] || "key-cap",
+        sizeStyles[size] || "",
         className,
       ].join(" ")}
       {...props}
@@ -60,3 +57,4 @@ export default function Button({
     </button>
   );
 }
+

@@ -206,3 +206,32 @@ Fonts remain: **Space Grotesk** (sans) and **Geist Mono** (mono).
 ### Anti-Slop Guarantee
 - Every visual element communicates state, hierarchy, or data flow.
 - No decoration for its own sake.
+
+---
+
+## 8. Run Analysis Analog Dial & Physical Instrument Cluster
+
+The Run Analysis interface (`RunAnalysisCard.tsx`) applies the hybrid skeuomorphic design doctrine to analytical risk telemetry:
+
+### 8.1 Physical Meter Face & Needle Geometry
+- **Outer Bezel**: Machined aluminum bezel with concentric bevels (`.metal-bezel`, `145deg` light highlight).
+- **Recessed Face**: Inset dark matte well (`--panel-inset`) textured with radial tick indicators and calibrated numeric stops (0, 25, 50, 75, 100).
+- **Mechanical Needle**:
+  - Center hub: Machined brass/metal pivot rivet with rim reflection.
+  - Needle blade: Tapered high-contrast needle with drop shadow offset along the virtual light axis.
+  - Deflection angle: Linearly mapped across a $260^\circ$ total sweep:
+    $$\theta = -130^\circ + \left(\frac{\text{Score}}{100}\right) \times 260^\circ$$
+  - Spring dampening: 700ms cubic-bezier transition (`cubic-bezier(0.34, 1.3, 0.64, 1)`), simulating physical galvanometer needle inertia and spring settle.
+
+### 8.2 Sub-Gauge Instrumentation
+- Four calibrated horizontal sub-score gauges (Structure, Dependency, Change Safety, Verification).
+- **Physical Inset Wells**: Deep engraved channels with top shadow (`--skeuo-shadow-inner`).
+- **Graceful Unmeasured State**: When repository telemetry is insufficient to compute a sub-score (e.g. no CI history), the gauge renders a brushed cross-hatch channel stamped with `"NOT MEASURED"`, preventing misleading zeros.
+
+### 8.3 Severity Lamps & 3D Spatial Deep-Linking
+- Findings cards feature physical circular LED indicators:
+  - Critical severity: Crimson pulse (`--led-fault`)
+  - Warning severity: Amber glow (`--led-warn`)
+  - Informational severity: White/teal illumination
+- **Spatial Telemetry Linkage**: Every finding includes a physical key-cap button deep-linking directly into `/dashboard/atlas?focus=<path>`, animating the 3D camera rig directly to the implicated AST node.
+
