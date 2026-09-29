@@ -9,6 +9,7 @@ interface RunAnalysisCardProps {
   repoName: string;
   history: RepoAnalysisHistory | null;
   isLoading: boolean;
+  error?: string | null;
   onTriggerAnalysis: () => Promise<void>;
 }
 
@@ -17,9 +18,23 @@ export function RunAnalysisCard({
   repoName,
   history,
   isLoading,
+  error,
   onTriggerAnalysis,
 }: RunAnalysisCardProps) {
   const [selectedFinding, setSelectedFinding] = useState<number | null>(null);
+
+  const buildAtlasLink = (deepLink?: string) => {
+    const params = new URLSearchParams();
+    params.set("repoId", repoId);
+    if (deepLink) {
+      const searchPart = deepLink.startsWith("?") ? deepLink.slice(1) : deepLink;
+      const parsed = new URLSearchParams(searchPart);
+      parsed.forEach((val, key) => {
+        params.set(key, val);
+      });
+    }
+    return `/dashboard/atlas?${params.toString()}`;
+  };
 
   const latest: RepoAnalysisRun | null = history?.latest || null;
   const previous = history?.previous || null;
@@ -40,6 +55,12 @@ export function RunAnalysisCard({
 
   return (
     <div className="p-6 bg-black/75 backdrop-blur-xl border border-white/15 relative overflow-hidden flex flex-col gap-6 rounded-2xl shadow-2xl">
+      {error && (
+        <div className="p-3 bg-red-950/40 border border-red-500/30 rounded-lg flex items-center gap-2 text-red-200 text-xs font-mono relative z-10">
+          <span>⚠️</span>
+          <span>{error}</span>
+        </div>
+      )}
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.08] pb-4 relative z-10">
         <div className="flex items-center gap-3">
@@ -420,7 +441,7 @@ export function RunAnalysisCard({
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {f.atlas_deep_link && (
                             <Link
-                              href={`/dashboard/atlas?repo=${repoId}${f.atlas_deep_link}`}
+                              href={buildAtlasLink(f.atlas_deep_link)}
                               className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white text-white hover:text-black font-mono text-[10px] font-semibold transition-all flex items-center gap-1 cursor-pointer shadow-sm"
                             >
                               <span>Atlas View</span>

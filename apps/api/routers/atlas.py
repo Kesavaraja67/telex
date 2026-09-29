@@ -83,21 +83,34 @@ async def get_atlas_graph(
                     select(AtlasState).where(AtlasState.repo_id == repo.id)
                 )
                 state_row = state_res.scalar_one_or_none()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.error("Failed to query AtlasState for repo %s: %s", repo.id, exc)
 
             last_scan_iso = None
             mode = "full"
-            if state_row:
-                if getattr(state_row, "last_full_scan_at", None) and isinstance(
-                    state_row.last_full_scan_at, datetime
-                ):
-                    last_scan_iso = state_row.last_full_scan_at.isoformat()
+            if refresh:
+                mode = "full"
+            elif (
+                row.graph_json
+                and isinstance(row.graph_json, dict)
+                and "build_mode" in row.graph_json
+            ):
+                mode = row.graph_json["build_mode"]
+            elif state_row:
                 if (
                     getattr(state_row, "last_full_scan_sha", None)
                     and state_row.last_full_scan_sha != resolved_sha
                 ):
                     mode = "incremental"
+                else:
+                    mode = "full"
+
+            if (
+                state_row
+                and getattr(state_row, "last_full_scan_at", None)
+                and isinstance(state_row.last_full_scan_at, datetime)
+            ):
+                last_scan_iso = state_row.last_full_scan_at.isoformat()
 
             return {
                 "status": "ready",
@@ -248,8 +261,18 @@ async def _get_node_neighbors(session, repo_id, path: str) -> dict:
     )
     imported_by = list(inc_res.scalars().all())
 
-    # Fallback to latest ready RepoAtlasGraph if no rows in AtlasEdge
-    if not imports and not imported_by:
+    # Check if AtlasState exists for this repo
+    has_atlas_state = False
+    try:
+        state_res = await session.execute(
+            select(AtlasState.repo_id).where(AtlasState.repo_id == repo_id)
+        )
+        has_atlas_state = state_res.scalar_one_or_none() is not None
+    except Exception as exc:
+        logger.error("Failed to check AtlasState for repo %s: %s", repo_id, exc)
+
+    # Fallback to latest ready RepoAtlasGraph only when no AtlasState exists and both edge lists are empty
+    if not has_atlas_state and not imports and not imported_by:
         latest_graph_res = await session.execute(
             select(RepoAtlasGraph)
             .where(

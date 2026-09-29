@@ -152,7 +152,7 @@ export default function ReposPage() {
             href={githubInstallUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="key-cap key-cap--sm key-cap--primary font-mono text-xs flex items-center gap-1.5"
+            className="key-cap key-cap--sm font-mono text-xs flex items-center gap-1.5"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -396,9 +396,8 @@ export default function ReposPage() {
                           data-checked={Boolean(repo.requires_tests)}
                           aria-label="Toggle test requirement"
                         >
-                          <div className="toggle-thumb">
-                            <div className="toggle-led" data-state={repo.requires_tests ? "ok" : "off"} />
-                          </div>
+                          <div className="toggle-thumb" />
+                          <div className="toggle-led" data-state={repo.requires_tests ? "ok" : "off"} />
                         </button>
                       </div>
 
@@ -435,9 +434,8 @@ export default function ReposPage() {
                           data-checked={Boolean(repo.requires_typecheck)}
                           aria-label="Toggle typecheck requirement"
                         >
-                          <div className="toggle-thumb">
-                            <div className="toggle-led" data-state={repo.requires_typecheck ? "ok" : "off"} />
-                          </div>
+                          <div className="toggle-thumb" />
+                          <div className="toggle-led" data-state={repo.requires_typecheck ? "ok" : "off"} />
                         </button>
                       </div>
 
@@ -478,9 +476,8 @@ export default function ReposPage() {
                           data-checked={Boolean(repo.allow_install_scripts)}
                           aria-label="Toggle install scripts execution"
                         >
-                          <div className="toggle-thumb">
-                            <div className="toggle-led" data-state={repo.allow_install_scripts ? "warn" : "off"} />
-                          </div>
+                          <div className="toggle-thumb" />
+                          <div className="toggle-led" data-state={repo.allow_install_scripts ? "warn" : "off"} />
                         </button>
                       </div>
                     </div>

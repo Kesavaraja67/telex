@@ -104,7 +104,7 @@ export default function HowItWorks() {
 
                 {/* Recessed CRT Terminal Screen */}
                 <div
-                  className="font-mono text-[11px] p-4 rounded-xl glass-bezel crt-screen text-white leading-relaxed overflow-x-auto relative"
+                  className="font-mono text-[11px] p-4 rounded-xl glass-bezel text-white leading-relaxed overflow-x-auto relative"
                   style={{ whiteSpace: "pre" }}
                 >
                   {step.code.split("\n").map((line, i) => (

@@ -11,6 +11,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Text,
@@ -512,6 +513,16 @@ class AtlasEdge(Base):
     __table_args__ = (
         Index("ix_atlas_edges_target", "repo_id", "target_path"),
         Index("ix_atlas_edges_source", "repo_id", "source_path"),
+        ForeignKeyConstraint(
+            ["repo_id", "source_path"],
+            ["atlas_nodes.repo_id", "atlas_nodes.path"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["repo_id", "target_path"],
+            ["atlas_nodes.repo_id", "atlas_nodes.path"],
+            ondelete="CASCADE",
+        ),
     )
 
     repo_id: Mapped[uuid.UUID] = mapped_column(

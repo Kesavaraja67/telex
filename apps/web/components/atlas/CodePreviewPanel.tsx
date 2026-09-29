@@ -317,21 +317,28 @@ export function CodePreviewPanel({
           {neighborsState.status === "loading" && (
             <div className="h-64 flex flex-col items-center justify-center gap-3">
               <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_6px_rgba(34,211,238,0.6)]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400/60 animate-pulse [animation-delay:200ms]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400/30 animate-pulse [animation-delay:400ms]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-white/80 animate-pulse" />
+                <span className="w-1.5 h-1.5 rounded-full bg-white/50 animate-pulse [animation-delay:200ms]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-white/20 animate-pulse [animation-delay:400ms]" />
               </div>
               <span className="font-mono text-xs text-[#71717A] tracking-wider uppercase">Loading dependency graph…</span>
             </div>
           )}
 
-          {neighborsState.status !== "loading" && (
+          {neighborsState.status === "error" && (
+            <div className="p-4 rounded-lg border border-red-500/20 bg-red-950/20 text-red-200 text-xs font-mono flex items-center gap-2">
+              <span>⚠️</span>
+              <span>Failed to load dependency graph for this module.</span>
+            </div>
+          )}
+
+          {neighborsState.status === "ready" && (
             <>
               {/* Section 1: Imports (Outgoing Edges) */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold text-[#A1A1AA] uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-blue-500/80" />
+                    <span className="w-2 h-2 rounded-full bg-white/40" />
                     Imports ({neighborsState.imports.length})
                   </span>
                   <span className="text-[10px] text-[#71717A]">Files this module depends on</span>
@@ -359,7 +366,7 @@ export function CodePreviewPanel({
                               {tgtStyle.label}
                             </span>
                             <div className="flex flex-col min-w-0">
-                              <span className="text-white text-xs font-semibold truncate group-hover:text-cyan-400 transition-colors">
+                              <span className="text-white text-xs font-semibold truncate group-hover:text-white transition-colors">
                                 {tgt.split("/").pop()}
                               </span>
                               <span className="text-[10px] text-[#71717A] truncate">{tgt}</span>
@@ -371,7 +378,7 @@ export function CodePreviewPanel({
                               type="button"
                               onClick={() => onSelectNode(tgt)}
                               title={`Focus ${tgt} in Atlas`}
-                              className="px-2 py-1 rounded bg-white/5 hover:bg-cyan-500/20 text-[#A1A1AA] hover:text-cyan-300 border border-white/10 hover:border-cyan-500/30 text-[10px] font-mono flex items-center gap-1 transition-all cursor-pointer flex-shrink-0"
+                              className="px-2 py-1 rounded bg-white/5 hover:bg-white/15 text-[#A1A1AA] hover:text-white border border-white/10 hover:border-white/30 text-[10px] font-mono flex items-center gap-1 transition-all cursor-pointer flex-shrink-0"
                             >
                               <span>Focus</span>
                               <span>↗</span>
@@ -388,7 +395,7 @@ export function CodePreviewPanel({
               <div className="space-y-2.5 pt-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold text-[#A1A1AA] uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500/80" />
+                    <span className="w-2 h-2 rounded-full bg-white/40" />
                     Imported By ({neighborsState.importedBy.length})
                   </span>
                   <span className="text-[10px] text-[#71717A]">Files that depend on this module</span>
@@ -416,7 +423,7 @@ export function CodePreviewPanel({
                               {srcStyle.label}
                             </span>
                             <div className="flex flex-col min-w-0">
-                              <span className="text-white text-xs font-semibold truncate group-hover:text-emerald-400 transition-colors">
+                              <span className="text-white text-xs font-semibold truncate group-hover:text-white transition-colors">
                                 {src.split("/").pop()}
                               </span>
                               <span className="text-[10px] text-[#71717A] truncate">{src}</span>
@@ -428,7 +435,7 @@ export function CodePreviewPanel({
                               type="button"
                               onClick={() => onSelectNode(src)}
                               title={`Focus ${src} in Atlas`}
-                              className="px-2 py-1 rounded bg-white/5 hover:bg-emerald-500/20 text-[#A1A1AA] hover:text-emerald-300 border border-white/10 hover:border-emerald-500/30 text-[10px] font-mono flex items-center gap-1 transition-all cursor-pointer flex-shrink-0"
+                              className="px-2 py-1 rounded bg-white/5 hover:bg-white/15 text-[#A1A1AA] hover:text-white border border-white/10 hover:border-white/30 text-[10px] font-mono flex items-center gap-1 transition-all cursor-pointer flex-shrink-0"
                             >
                               <span>Focus</span>
                               <span>↗</span>

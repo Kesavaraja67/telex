@@ -19,6 +19,7 @@ import { CameraRig } from "./render/CameraRig";
 
 export interface AtlasSceneOptions {
   onSelect: (selection: AtlasSelection) => void;
+  onDeselect?: () => void;
   repoId?: string;
   commitSha?: string;
 }
@@ -156,7 +157,12 @@ export class AtlasScene {
     this.wireRenderer = new WireRenderer2(this.scene, this.isMobile, this.envMap);
 
     // 9. Camera Rig with spring physics, idle parallax, and cinematic fly-in
-    this.cameraRig = new CameraRig(this.camera, this.container, this.isReducedMotion);
+    this.cameraRig = new CameraRig(
+      this.camera,
+      this.container,
+      this.isReducedMotion,
+      () => this.deselectNode()
+    );
 
     // 10. Drag & Interaction Controller
     this.dragController = new DragController(
@@ -468,6 +474,17 @@ export class AtlasScene {
       brokenBy,
       node: card.node,
     });
+  }
+
+  public deselectNode() {
+    this.cards.forEach((c) => {
+      if (c.isSelected) {
+        c.isSelected = false;
+        c.liftSpring.setTarget(0, 0, 0);
+        this.refreshCardTexture(c);
+      }
+    });
+    this.opts.onDeselect?.();
   }
 
   private handleDragStart(nodeId: string) {

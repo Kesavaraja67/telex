@@ -18,7 +18,7 @@ const variantStyles: Record<string, string> = {
 
 const sizeStyles: Record<string, string> = {
   sm: "key-cap--sm",
-  md: "px-5 py-2 text-xs sm:text-sm",
+  md: "key-cap--md",
   lg: "key-cap--lg",
 };
 

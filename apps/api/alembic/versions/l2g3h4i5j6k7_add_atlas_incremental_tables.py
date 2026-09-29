@@ -58,6 +58,16 @@ def upgrade() -> None:
         sa.Column("kind", sa.Text(), nullable=False, server_default="static"),
         sa.Column("updated_sha", sa.Text(), nullable=False),
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["repo_id", "source_path"],
+            ["atlas_nodes.repo_id", "atlas_nodes.path"],
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["repo_id", "target_path"],
+            ["atlas_nodes.repo_id", "atlas_nodes.path"],
+            ondelete="CASCADE",
+        ),
     )
     op.create_index("ix_atlas_edges_target", "atlas_edges", ["repo_id", "target_path"])
     op.create_index("ix_atlas_edges_source", "atlas_edges", ["repo_id", "source_path"])
@@ -94,6 +104,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     bind = op.get_bind()
     if bind.dialect.name == "postgresql":
+        op.execute("DELETE FROM jobs WHERE job_type = 'update_atlas_graph'")
         op.execute("ALTER TABLE jobs DROP CONSTRAINT IF EXISTS ck_jobs_type")
         op.execute(
             "ALTER TABLE jobs ADD CONSTRAINT ck_jobs_type CHECK ("

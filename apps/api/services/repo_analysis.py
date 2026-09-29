@@ -20,10 +20,12 @@ from db.models import (
     AtlasNode,
     CodeUsage,
     DetectedChange,
+    Patch,
     PullRequest,
     Repo,
     RepoAnalysisRun,
     RepoAtlasGraph,
+    ValidationRun,
 )
 from db.session import AsyncSessionLocal
 from services.analysis_weights import (
@@ -296,7 +298,7 @@ async def extract_dependency_signals(session, repo_id: uuid.UUID) -> dict[str, A
     return {
         "breaking_changes_count": len(breaking_rows),
         "breaking_packages": breaking_pkgs,
-        "total_dependencies": max(len(breaking_pkgs), 1),
+        "total_dependencies": len(breaking_pkgs),
         "outdated_packages_count": 0,
     }
 
@@ -312,12 +314,29 @@ async def extract_verification_signals(session, repo_id: uuid.UUID) -> dict[str,
 
     merge_rate = (len(merged_prs) / total_prs) if total_prs > 0 else None
 
+    # Query empirical test outcomes from ValidationRuns for this repo
+    val_res = await session.execute(
+        select(ValidationRun.tests_pass)
+        .join(Patch, ValidationRun.patch_id == Patch.id)
+        .join(CodeUsage, Patch.code_usage_id == CodeUsage.id)
+        .where(
+            CodeUsage.repo_id == repo_id,
+            ValidationRun.tests_pass.is_not(None),
+        )
+    )
+    test_outcomes = val_res.scalars().all()
+
+    pass_rate: float | None = None
+    if test_outcomes and len(test_outcomes) > 0:
+        passed = sum(1 for t in test_outcomes if t)
+        pass_rate = round(passed / len(test_outcomes), 3)
+
     return {
         "total_prs": total_prs,
         "merged_prs_count": len(merged_prs),
         "open_review_prs_count": len(open_prs),
         "merge_rate": round(merge_rate, 3) if merge_rate is not None else None,
-        "pass_rate": 1.0 if len(merged_prs) > 0 else None,
+        "pass_rate": pass_rate,
     }
 
 
@@ -442,6 +461,88 @@ def generate_findings(
 # ─── LLM Synthesis ────────────────────────────────────────────────────────────
 
 
+def _validate_recommendations(
+    do_first: list[str],
+    findings: list[dict[str, Any]],
+    signals: dict[str, Any],
+) -> bool:
+    if not do_first:
+        return False
+
+    # Extract all known files and packages from input
+    known_packages = set(signals.get("dependency", {}).get("breaking_packages", []))
+    known_files = set()
+    for f in findings:
+        link = f.get("atlas_deep_link", "")
+        if "focus=" in link:
+            known_files.add(link.split("focus=")[-1].split("&")[0])
+        title = f.get("title", "")
+        for word in title.split():
+            if "/" in word or any(
+                word.endswith(ext) for ext in (".ts", ".js", ".py", ".go", ".rs", ".json")
+            ):
+                known_files.add(word.strip("`'\",():"))
+
+    # Also build a set of valid finding concepts/topics
+    finding_texts = [
+        f"{f.get('title', '')} {f.get('why_it_matters', '')} {f.get('what_to_do', '')}".lower()
+        for f in findings
+    ]
+
+    for item in do_first:
+        item_lower = item.lower()
+        # Check if the item relates to at least one finding
+        grounded_in_finding = any(
+            any(
+                w in item_lower
+                for w in [
+                    "cycle",
+                    "circular",
+                    "import",
+                    "hub",
+                    "test",
+                    "ci",
+                    "workflow",
+                    "orphan",
+                    "breaking",
+                    "package",
+                    "dependency",
+                    "pr",
+                    "merge",
+                    "review",
+                    "gate",
+                    "typecheck",
+                ]
+            )
+            and any(kw in f_text for kw in item_lower.split() if len(kw) > 3)
+            for f_text in finding_texts
+        )
+        if not grounded_in_finding and findings:
+            logger.warning("Rejecting LLM recommendation not grounded in findings: %s", item)
+            return False
+
+        # Check for invented file paths or packages
+        for token in item.split():
+            clean_tok = token.strip("`'\",():;")
+            if clean_tok.startswith("@") and "/" in clean_tok:
+                if clean_tok not in known_packages:
+                    logger.warning(
+                        "Rejecting LLM recommendation with unknown package: %s", clean_tok
+                    )
+                    return False
+            if (
+                "/" in clean_tok
+                or any(clean_tok.endswith(ext) for ext in (".ts", ".tsx", ".js", ".jsx", ".py"))
+            ) and not clean_tok.startswith("http"):
+                if clean_tok not in known_files and not any(clean_tok in kf for kf in known_files):
+                    logger.warning(
+                        "Rejecting LLM recommendation with unknown file entity: %s", clean_tok
+                    )
+                    return False
+
+    return True
+
+
 async def synthesize_analysis_prose(
     repo_name: str,
     score: int,
@@ -450,12 +551,9 @@ async def synthesize_analysis_prose(
     signals: dict[str, Any],
 ) -> tuple[str, list[str]]:
     """
-    Uses Gemini to synthesize:
-    1. executive_summary (<= 200 words prose about verified facts)
-    2. do_this_first (top recommendations grounded exclusively in findings)
-    Fallback: deterministic generation if LLM is unavailable.
+    Synthesizes executive summary and prioritized action items via Gemini.
+    Strictly follows zero-hallucination contract with deterministic fallback.
     """
-    # Deterministic fallback default
     fallback_summary = (
         f"Repository {repo_name} scored {score}/100 across architectural structure, "
         f"dependency health, and change safety. "
@@ -466,9 +564,14 @@ async def synthesize_analysis_prose(
     ]
 
     try:
-        from services.patch_providers.gemini import GeminiProvider
+        from services.patch_providers import get_patch_provider
 
-        gemini = GeminiProvider()
+        try:
+            gemini = get_patch_provider("gemini")
+        except Exception as key_err:
+            logger.warning("No Gemini API key available for analysis prose synthesis: %s", key_err)
+            return fallback_summary, fallback_do_first
+
         findings_payload = [
             {
                 "severity": f["severity"],
@@ -515,11 +618,14 @@ Return ONLY valid JSON with this schema:
         summary = str(data.get("executive_summary") or fallback_summary)
         do_first = data.get("do_this_first")
         if isinstance(do_first, list) and len(do_first) > 0:
-            return summary, [str(item) for item in do_first[:4]]
+            cleaned_actions = [str(item) for item in do_first[:4]]
+            if _validate_recommendations(cleaned_actions, findings, signals):
+                return summary, cleaned_actions
+            logger.warning("LLM recommendations failed grounding validation, falling back")
         return summary, fallback_do_first
 
     except Exception as exc:
-        logger.debug("LLM analysis prose synthesis fallback: %s", exc)
+        logger.warning("LLM analysis prose synthesis fallback: %s", exc)
         return fallback_summary, fallback_do_first
 
 
@@ -636,7 +742,7 @@ async def run_repo_analysis(
         )
 
         dependency_score = compute_dependency_score(
-            breaking_pkgs_count=dependency_signals["breaking_changes_count"],
+            breaking_pkgs_count=len(dependency_signals["breaking_packages"]),
             outdated_pkgs_count=dependency_signals["outdated_packages_count"],
             total_dependencies=dependency_signals["total_dependencies"],
         )
@@ -669,16 +775,7 @@ async def run_repo_analysis(
             structure_signals, dependency_signals, safety_signals, verification_signals
         )
 
-        # 5. Synthesize Prose (Gemini with deterministic fallback)
-        summary, do_first = await synthesize_analysis_prose(
-            repo_name=repo.full_name,
-            score=composite_score,
-            sub_scores=sub_scores,
-            findings=findings,
-            signals=signals_bundle,
-        )
-
-        # 6. Fetch previous run for delta comparison
+        # 5. Fetch previous run for delta comparison
         prev_res = await session.execute(
             select(RepoAnalysisRun)
             .where(RepoAnalysisRun.repo_id == repo_uuid)
@@ -687,8 +784,19 @@ async def run_repo_analysis(
         )
         prev_run = prev_res.scalar_one_or_none()
         delta_score = (composite_score - prev_run.score) if prev_run else 0
+        repo_full_name = repo.full_name
 
-        # 7. Persist Run to Database
+    # 6. Synthesize Prose outside AsyncSessionLocal to release connection before Gemini request
+    summary, do_first = await synthesize_analysis_prose(
+        repo_name=repo_full_name,
+        score=composite_score,
+        sub_scores=sub_scores,
+        findings=findings,
+        signals=signals_bundle,
+    )
+
+    # 7. Persist Run to Database in fresh transaction
+    async with AsyncSessionLocal() as session:
         run_record = RepoAnalysisRun(
             id=uuid.uuid4(),
             repo_id=repo_uuid,

@@ -289,6 +289,9 @@ export default function AtlasView({
           scene.focusNode(sel.nodeId);
         }
       },
+      onDeselect: () => {
+        setSelection(null);
+      },
       repoId,
       commitSha: state.data.commit_sha,
     });

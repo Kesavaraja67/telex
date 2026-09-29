@@ -106,6 +106,52 @@ def parse_file_imports(
     return list(dict.fromkeys(resolved_targets)), list(dict.fromkeys(unresolved_specifiers))
 
 
+def _specifier_matches_added(spec: str, node_path: str, added_paths: set[str]) -> bool:
+    clean = spec.strip("<>\"'")
+    if not clean:
+        return False
+    if clean.startswith("."):
+        from_dir = PurePosixPath(node_path).parent
+        cand = (from_dir / clean).as_posix().lstrip("/")
+        norm = os.path.normpath(cand).replace("\\", "/").lstrip("/")
+        if norm in added_paths:
+            return True
+        for ext in (
+            ".ts",
+            ".tsx",
+            ".js",
+            ".jsx",
+            ".py",
+            ".go",
+            ".rs",
+            "/index.ts",
+            "/index.tsx",
+            "/index.js",
+        ):
+            if f"{norm}{ext}" in added_paths:
+                return True
+    else:
+        clean_norm = clean.replace("@/", "").lstrip("/")
+        for ap in added_paths:
+            if ap == clean_norm or ap.endswith(f"/{clean_norm}"):
+                return True
+            for ext in (
+                ".ts",
+                ".tsx",
+                ".js",
+                ".jsx",
+                ".py",
+                ".go",
+                ".rs",
+                "/index.ts",
+                "/index.tsx",
+                "/index.js",
+            ):
+                if f"{clean_norm}{ext}" == ap or ap.endswith(f"/{clean_norm}{ext}"):
+                    return True
+    return False
+
+
 async def update_incremental_graph(
     repo_id: uuid.UUID | str,
     head_sha: str = "",
@@ -141,6 +187,35 @@ async def update_incremental_graph(
             select(func.count()).select_from(AtlasNode).where(AtlasNode.repo_id == repo_uuid)
         )
         node_count = count_res.scalar() or 0
+
+        # Check base_sha and head_sha against state
+        if state and state.head_sha:
+            if base_sha and state.head_sha != base_sha:
+                if state.head_sha == head_sha:
+                    logger.info(
+                        "Graph already at head_sha %s for %s, skipping",
+                        head_sha[:8],
+                        repo_full_name,
+                    )
+                    return {
+                        "mode": "incremental",
+                        "head_sha": head_sha,
+                        "status": "ready",
+                        "skipped": True,
+                    }
+                logger.warning(
+                    "Stale push or head mismatch for %s: base_sha=%s != current head_sha=%s (job head=%s). Aborting job.",
+                    repo_full_name,
+                    base_sha[:8],
+                    state.head_sha[:8],
+                    head_sha[:8],
+                )
+                return {
+                    "mode": "aborted",
+                    "head_sha": state.head_sha,
+                    "status": "stale",
+                    "reason": f"base_sha mismatch: expected {state.head_sha}, got {base_sha}",
+                }
 
         now = datetime.now(timezone.utc)
         needs_full_scan = False
@@ -193,9 +268,24 @@ async def update_incremental_graph(
             )
             node_map = {n.path: n for n in existing_nodes_res.scalars().all()}
 
-            # A. Handle Removed files
+            # A. Track importers needing re-parse
+            reparse_importers: set[str] = set()
+
+            # Handle Removed files
             for rem_path in removed:
                 norm_rem = rem_path.replace("\\", "/").lstrip("/")
+                # Collect incoming edge source_paths before deleting edges
+                inc_edges_res = await session.execute(
+                    select(AtlasEdge.source_path).where(
+                        AtlasEdge.repo_id == repo_uuid,
+                        AtlasEdge.target_path == norm_rem,
+                    )
+                )
+                for src in inc_edges_res.scalars().all():
+                    src_str = getattr(src, "source_path", src)
+                    if isinstance(src_str, str) and src_str not in removed:
+                        reparse_importers.add(src_str)
+
                 await session.execute(
                     delete(AtlasEdge).where(
                         AtlasEdge.repo_id == repo_uuid,
@@ -210,8 +300,19 @@ async def update_incremental_graph(
                 )
                 node_map.pop(norm_rem, None)
 
-            # B. Handle Added & Modified files
-            files_to_process = list(dict.fromkeys(added + modified))
+            # Check if any existing nodes imported newly added paths
+            added_norm_set = {ap.replace("\\", "/").lstrip("/") for ap in added}
+            if added_norm_set:
+                for npath, nnode in node_map.items():
+                    if npath not in removed and nnode.unresolved_specifiers:
+                        for spec in nnode.unresolved_specifiers:
+                            if _specifier_matches_added(spec, npath, added_norm_set):
+                                reparse_importers.add(npath)
+                                break
+
+            files_to_process = list(dict.fromkeys(added + modified + list(reparse_importers)))
+            parsed_results: list[dict[str, Any]] = []
+
             for fpath in files_to_process:
                 norm_path = fpath.replace("\\", "/").lstrip("/")
                 ext = os.path.splitext(norm_path)[1].lower()
@@ -226,19 +327,29 @@ async def update_incremental_graph(
                     ref=head_sha,
                 )
                 if content_text is None:
-                    continue
+                    logger.warning(
+                        "Failed to fetch content for %s @ %s, falling back to full scan",
+                        norm_path,
+                        head_sha[:8],
+                    )
+                    from jobs.handlers import build_atlas_graph
+
+                    await build_atlas_graph.run({"repo_id": str(repo_uuid), "commit_sha": head_sha})
+                    return {"mode": "full", "head_sha": head_sha, "status": "ready"}
 
                 source_bytes = content_text.encode("utf-8")
                 chash = compute_content_hash(source_bytes)
                 lang = LANGUAGE_BY_EXT.get(ext, "plaintext")
                 posix = PurePosixPath(norm_path)
 
-                # Skip re-parsing if content hash is unchanged
                 existing_node = node_map.get(norm_path)
-                if existing_node and existing_node.content_hash == chash:
+                if (
+                    existing_node
+                    and existing_node.content_hash == chash
+                    and norm_path not in reparse_importers
+                ):
                     continue
 
-                # Parse imports
                 resolved_targets, unresolved = parse_file_imports(norm_path, source_bytes, node_map)
 
                 # Upsert node
@@ -265,23 +376,39 @@ async def update_incremental_graph(
                     session.add(new_node)
                     node_map[norm_path] = new_node
 
-                # Update outgoing edges
+                parsed_results.append(
+                    {
+                        "path": norm_path,
+                        "targets": resolved_targets,
+                    }
+                )
+
+            # Flush nodes first so foreign key constraints on atlas_edges are satisfied
+            if hasattr(session, "flush"):
+                flush_res = session.flush()
+                if asyncio.iscoroutine(flush_res) or hasattr(flush_res, "__await__"):
+                    await flush_res
+
+            # Now update edges for all parsed files
+            for pr in parsed_results:
+                src_path = pr["path"]
                 await session.execute(
                     delete(AtlasEdge).where(
                         AtlasEdge.repo_id == repo_uuid,
-                        AtlasEdge.source_path == norm_path,
+                        AtlasEdge.source_path == src_path,
                     )
                 )
-                for target in resolved_targets:
-                    session.add(
-                        AtlasEdge(
-                            repo_id=repo_uuid,
-                            source_path=norm_path,
-                            target_path=target,
-                            kind="import",
-                            updated_sha=head_sha,
+                for target in pr["targets"]:
+                    if target in node_map:
+                        session.add(
+                            AtlasEdge(
+                                repo_id=repo_uuid,
+                                source_path=src_path,
+                                target_path=target,
+                                kind="static",
+                                updated_sha=head_sha,
+                            )
                         )
-                    )
 
             # C. Reassemble JSONB snapshot in repo_atlas_graphs for fast reads
             all_nodes_res = await session.execute(
@@ -335,6 +462,7 @@ async def update_incremental_graph(
                 ],
                 "folders": list(folders_dict.values()),
                 "truncated": False,
+                "build_mode": "incremental",
             }
 
             # Upsert RepoAtlasGraph
@@ -365,9 +493,24 @@ async def update_incremental_graph(
                 graph_row.edge_count = len(final_edges)
                 graph_row.completed_at = datetime.now(timezone.utc)
 
-            # Update AtlasState
+            # Update AtlasState conditionally
             cur_state = await session.get(AtlasState, repo_uuid)
             if cur_state:
+                if (
+                    base_sha
+                    and cur_state.head_sha
+                    and cur_state.head_sha != base_sha
+                    and cur_state.head_sha != head_sha
+                ):
+                    logger.warning(
+                        "AtlasState head_sha changed concurrently to %s, aborting",
+                        cur_state.head_sha,
+                    )
+                    return {
+                        "mode": "aborted",
+                        "head_sha": cur_state.head_sha,
+                        "status": "conflict",
+                    }
                 cur_state.head_sha = head_sha
                 cur_state.status = "idle"
                 cur_state.error_message = None

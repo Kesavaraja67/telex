@@ -134,7 +134,7 @@ export default function Nav() {
             <button
               id="nav-signin-btn"
               onClick={handleAuthAction}
-              className="key-cap key-cap--sm key-cap--primary font-mono text-[10px] uppercase tracking-[0.18em] px-4 sm:px-5 py-1.5 flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer"
+              className="key-cap key-cap--sm font-mono text-[10px] uppercase tracking-[0.18em] px-4 sm:px-5 py-1.5 flex items-center gap-2 shrink-0 whitespace-nowrap cursor-pointer"
             >
               <span className="led" data-state="ok" />
               <span>Sign in →</span>

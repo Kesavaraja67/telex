@@ -29,6 +29,7 @@ export default function RepoDetailPage({
   const [selectedPatchIndex, setSelectedPatchIndex] = useState<number>(0);
   const [analysisHistory, setAnalysisHistory] = useState<RepoAnalysisHistory | null>(null);
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [filterRisk, setFilterRisk] = useState<"all" | "semantic_only" | "mechanical_only">("all");
@@ -101,13 +102,15 @@ export default function RepoDetailPage({
 
   async function handleTriggerAnalysis() {
     setIsLoadingAnalysis(true);
+    setAnalysisError(null);
     try {
       const { explainRepoWithGemini, getRepoAnalysis } = await import("@/lib/api");
       await explainRepoWithGemini(repoId);
       const updated = await getRepoAnalysis(repoId);
       setAnalysisHistory(updated);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to run repository analysis:", err);
+      setAnalysisError(err?.message || "Failed to trigger repository scan. Please try again.");
     } finally {
       setIsLoadingAnalysis(false);
     }
@@ -642,6 +645,7 @@ export default function RepoDetailPage({
         repoName={repo?.full_name || ""}
         history={analysisHistory}
         isLoading={isLoadingAnalysis}
+        error={analysisError}
         onTriggerAnalysis={handleTriggerAnalysis}
       />
 

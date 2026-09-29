@@ -385,18 +385,15 @@ async def test_atlas_node_neighbors_fallback_graph():
             mock_session.__aenter__.return_value = mock_session
             mock_session.__aexit__.return_value = None
 
-            call_count = 0
-
             def fake_execute(stmt):
-                nonlocal call_count
-                call_count += 1
                 r = MagicMock()
-                if call_count <= 2:
-                    # AtlasEdge empty
-                    r.scalars.return_value.all.return_value = []
-                else:
-                    # Fallback graph query
+                s = str(stmt).lower()
+                if "atlas_state" in s:
+                    r.scalar_one_or_none.return_value = None
+                elif "repo_atlas_graphs" in s:
                     r.scalar_one_or_none.return_value = graph_row
+                else:
+                    r.scalars.return_value.all.return_value = []
                 return r
 
             mock_session.execute = AsyncMock(side_effect=fake_execute)
@@ -413,3 +410,54 @@ async def test_atlas_node_neighbors_fallback_graph():
                 assert data["path"] == "src/index.ts"
                 assert data["imports"] == ["src/api.ts"]
                 assert data["imported_by"] == ["src/app.ts"]
+
+
+@pytest.mark.asyncio
+async def test_atlas_node_neighbors_skips_fallback_when_atlas_state_exists():
+    repo_id = uuid.uuid4()
+    inst_id = uuid.uuid4()
+    repo = Repo(id=repo_id, full_name="owner/repo", installation_id=inst_id, default_branch="main")
+    inst = Installation(id=inst_id, github_installation_id=123, account_login="owner")
+
+    graph_row = RepoAtlasGraph(
+        repo_id=repo_id,
+        commit_sha="abc1234",
+        status="ready",
+        graph_json={
+            "edges": [
+                {"source": "src/index.ts", "target": "src/api.ts"},
+            ]
+        },
+    )
+
+    with patch("routers.atlas.get_authorized_repo", AsyncMock(return_value=(repo, inst))):
+        with patch("routers.atlas.AsyncSessionLocal") as mock_ctx:
+            mock_session = MagicMock()
+            mock_session.__aenter__.return_value = mock_session
+            mock_session.__aexit__.return_value = None
+
+            def fake_execute(stmt):
+                r = MagicMock()
+                s = str(stmt).lower()
+                if "atlas_state" in s:
+                    r.scalar_one_or_none.return_value = repo_id
+                elif "repo_atlas_graphs" in s:
+                    r.scalar_one_or_none.return_value = graph_row
+                else:
+                    r.scalars.return_value.all.return_value = []
+                return r
+
+            mock_session.execute = AsyncMock(side_effect=fake_execute)
+            mock_ctx.return_value = mock_session
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                resp = await client.get(
+                    f"/api/repos/{repo_id}/atlas/node/src/index.ts/neighbors",
+                    headers={"X-Demo-Key": "telex_demo_secret_2026"},
+                )
+                assert resp.status_code == 200
+                data = resp.json()
+                assert data["path"] == "src/index.ts"
+                assert data["imports"] == []
+                assert data["imported_by"] == []

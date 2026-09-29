@@ -164,27 +164,26 @@ async def test_run_repo_analysis_e2e():
         call_count = 0
 
         def fake_execute(stmt):
-            nonlocal call_count
-            call_count += 1
             r = MagicMock()
-            if call_count == 1:
-                # raw_nodes from AtlasNode -> return empty to test fallback to RepoAtlasGraph
+            s = str(stmt).lower()
+            if "atlas_nodes" in s:
                 r.scalars.return_value.all.return_value = []
-            elif call_count == 2:
-                # raw_edges from AtlasEdge -> return empty
+            elif "atlas_edges" in s:
                 r.scalars.return_value.all.return_value = []
-            elif call_count == 3:
-                # RepoAtlasGraph query
+            elif "repo_atlas_graphs" in s:
                 r.scalar_one_or_none.return_value = graph_row
-            elif call_count == 4:
-                # CodeUsage query
-                r.all.return_value = []
-            elif call_count == 5:
-                # PullRequest query
+            elif "code_usages" in s and "validation_runs" in s:
                 r.scalars.return_value.all.return_value = []
-            elif call_count == 6:
-                # Previous run query
+            elif "code_usages" in s:
+                r.all.return_value = []
+            elif "pull_requests" in s:
+                r.scalars.return_value.all.return_value = []
+            elif "repo_analysis_runs" in s:
                 r.scalar_one_or_none.return_value = None
+            else:
+                r.scalars.return_value.all.return_value = []
+                r.scalar_one_or_none.return_value = None
+                r.all.return_value = []
             return r
 
         mock_session.execute = AsyncMock(side_effect=fake_execute)

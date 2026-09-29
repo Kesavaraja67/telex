@@ -23,15 +23,19 @@ export class CameraRig {
 
   private mouseNDC = new THREE.Vector2(0, 0);
   private unsubscribers: Array<() => void> = [];
+  private onDeselect?: () => void;
 
   constructor(
     camera: THREE.PerspectiveCamera,
     container: HTMLElement,
-    isReducedMotion = false
+    isReducedMotion = false,
+    onDeselect?: () => void
   ) {
     this.camera = camera;
     this.container = container;
     this.isReducedMotion = isReducedMotion;
+    this.onDeselect = onDeselect;
+    this.container.style.touchAction = "none";
 
     // Initial orientation: theta = 0.4, phi = 1.05, radius = 24
     this.orbitSpring.snapTo(0.4, 1.05, 24);
@@ -180,11 +184,25 @@ export class CameraRig {
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLButtonElement ||
+        e.target instanceof HTMLSelectElement
+      ) {
         return;
       }
 
-      if (e.code === "Space") {
+      const isCanvasFocused =
+        document.activeElement === this.container ||
+        this.container.contains(document.activeElement as Node);
+
+      if (e.code === "Escape") {
+        this.onDeselect?.();
+      } else if (e.code === "Space") {
+        if (isCanvasFocused) {
+          e.preventDefault();
+        }
         this.isSpacePressed = true;
       } else if (e.code === "KeyF") {
         this.resetView();
@@ -195,12 +213,16 @@ export class CameraRig {
         // Zoom out
         this.orbitSpring.targetZ = Math.min(this.maxRadius, this.orbitSpring.targetZ + 4);
       } else if (e.code === "ArrowLeft") {
+        if (isCanvasFocused) e.preventDefault();
         this.lookAtSpring.targetX -= 1.5;
       } else if (e.code === "ArrowRight") {
+        if (isCanvasFocused) e.preventDefault();
         this.lookAtSpring.targetX += 1.5;
       } else if (e.code === "ArrowUp") {
+        if (isCanvasFocused) e.preventDefault();
         this.lookAtSpring.targetY += 1.5;
       } else if (e.code === "ArrowDown") {
+        if (isCanvasFocused) e.preventDefault();
         this.lookAtSpring.targetY -= 1.5;
       }
     };
@@ -226,6 +248,9 @@ export class CameraRig {
     let prevTouchY = 0;
 
     const onTouchStart = (e: TouchEvent) => {
+      if (e.cancelable && e.touches.length > 1) {
+        e.preventDefault();
+      }
       if (e.touches.length === 1) {
         prevTouchX = e.touches[0].clientX;
         prevTouchY = e.touches[0].clientY;
@@ -242,6 +267,9 @@ export class CameraRig {
     };
 
     const onTouchMove = (e: TouchEvent) => {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
       if (e.touches.length === 1 && this.isOrbiting) {
         const dx = e.touches[0].clientX - prevTouchX;
         const dy = e.touches[0].clientY - prevTouchY;
@@ -297,9 +325,9 @@ export class CameraRig {
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
 
-    this.container.addEventListener("touchstart", onTouchStart, { passive: true });
-    window.addEventListener("touchmove", onTouchMove, { passive: true });
-    window.addEventListener("touchend", onTouchEnd);
+    this.container.addEventListener("touchstart", onTouchStart, { passive: false });
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchend", onTouchEnd, { passive: false });
 
     this.unsubscribers.push(() => {
       this.container.removeEventListener("mousedown", onMouseDown);

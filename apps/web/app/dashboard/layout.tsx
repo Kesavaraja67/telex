@@ -412,6 +412,7 @@ function DashboardContent({
                 <button
                   onClick={handleSignOut}
                   title="Sign Out"
+                  aria-label="Sign out"
                   className="key-cap key-cap--sm p-1.5 text-[#71717A] hover:text-white shrink-0 cursor-pointer"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

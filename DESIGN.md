@@ -96,6 +96,7 @@ Color in Telex 2D chrome is **structurally restricted**:
 
 **Hard rules:**
 - LED colors (`--led-ok`, `--led-warn`, `--led-fault`) must NEVER appear in: buttons, badges, progress bars, status pills, skeleton loaders, or any non-LED element.
+- Informational severity language and dependency indicators in 2D chrome/panels (such as CodePreviewPanel's Dependencies tab) must use monochrome styles rather than cyan/emerald accents.
 - `rgba(79, 209, 197, *)` is banned from `RadialButton` and all 2D chrome — this was a legacy violation, now corrected.
 - `--led-ok` and Atlas `--wire-healthy-core` (`#14b8a6`) share the same teal by design — one physical, one digital.
 

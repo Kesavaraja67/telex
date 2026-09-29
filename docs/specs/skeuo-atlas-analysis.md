@@ -1,4 +1,4 @@
-﻿# Telex: Skeuomorphic UI + Incremental Repo Atlas + Evidence-Based Run Analysis
+# Telex: Skeuomorphic UI + Incremental Repo Atlas + Evidence-Based Run Analysis
 ## Executable Spec — Phase 0 Output
 
 > **Status:** Draft — awaiting plan-eng-review (Phase 3/4) and plan-design-review (Phase 2)
@@ -12,7 +12,7 @@
 | Fact | Location | Verified |
 |------|----------|---------|
 | Atlas full-scan: downloads entire tarball (capped 150 MB), re-parses every file serially, stores whole graph as one JSONB blob in RepoAtlasGraph.graph_json, unique on (repo_id, commit_sha). No reuse between commits. MAX_NODES = 6000. | apps/api/jobs/handlers/build_atlas_graph.py, services/repo_ingest.py, services/import_graph.py | yes |
-| Webhook push handler is a stub: # Future: trigger a re-scan on push to default branch | apps/api/routers/webhooks.py:58 | yes |
+| Webhook push handler uses _handle_push to enqueue update_atlas_graph (with fallback to build_atlas_graph on large diffs). | apps/api/routers/webhooks.py | yes |
 | CameraRig.ts wheel handler: radius clamped 6 to 120, fixed look-at (0,-3,0). Left, middle, right mouse all orbit. No pan. No zoom-to-cursor. | apps/web/components/atlas/render/CameraRig.ts:104-111 | yes |
 | AtlasScene.ts fog: THREE.FogExp2(0x000000, 0.018) — at r=120 visibility ~0%. Camera PerspectiveCamera(45, aspect, 0.1, 1000). | DESIGN.md:87, master prompt | yes |
 | POST /repos/{id}/ai-explain exists. Prompt gets repo name, <=8 commits, dependency names. risk_score is LLM-invented. On failure: hardcoded risk_score=12, architecture_verdict=Nominal, degraded=true. | apps/api/routers/repos.py:118, services/patch_providers/gemini.py:282-299 | yes |

@@ -568,8 +568,9 @@
     <div style="margin-top:32px;">
       <p class="label-engraved" style="margin-bottom:12px;">Interactive: click to cycle state</p>
       <div class="led-row" style="gap:20px;">
-        <span class="led" id="led-interactive" data-state="off" style="cursor:pointer; width:12px; height:12px;"
-              title="Click to cycle: off → ok → warn → fault → busy → off"></span>
+        <button class="led" id="led-interactive" data-state="off" style="cursor:pointer; width:12px; height:12px; border:none; padding:0; background:none;"
+              type="button" aria-label="Cycle interactive LED indicator state" aria-live="polite"
+              title="Click or press Enter/Space to cycle: off → ok → warn → fault → busy → off"></button>
         <span id="led-state-label" style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-secondary);">off</span>
       </div>
     </div>
@@ -597,6 +598,7 @@
         <span class="label-engraved">Interactive</span>
         <div class="toggle-track" id="toggle-interactive" data-checked="false"
              style="cursor:pointer;" tabindex="0" role="switch" aria-checked="false"
+             aria-label="Demo toggle switch"
              title="Click to toggle">
           <div class="toggle-thumb"></div>
           <div class="toggle-led"></div>
@@ -711,10 +713,18 @@
     const ledStateLabel  = document.getElementById('led-state-label');
     const states = ['off','ok','warn','fault','busy'];
     let stateIdx = 0;
-    ledInteractive.addEventListener('click', () => {
+    const cycleLed = () => {
       stateIdx = (stateIdx + 1) % states.length;
       ledInteractive.setAttribute('data-state', states[stateIdx]);
+      ledInteractive.setAttribute('aria-label', `Interactive LED indicator state: ${states[stateIdx]}`);
       ledStateLabel.textContent = states[stateIdx];
+    };
+    ledInteractive.addEventListener('click', cycleLed);
+    ledInteractive.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        cycleLed();
+      }
     });
 
     // Toggle interactive
