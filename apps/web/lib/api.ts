@@ -2,12 +2,22 @@
  * Typed API client for the FastAPI backend.
  */
 
+export function getApiUrl(): string {
+  if (typeof window !== "undefined") {
+    // When browsing from localhost or 127.0.0.1, always communicate with local backend
+    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+      const configured = process.env.NEXT_PUBLIC_API_URL;
+      if (!configured || configured.includes("onrender.com") || configured.includes("vercel.app")) {
+        return "http://localhost:8000";
+      }
+      return configured;
+    }
+  }
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+}
+
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-export function getApiUrl(): string {
-  return API_BASE;
-}
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const reqHeaders: Record<string, string> = {
@@ -22,18 +32,27 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     }
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: reqHeaders,
-    credentials: "include",
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    throw new Error(`API ${path} → ${res.status}: ${text}`);
+  const baseUrl = getApiUrl();
+  try {
+    const res = await fetch(`${baseUrl}${path}`, {
+      ...options,
+      headers: reqHeaders,
+      credentials: "include",
+      signal: options?.signal || controller.signal,
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      throw new Error(`API ${path} → ${res.status}: ${text}`);
+    }
+
+    return res.json() as Promise<T>;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return res.json() as Promise<T>;
 }
 
 // ── Stats ──────────────────────────────────────────────────────────────────

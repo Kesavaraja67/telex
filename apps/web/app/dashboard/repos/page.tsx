@@ -346,6 +346,13 @@ export default function ReposPage() {
                       <div className="flex items-center gap-2 self-start md:self-auto">
                         <Link
                           href={`/dashboard/repos/${repo.id}`}
+                          onClick={() => {
+                            if (typeof window !== "undefined") {
+                              try {
+                                sessionStorage.setItem(`telex_repo_${repo.id}`, JSON.stringify(repo));
+                              } catch {}
+                            }
+                          }}
                           className="key-cap key-cap--sm font-mono text-xs text-white flex items-center gap-1.5"
                         >
                           <span>View Patches</span>

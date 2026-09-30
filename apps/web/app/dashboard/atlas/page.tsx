@@ -202,6 +202,13 @@ function AtlasContent() {
           {selectedRepo && (
             <Link
               href={`/dashboard/repos/${selectedRepo.id}`}
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  try {
+                    sessionStorage.setItem(`telex_repo_${selectedRepo.id}`, JSON.stringify(selectedRepo));
+                  } catch {}
+                }
+              }}
               className="hidden sm:flex items-center gap-1.5 label-engraved text-[11px] hover:text-white transition-colors"
             >
               <span>View Patches & Policies</span>

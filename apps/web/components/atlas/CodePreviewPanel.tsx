@@ -246,7 +246,10 @@ export function CodePreviewPanel({
       {node && node.unresolved_import_count > 0 && (
         <div className="px-5 py-2.5 bg-amber-500/[0.06] border-b border-amber-500/20 flex flex-col gap-1">
           <span className="font-mono text-[10px] text-amber-300/90 flex items-center gap-1.5">
-            <span>⚠</span> {node.unresolved_import_count} unresolved / dynamic static specifier(s):
+            <svg className="w-3.5 h-3.5 text-amber-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+            {node.unresolved_import_count} unresolved / dynamic static specifier(s):
           </span>
           <div className="flex flex-wrap gap-1.5 pl-4">
             {node.unresolved_specifiers.map((spec, i) => (
@@ -327,7 +330,9 @@ export function CodePreviewPanel({
 
           {neighborsState.status === "error" && (
             <div className="p-4 rounded-lg border border-red-500/20 bg-red-950/20 text-red-200 text-xs font-mono flex items-center gap-2">
-              <span>⚠️</span>
+              <svg className="w-4 h-4 text-red-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+              </svg>
               <span>Failed to load dependency graph for this module.</span>
             </div>
           )}
