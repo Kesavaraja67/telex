@@ -2,14 +2,39 @@
  * Typed API client for the FastAPI backend.
  */
 
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
 export function getApiUrl(): string {
-  return API_BASE;
+  if (typeof window !== "undefined") {
+    // When browsing from localhost or 127.0.0.1, always communicate with local backend
+    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+      const configured = process.env.NEXT_PUBLIC_API_URL;
+      if (configured) {
+        try {
+          const hostname = new URL(configured).hostname;
+          // Only fall back to localhost when the configured URL points at a
+          // remote cloud host (exact hostname suffix check, not substring match).
+          const isRemote =
+            hostname === "onrender.com" ||
+            hostname.endsWith(".onrender.com") ||
+            hostname === "vercel.app" ||
+            hostname.endsWith(".vercel.app");
+          if (!isRemote) return configured;
+        } catch {
+          // Malformed URL — fall back to localhost
+        }
+      }
+      return "http://localhost:8000";
+    }
+  }
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 }
 
-async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+export const API_BASE = getApiUrl();
+
+export interface ApiFetchOptions extends RequestInit {
+  timeoutMs?: number;
+}
+
+async function apiFetch<T>(path: string, options?: ApiFetchOptions): Promise<T> {
   const reqHeaders: Record<string, string> = {
     "Content-Type": "application/json",
     ...((options?.headers as Record<string, string>) ?? {}),
@@ -22,18 +47,43 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     }
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: reqHeaders,
-    credentials: "include",
-  });
+  // LLM analysis, AST scanning, and sync operations require generous timeouts
+  const defaultTimeout =
+    path.includes("/ai-explain") ||
+    path.includes("/analysis") ||
+    path.includes("/rescan") ||
+    path.includes("/sync")
+      ? 90000
+      : 45000;
+  const timeoutMs = options?.timeoutMs ?? defaultTimeout;
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    throw new Error(`API ${path} → ${res.status}: ${text}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort(
+      new DOMException(`Request to ${path} timed out after ${timeoutMs / 1000}s`, "TimeoutError")
+    );
+  }, timeoutMs);
+
+  const baseUrl = getApiUrl();
+  try {
+    const res = await fetch(`${baseUrl}${path}`, {
+      ...options,
+      headers: reqHeaders,
+      credentials: "include",
+      signal: options?.signal
+        ? AbortSignal.any([options.signal, controller.signal])
+        : controller.signal,
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      throw new Error(`API ${path} → ${res.status}: ${text}`);
+    }
+
+    return res.json() as Promise<T>;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return res.json() as Promise<T>;
 }
 
 // ── Stats ──────────────────────────────────────────────────────────────────
@@ -180,6 +230,7 @@ export const getRepoAnalysis = (id: string) =>
 export const explainRepoWithGemini = (id: string) =>
   apiFetch<AIExplanation>(`/api/repos/${id}/ai-explain`, {
     method: "POST",
+    timeoutMs: 90000,
   });
 
 export const toggleRepo = (id: string, is_active: boolean) =>

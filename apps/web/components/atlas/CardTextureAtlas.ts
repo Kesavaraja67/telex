@@ -225,7 +225,7 @@ export class CardTextureAtlas {
         ctx.fillStyle = "#F59E0B";
         ctx.font = "bold 17px monospace, ui-monospace";
         ctx.fillText(
-          `⚠ ${node.unresolved_import_count} unresolved`,
+          `[!] ${node.unresolved_import_count} unresolved`,
           TEX_WIDTH - padding,
           TEX_HEIGHT - padding
         );

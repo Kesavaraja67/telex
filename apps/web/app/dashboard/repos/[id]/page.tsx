@@ -14,6 +14,10 @@ import {
   type PatchSummary,
   type RepoAnalysisHistory,
   API_BASE,
+  getRepoDetails,
+  getRepoPatches,
+  getRepoAnalysis,
+  explainRepoWithGemini,
 } from "@/lib/api";
 
 export default function RepoDetailPage({
@@ -24,13 +28,27 @@ export default function RepoDetailPage({
   const resolvedParams = use(params);
   const repoId = resolvedParams.id;
 
-  const [repo, setRepo] = useState<RepoDetails | null>(null);
+  const [repo, setRepo] = useState<RepoDetails | null>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = sessionStorage.getItem(`telex_repo_${repoId}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && (parsed.id === repoId || parsed.full_name)) {
+            return parsed;
+          }
+        }
+      } catch {}
+    }
+    return null;
+  });
+
   const [patches, setPatches] = useState<PatchSummary[]>([]);
   const [selectedPatchIndex, setSelectedPatchIndex] = useState<number>(0);
   const [analysisHistory, setAnalysisHistory] = useState<RepoAnalysisHistory | null>(null);
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(() => !repo);
   const [notFound, setNotFound] = useState(false);
   const [filterRisk, setFilterRisk] = useState<"all" | "semantic_only" | "mechanical_only">("all");
   const [sortBy, setSortBy] = useState<"chronological" | "risk_first" | "confidence">("chronological");
@@ -44,39 +62,69 @@ export default function RepoDetailPage({
     let timer: NodeJS.Timeout | null = null;
     let isMounted = true;
 
+    // Safety timeout: ensure loading state never hangs indefinitely
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) setIsLoading(false);
+    }, 4000);
+
     async function loadData() {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-      try {
-        const { getRepoDetails, getRepoPatches, getRepoAnalysis } = await import("@/lib/api");
-        const [repoData, patchesData, analysisData] = await Promise.allSettled([
-          getRepoDetails(repoId),
-          getRepoPatches(repoId),
-          getRepoAnalysis(repoId),
-        ]);
 
-        if (!isMounted) return;
+      // 1. Fetch repo details - immediately unlocks the UI as soon as it returns
+      getRepoDetails(repoId)
+        .then((repoVal) => {
+          if (!isMounted) return;
+          if (repoVal) {
+            setRepo(repoVal);
+            setNotFound(false);
+            try {
+              sessionStorage.setItem(`telex_repo_${repoId}`, JSON.stringify(repoVal));
+            } catch {}
+          } else {
+            setRepo((prev) => {
+              if (!prev) setNotFound(true);
+              return prev;
+            });
+          }
+          setIsLoading(false);
+        })
+        .catch((err) => {
+          if (!isMounted) return;
+          // Only mark not-found for confirmed 404s; timeouts and transient
+          // network errors should leave the repo/notFound state unchanged so
+          // the loading view remains instead of flashing a false not-found.
+          const is404 =
+            err?.name !== "TimeoutError" &&
+            typeof err?.message === "string" &&
+            err.message.includes(": 404:");
+          if (is404) {
+            setRepo((prev) => {
+              if (!prev) setNotFound(true);
+              return prev;
+            });
+            setIsLoading(false);
+          }
+        });
 
-        if (repoData.status === "fulfilled" && repoData.value) {
-          setRepo(repoData.value);
-          setNotFound(false);
-        } else {
-          setNotFound(true);
-        }
+      // 2. Fetch patches concurrently
+      getRepoPatches(repoId)
+        .then((patchesVal) => {
+          if (!isMounted) return;
+          if (patchesVal?.patches) {
+            setPatches(patchesVal.patches);
+          }
+        })
+        .catch(() => {});
 
-        if (patchesData.status === "fulfilled" && patchesData.value?.patches) {
-          setPatches(patchesData.value.patches);
-        }
-
-        if (analysisData.status === "fulfilled" && analysisData.value) {
-          setAnalysisHistory(analysisData.value);
-        }
-      } catch {
-        if (isMounted) {
-          setNotFound(true);
-        }
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
+      // 3. Fetch analysis concurrently without blocking repo info
+      getRepoAnalysis(repoId)
+        .then((analysisVal) => {
+          if (!isMounted) return;
+          if (analysisVal) {
+            setAnalysisHistory(analysisVal);
+          }
+        })
+        .catch(() => {});
     }
 
     loadData();
@@ -94,6 +142,7 @@ export default function RepoDetailPage({
     return () => {
       isMounted = false;
       if (timer) clearInterval(timer);
+      clearTimeout(safetyTimer);
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", onVisibilityChange);
       }
@@ -103,14 +152,54 @@ export default function RepoDetailPage({
   async function handleTriggerAnalysis() {
     setIsLoadingAnalysis(true);
     setAnalysisError(null);
+
+    // Capture the baseline latest run ID before the request so we can
+    // verify that the error-path fallback is genuinely new.
+    let baselineLatestId: string | undefined;
     try {
-      const { explainRepoWithGemini, getRepoAnalysis } = await import("@/lib/api");
-      await explainRepoWithGemini(repoId);
-      const updated = await getRepoAnalysis(repoId);
-      setAnalysisHistory(updated);
+      const baselineHistory = await getRepoAnalysis(repoId);
+      baselineLatestId = baselineHistory?.latest?.id;
+    } catch {
+      // If we can't read the baseline we conservatively skip fallback acceptance.
+      baselineLatestId = undefined;
+    }
+    const hadBaseline = baselineLatestId !== undefined;
+
+    try {
+      const result = await explainRepoWithGemini(repoId);
+      try {
+        const updated = await getRepoAnalysis(repoId);
+        setAnalysisHistory(updated);
+      } catch {
+        if (result && ("score" in result || "findings" in result)) {
+          setAnalysisHistory({
+            latest: result as any,
+            previous: null,
+            delta_score: 0,
+          });
+        }
+      }
+      setAnalysisError(null);
     } catch (err: any) {
       console.error("Failed to run repository analysis:", err);
-      setAnalysisError(err?.message || "Failed to trigger repository scan. Please try again.");
+      // If the operation succeeded on the server despite an early client abort/hiccup,
+      // load the updated history — but only when it contains a run we haven't seen before.
+      if (hadBaseline) {
+        try {
+          const fallback = await getRepoAnalysis(repoId);
+          if (fallback?.latest && fallback.latest.id !== baselineLatestId) {
+            setAnalysisHistory(fallback);
+            setAnalysisError(null);
+            return;
+          }
+        } catch {}
+      }
+      const msg = err?.message || "";
+      if (err?.name === "TimeoutError" || msg.includes("aborted") || msg.includes("timeout")) {
+        setAnalysisError("Analysis request timed out while generating architecture synthesis. Please try again.");
+      } else {
+        setAnalysisError(msg || "Failed to trigger repository scan. Please try again.");
+      }
     } finally {
       setIsLoadingAnalysis(false);
     }
@@ -135,8 +224,8 @@ export default function RepoDetailPage({
 
   const activePatch = displayedPatches[selectedPatchIndex] || displayedPatches[0] || null;
 
-  // State 1: Loading
-  if (isLoading && !repo) {
+  // State 1: Loading — stay here while repo is absent and not-found is unconfirmed
+  if (!repo && !notFound) {
     return (
       <div className="relative z-10 w-full" role="status" aria-label="Loading repository telemetry">
         <CyberGridBackground />
@@ -315,7 +404,7 @@ export default function RepoDetailPage({
                       : "text-[#A1A1AA] hover:text-white"
                   }`}
                 >
-                  ⚠️ Semantic Risk
+                  Semantic Risk
                 </button>
                 <button
                   onClick={() => {
@@ -328,7 +417,7 @@ export default function RepoDetailPage({
                       : "text-[#A1A1AA] hover:text-white"
                   }`}
                 >
-                  ✅ Mechanical
+                  Mechanical
                 </button>
               </div>
 
@@ -407,14 +496,14 @@ export default function RepoDetailPage({
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {patch.is_semantic_risk ? (
                           <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
-                            ⚠️ Semantic Risk{" "}
+                            Semantic Risk{" "}
                             {patch.confidence
                               ? `(${Math.round(patch.confidence * 100)}%)`
                               : ""}
                           </span>
                         ) : patch.is_semantic_risk === false ? (
                           <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                            ✅ Mechanical{" "}
+                            Mechanical{" "}
                             {patch.confidence
                               ? `(${Math.round(patch.confidence * 100)}%)`
                               : ""}
@@ -646,6 +735,7 @@ export default function RepoDetailPage({
         history={analysisHistory}
         isLoading={isLoadingAnalysis}
         error={analysisError}
+        onDismissError={() => setAnalysisError(null)}
         onTriggerAnalysis={handleTriggerAnalysis}
       />
 

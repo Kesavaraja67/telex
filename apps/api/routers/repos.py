@@ -2,6 +2,7 @@
 Repos API — list live repositories, commit history, and Gemini 2.5 Flash architecture insights.
 """
 
+import asyncio
 import logging
 import time
 from datetime import datetime, timezone
@@ -88,7 +89,16 @@ async def get_repo_details(
         db_repo, _ = await get_authorized_repo(session, repo_id, auth_data)
 
     user_id = auth_data.get("user_id") if isinstance(auth_data, dict) else None
-    repos = await get_core_repositories_async(include_benchmarks=True, user_id=user_id)
+    try:
+        repos = await asyncio.wait_for(
+            get_core_repositories_async(include_benchmarks=True, user_id=user_id),
+            timeout=4.0,
+        )
+    except Exception as exc:
+        logger.warning(
+            "get_core_repositories_async timed out or failed in get_repo_details: %s", exc
+        )
+        repos = []
     repo = next(
         (
             r

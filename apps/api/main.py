@@ -99,6 +99,7 @@ app.include_router(atlas_router.router)
 
 
 @app.get("/health")
+@app.get("/api/health")
 async def health():
     return {"status": "ok", "provider": settings.llm_provider_default}
 

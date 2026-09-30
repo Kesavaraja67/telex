@@ -22,11 +22,13 @@ function AtlasContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const paramRepoId = searchParams.get("repo");
+  const focusPath = searchParams.get("focus") || undefined;
   const { isSidebarCollapsed } = useSidebar();
 
   const [repos, setRepos] = useState<Repo[]>([]);
   const [selectedRepoId, setSelectedRepoId] = useState<string>(paramRepoId || "");
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   useEffect(() => {
@@ -37,15 +39,19 @@ function AtlasContent() {
         const data = await getRepos();
         if (!isMounted) return;
         setRepos(data);
+        setError(null);
 
         // Auto-select repo: param match > first repo
         if (paramRepoId && data.some((r) => r.id === paramRepoId)) {
           setSelectedRepoId(paramRepoId);
-        } else if (data.length > 0) {
+        } else if (data.length > 0 && !paramRepoId) {
           setSelectedRepoId(data[0].id);
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.error("Failed to load repos for Atlas:", err);
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : "Failed to load repositories");
+        }
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -58,7 +64,11 @@ function AtlasContent() {
     };
   }, [paramRepoId]);
 
-  const selectedRepo = repos.find((r) => r.id === selectedRepoId) || repos[0];
+  const selectedRepo =
+    repos.find((r) => r.id === selectedRepoId) ||
+    (selectedRepoId
+      ? ({ id: selectedRepoId, full_name: "Repository", default_branch: "main" } as Repo)
+      : repos[0]);
 
   const handleSelectRepo = (repoId: string) => {
     setSelectedRepoId(repoId);
@@ -66,7 +76,7 @@ function AtlasContent() {
     router.replace(`/dashboard/atlas?repo=${repoId}`);
   };
 
-  if (isLoading) {
+  if (isLoading && !selectedRepoId) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-black">
         <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
@@ -75,7 +85,46 @@ function AtlasContent() {
     );
   }
 
-  if (repos.length === 0) {
+  if (!selectedRepoId && repos.length === 0) {
+    if (error) {
+      return (
+        <div className="w-full h-full flex items-center justify-center p-6 bg-black">
+          <SpotlightCard
+            spotlightColor="rgba(239, 68, 68, 0.15)"
+            className="p-8 sm:p-12 bg-black/80 backdrop-blur-xl border border-red-500/20 rounded-2xl flex flex-col items-center text-center gap-5 shadow-2xl max-w-lg"
+            enableTilt={false}
+          >
+            <div className="w-14 h-14 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-red-400">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <h2 className="font-mono font-bold text-lg text-white">Repository Loading Error</h2>
+              <p className="font-sans text-xs text-[#A1A1AA] leading-relaxed">{error}</p>
+            </div>
+            <button
+              onClick={() => {
+                setIsLoading(true);
+                setError(null);
+                getRepos()
+                  .then((d) => {
+                    setRepos(d);
+                    if (d.length > 0) setSelectedRepoId(d[0].id);
+                  })
+                  .catch((e) => setError(e?.message || "Failed to load repositories"))
+                  .finally(() => setIsLoading(false));
+              }}
+              className="px-5 py-2.5 rounded-lg bg-white text-black font-mono font-bold text-xs hover:bg-white/90 transition-all shadow-lg"
+            >
+              Retry
+            </button>
+          </SpotlightCard>
+        </div>
+      );
+    }
     return (
       <div className="w-full h-full flex items-center justify-center p-6 bg-black">
         <SpotlightCard
@@ -202,6 +251,13 @@ function AtlasContent() {
           {selectedRepo && (
             <Link
               href={`/dashboard/repos/${selectedRepo.id}`}
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  try {
+                    sessionStorage.setItem(`telex_repo_${selectedRepo.id}`, JSON.stringify(selectedRepo));
+                  } catch {}
+                }
+              }}
               className="hidden sm:flex items-center gap-1.5 label-engraved text-[11px] hover:text-white transition-colors"
             >
               <span>View Patches & Policies</span>
@@ -232,6 +288,7 @@ function AtlasContent() {
           <AtlasView
             key={selectedRepo.id}
             repoId={selectedRepo.id}
+            focusPath={focusPath}
             showBackButton={false}
           />
         )}

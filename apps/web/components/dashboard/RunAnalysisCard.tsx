@@ -10,6 +10,7 @@ interface RunAnalysisCardProps {
   history: RepoAnalysisHistory | null;
   isLoading: boolean;
   error?: string | null;
+  onDismissError?: () => void;
   onTriggerAnalysis: () => Promise<void>;
 }
 
@@ -19,6 +20,7 @@ export function RunAnalysisCard({
   history,
   isLoading,
   error,
+  onDismissError,
   onTriggerAnalysis,
 }: RunAnalysisCardProps) {
   const [selectedFinding, setSelectedFinding] = useState<number | null>(null);
@@ -56,16 +58,34 @@ export function RunAnalysisCard({
   return (
     <div className="p-6 bg-black/75 backdrop-blur-xl border border-white/15 relative overflow-hidden flex flex-col gap-6 rounded-2xl shadow-2xl">
       {error && (
-        <div className="p-3 bg-red-950/40 border border-red-500/30 rounded-lg flex items-center gap-2 text-red-200 text-xs font-mono relative z-10">
-          <span>⚠️</span>
-          <span>{error}</span>
+        <div className="p-3 bg-red-950/40 border border-red-500/30 rounded-lg flex items-center justify-between gap-2 text-red-200 text-xs font-mono relative z-10">
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 text-red-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+            <span>{error}</span>
+          </div>
+          {onDismissError && (
+            <button
+              onClick={onDismissError}
+              aria-label="Dismiss error"
+              className="text-red-400 hover:text-white p-1 transition-colors rounded hover:bg-white/5"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
       )}
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.08] pb-4 relative z-10">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center font-mono text-xs font-bold text-white shadow-inner">
-            ⚡
+            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 2a14.5 14.5 0 0 0 0 20M2 12h20" />
+            </svg>
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -95,7 +115,7 @@ export function RunAnalysisCard({
           ) : (
             <>
               <span>Re-Analyze Architecture</span>
-              <span>⚡</span>
+              <span className="text-black/60">&rarr;</span>
             </>
           )}
         </button>
@@ -124,8 +144,10 @@ export function RunAnalysisCard({
       {/* Empty / First Run State */}
       {!latest && !isLoading && (
         <div className="p-8 rounded-xl border border-dashed border-white/20 bg-white/[0.02] flex flex-col items-center justify-center text-center gap-4 py-12">
-          <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-xl text-white/60">
-            📊
+          <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/60">
+            <svg className="w-6 h-6 text-white/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+            </svg>
           </div>
           <div className="max-w-md flex flex-col gap-1.5">
             <h3 className="font-mono text-sm font-semibold text-white">

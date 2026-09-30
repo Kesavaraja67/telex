@@ -25,9 +25,11 @@ function getAuthHeaders(): Record<string, string> {
 export default function AtlasView({
   repoId,
   showBackButton = true,
+  focusPath,
 }: {
   repoId: string;
   showBackButton?: boolean;
+  focusPath?: string;
 }) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -299,13 +301,43 @@ export default function AtlasView({
     if (breakageMap.size > 0) {
       scene.setBreakage(breakageMap);
     }
+
+    if (focusPath && state.data.graph?.nodes) {
+      // 1. Prefer an exact ID match.
+      let targetNode = state.data.graph.nodes.find((n) => n.id === focusPath);
+
+      // 2. Fall back to suffix matches only at slash-delimited path boundaries,
+      //    and accept only when the match is unique to avoid ambiguous focus.
+      if (!targetNode) {
+        const suffixMatches = state.data.graph.nodes.filter(
+          (n) =>
+            n.id.length > focusPath.length &&
+            n.id.endsWith(focusPath) &&
+            n.id[n.id.length - focusPath.length - 1] === "/"
+        );
+        if (suffixMatches.length === 1) {
+          targetNode = suffixMatches[0];
+        }
+      }
+
+      if (targetNode) {
+        scene.focusNode(targetNode.id);
+        const brokenBy = breakageMap.get(targetNode.id) || [];
+        setSelection({
+          nodeId: targetNode.id,
+          brokenBy,
+          node: targetNode,
+        });
+      }
+    }
+
     sceneRef.current = scene;
 
     return () => {
       scene.destroy();
       sceneRef.current = null;
     };
-  }, [state, repoId]);
+  }, [state, repoId, focusPath]);
 
   useEffect(() => {
     if (sceneRef.current && breakageMap.size > 0) {
