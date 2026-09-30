@@ -30,6 +30,13 @@
 
 </div>
 
+> 🌱 **First time contributing to open source?** That's great — everyone starts
+> somewhere! You don't need to understand the whole codebase. Pick an issue
+> labeled [`good first issue`](https://github.com/Kesavaraja67/telex/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22),
+> read only the files mentioned in that issue, make your change, and open a
+> pull request. The maintainer will guide you through the rest in the PR
+> comments. Questions are always welcome — just drop a comment on the issue.
+
 <br>
 
 ---
@@ -286,6 +293,51 @@ Before opening your pull request, verify:
 - [ ] **Visual Proof**: UI changes include screenshots or screen recordings.
 - [ ] **No Force Pushes**: Clean commit history.
 
+---
+
+<br>
+
+## <a id="good-first-pr"></a>11. What Counts as a Good First PR?
+
+You don't need to implement a whole feature. These are all perfectly valid first contributions:
+
+| What | Example |
+|---|---|
+| **Fix a typo or improve a comment** | Rewrite a confusing inline comment in plain English |
+| **Add a missing test** | Write one `pytest` test for an untested function |
+| **Fix a small, well-scoped bug** | Fix a linting warning, a broken link, or a gitignore entry |
+| **Improve a doc section** | Add an example command that's currently missing from the README |
+| **Add an eslint-disable comment** | Suppress a false-positive linting warning with an explanation |
+
+> The bar for a first PR is: **does it make the repo a little better, without breaking anything?** That's it.
+
+---
+
+<br>
+
+## <a id="common-mistakes"></a>12. Common Mistakes to Avoid
+
+These are the things maintainers most often have to ask contributors to fix:
+
+1. **Force-pushing after opening a PR** (`git push --force`) — this rewrites history
+   and breaks the review thread. Always use `git push` (without `--force`) after a PR is open.
+
+2. **Making unrelated changes in the same PR** — if you're fixing a bug in
+   `github_service.py`, don't also reformat an unrelated file at the same time.
+   One PR = one purpose.
+
+3. **Skipping tests** — every change to Python logic needs a matching `pytest`
+   test. If you're not sure what to test, add a comment in the PR and the
+   maintainer will help.
+
+4. **Committing environment files or secrets** — never commit `.env`, API keys,
+   or personal tokens. The `.gitignore` already excludes these, but double-check
+   with `git status` before committing.
+
+5. **Opening a huge PR without prior discussion** — if your change touches more
+   than ~5 files or rewrites a major component, open an issue first to discuss
+   the approach. This avoids wasted effort if the direction changes.
+
 <br>
 
 <div align="center">
@@ -293,3 +345,4 @@ Before opening your pull request, verify:
     <img src="https://img.shields.io/badge/%E2%86%91-Back%20to%20Top-050508?style=flat-square&logoColor=white" alt="Back to Top" />
   </a>
 </div>
+

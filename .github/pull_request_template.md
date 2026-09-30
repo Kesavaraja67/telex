@@ -1,9 +1,19 @@
+<!--
+👋 First-time contributor? Welcome! Here's what to do:
+  1. Fill in the Description and Related Issue below.
+  2. Check off the items in the Quality Checklist that apply to your change.
+  3. If you're unsure about anything, just leave a comment — the maintainer
+     will help you through the review.
+  You don't need to fill in every section perfectly on the first try.
+-->
+
 ## Description
 <!-- Provide a brief description of the changes introduced by this pull request. -->
 
 ## Related Issue
 <!-- Link the issue this PR resolves, e.g. Fixes #123 or Closes #456 -->
 Fixes #
+
 
 ## Type of Change
 - [ ] Bug fix (non-breaking change which fixes an issue)
