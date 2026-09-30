@@ -43,7 +43,7 @@ async function apiFetch<T>(path: string, options?: ApiFetchOptions): Promise<T> 
     path.includes("/rescan") ||
     path.includes("/sync")
       ? 90000
-      : 15000;
+      : 45000;
   const timeoutMs = options?.timeoutMs ?? defaultTimeout;
 
   const controller = new AbortController();

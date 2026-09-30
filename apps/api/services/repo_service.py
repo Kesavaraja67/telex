@@ -27,6 +27,7 @@ _CACHE: dict[str, Any] = {
     "repos": None,
     "repos_time": 0,
     "commits_by_repo": {},
+    "metadata_by_repo": {},
 }
 
 
@@ -212,6 +213,11 @@ def fetch_repo_metadata_from_github(
     repo_full_name: str, default_branch: str = "main", token: str | None = None
 ) -> dict[str, Any]:
     """Dynamically fetches real repository description, languages, and dependencies from GitHub API."""
+    cache_key = f"{repo_full_name}-{default_branch}"
+    cached = _CACHE.get("metadata_by_repo", {}).get(cache_key)
+    if cached and (time.time() - cached["time"]) < 300:
+        return cached["data"]
+
     metadata: dict[str, Any] = {
         "description": "Connected repository monitored by Telex autonomous telemetry engine.",
         "languages": ["TypeScript"],
@@ -230,7 +236,7 @@ def fetch_repo_metadata_from_github(
     try:
         url = f"https://api.github.com/repos/{repo_full_name}"
         req = urllib.request.Request(url, headers=api_headers)
-        with urllib.request.urlopen(req, timeout=4) as resp:
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
             data = json.loads(resp.read().decode())
             if data.get("description"):
                 metadata["description"] = data["description"]
@@ -243,7 +249,7 @@ def fetch_repo_metadata_from_github(
     try:
         lang_url = f"https://api.github.com/repos/{repo_full_name}/languages"
         req = urllib.request.Request(lang_url, headers=api_headers)
-        with urllib.request.urlopen(req, timeout=4) as resp:
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
             lang_data = json.loads(resp.read().decode())
             if lang_data:
                 metadata["languages"] = list(lang_data.keys())[:3]
@@ -256,7 +262,7 @@ def fetch_repo_metadata_from_github(
         # Check raw package.json on default branch
         pkg_url = f"https://raw.githubusercontent.com/{repo_full_name}/{branch_to_use}/package.json"
         req = urllib.request.Request(pkg_url, headers=raw_headers)
-        with urllib.request.urlopen(req, timeout=4) as resp:
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
             pkg = json.loads(resp.read().decode())
             deps = list(pkg.get("dependencies", {}).keys())
             if deps:
@@ -266,7 +272,7 @@ def fetch_repo_metadata_from_github(
             # Fallback for Python repos: requirements.txt on default branch
             req_url = f"https://raw.githubusercontent.com/{repo_full_name}/{branch_to_use}/requirements.txt"
             req = urllib.request.Request(req_url, headers=raw_headers)
-            with urllib.request.urlopen(req, timeout=4) as resp:
+            with urllib.request.urlopen(req, timeout=2.5) as resp:
                 lines = [
                     line.strip().split("==")[0].split(">=")[0]
                     for line in resp.read().decode().splitlines()
@@ -277,6 +283,10 @@ def fetch_repo_metadata_from_github(
         except Exception:
             pass
 
+    _CACHE.setdefault("metadata_by_repo", {})[cache_key] = {
+        "data": metadata,
+        "time": time.time(),
+    }
     return metadata
 
 
@@ -340,7 +350,7 @@ async def sync_github_app_repositories_async(user_id: str | None = None) -> None
                     if account_login.lower() == current_user.github_login.lower():
                         db_inst.installed_by = current_user.id
 
-                async with httpx.AsyncClient(timeout=15.0) as client:
+                async with httpx.AsyncClient(timeout=6.0) as client:
                     gh_repos = []
                     page = 1
                     while True:
@@ -409,6 +419,7 @@ async def sync_github_app_repositories_async(user_id: str | None = None) -> None
 
         _LAST_SYNC_TIME = time.time()
     except Exception as exc:
+        _LAST_SYNC_TIME = time.time()
         logger.warning("sync_github_app_repositories_async error: %s", exc)
 
 
@@ -419,7 +430,7 @@ async def get_core_repositories_async(
 ) -> list[dict]:
     """Dynamically loads connected repositories from the database and hydrates live GitHub commit telemetry in parallel."""
     global _LAST_SYNC_TIME
-    if force_sync or (time.time() - _LAST_SYNC_TIME) > 30:
+    if force_sync:
         await sync_github_app_repositories_async(user_id=user_id)
 
     from sqlalchemy import func, or_, select
@@ -448,10 +459,32 @@ async def get_core_repositories_async(
                 if user_inst_ids:
                     stmt = stmt.where(Repo.installation_id.in_(user_inst_ids))
                 else:
-                    return []
+                    if not force_sync and _LAST_SYNC_TIME == 0.0:
+                        await sync_github_app_repositories_async(user_id=user_id)
+                        user_inst_res = await session.execute(
+                            select(Installation.id).where(or_(*conditions))
+                        )
+                        user_inst_ids = [row[0] for row in user_inst_res.all()]
+                        if user_inst_ids:
+                            stmt = stmt.where(Repo.installation_id.in_(user_inst_ids))
+                        else:
+                            return []
+                    else:
+                        return []
 
             result = await session.execute(stmt)
             db_repos = result.scalars().all()
+
+            if not db_repos and not force_sync and _LAST_SYNC_TIME == 0.0:
+                await sync_github_app_repositories_async(user_id=user_id)
+                result = await session.execute(stmt)
+                db_repos = result.scalars().all()
+
+            if not force_sync and (time.time() - _LAST_SYNC_TIME) > 300:
+                try:
+                    asyncio.create_task(sync_github_app_repositories_async(user_id=user_id))
+                except Exception:
+                    pass
 
             if not db_repos:
                 personal_repos = []

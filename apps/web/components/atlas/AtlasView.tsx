@@ -25,9 +25,11 @@ function getAuthHeaders(): Record<string, string> {
 export default function AtlasView({
   repoId,
   showBackButton = true,
+  focusPath,
 }: {
   repoId: string;
   showBackButton?: boolean;
+  focusPath?: string;
 }) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -299,13 +301,29 @@ export default function AtlasView({
     if (breakageMap.size > 0) {
       scene.setBreakage(breakageMap);
     }
+
+    if (focusPath && state.data.graph?.nodes) {
+      const targetNode = state.data.graph.nodes.find(
+        (n) => n.id === focusPath || n.id.endsWith(focusPath) || focusPath.endsWith(n.id)
+      );
+      if (targetNode) {
+        scene.focusNode(targetNode.id);
+        const brokenBy = breakageMap.get(targetNode.id) || [];
+        setSelection({
+          nodeId: targetNode.id,
+          brokenBy,
+          node: targetNode,
+        });
+      }
+    }
+
     sceneRef.current = scene;
 
     return () => {
       scene.destroy();
       sceneRef.current = null;
     };
-  }, [state, repoId]);
+  }, [state, repoId, focusPath]);
 
   useEffect(() => {
     if (sceneRef.current && breakageMap.size > 0) {
