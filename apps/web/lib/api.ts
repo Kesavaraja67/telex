@@ -28,8 +28,7 @@ export function getApiUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 }
 
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_BASE = getApiUrl();
 
 export interface ApiFetchOptions extends RequestInit {
   timeoutMs?: number;
@@ -71,7 +70,9 @@ async function apiFetch<T>(path: string, options?: ApiFetchOptions): Promise<T> 
       ...options,
       headers: reqHeaders,
       credentials: "include",
-      signal: options?.signal || controller.signal,
+      signal: options?.signal
+        ? AbortSignal.any([options.signal, controller.signal])
+        : controller.signal,
     });
 
     if (!res.ok) {

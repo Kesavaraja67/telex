@@ -88,13 +88,22 @@ export default function RepoDetailPage({
           }
           setIsLoading(false);
         })
-        .catch(() => {
+        .catch((err) => {
           if (!isMounted) return;
-          setRepo((prev) => {
-            if (!prev) setNotFound(true);
-            return prev;
-          });
-          setIsLoading(false);
+          // Only mark not-found for confirmed 404s; timeouts and transient
+          // network errors should leave the repo/notFound state unchanged so
+          // the loading view remains instead of flashing a false not-found.
+          const is404 =
+            err?.name !== "TimeoutError" &&
+            typeof err?.message === "string" &&
+            err.message.includes(": 404:");
+          if (is404) {
+            setRepo((prev) => {
+              if (!prev) setNotFound(true);
+              return prev;
+            });
+            setIsLoading(false);
+          }
         });
 
       // 2. Fetch patches concurrently
