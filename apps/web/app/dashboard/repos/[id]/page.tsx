@@ -157,9 +157,24 @@ export default function RepoDetailPage({
           });
         }
       }
+      setAnalysisError(null);
     } catch (err: any) {
       console.error("Failed to run repository analysis:", err);
-      setAnalysisError(err?.message || "Failed to trigger repository scan. Please try again.");
+      // If the operation succeeded on the server despite an early client abort/hiccup, load the updated history:
+      try {
+        const fallback = await getRepoAnalysis(repoId);
+        if (fallback?.latest) {
+          setAnalysisHistory(fallback);
+          setAnalysisError(null);
+          return;
+        }
+      } catch {}
+      const msg = err?.message || "";
+      if (msg.includes("aborted") || msg.includes("timeout")) {
+        setAnalysisError("Analysis request timed out while generating architecture synthesis. Please try again.");
+      } else {
+        setAnalysisError(msg || "Failed to trigger repository scan. Please try again.");
+      }
     } finally {
       setIsLoadingAnalysis(false);
     }
@@ -695,6 +710,7 @@ export default function RepoDetailPage({
         history={analysisHistory}
         isLoading={isLoadingAnalysis}
         error={analysisError}
+        onDismissError={() => setAnalysisError(null)}
         onTriggerAnalysis={handleTriggerAnalysis}
       />
 

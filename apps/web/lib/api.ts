@@ -19,7 +19,11 @@ export function getApiUrl(): string {
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+export interface ApiFetchOptions extends RequestInit {
+  timeoutMs?: number;
+}
+
+async function apiFetch<T>(path: string, options?: ApiFetchOptions): Promise<T> {
   const reqHeaders: Record<string, string> = {
     "Content-Type": "application/json",
     ...((options?.headers as Record<string, string>) ?? {}),
@@ -32,8 +36,24 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     }
   }
 
+  // LLM analysis, AST scanning, and sync operations require generous timeouts
+  const defaultTimeout =
+    path.includes("/ai-explain") ||
+    path.includes("/analysis") ||
+    path.includes("/rescan") ||
+    path.includes("/sync")
+      ? 90000
+      : 15000;
+  const timeoutMs = options?.timeoutMs ?? defaultTimeout;
+
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const timeoutId = setTimeout(() => {
+    try {
+      controller.abort(new Error(`Request to ${path} timed out after ${timeoutMs / 1000}s`));
+    } catch {
+      controller.abort();
+    }
+  }, timeoutMs);
 
   const baseUrl = getApiUrl();
   try {
@@ -199,6 +219,7 @@ export const getRepoAnalysis = (id: string) =>
 export const explainRepoWithGemini = (id: string) =>
   apiFetch<AIExplanation>(`/api/repos/${id}/ai-explain`, {
     method: "POST",
+    timeoutMs: 90000,
   });
 
 export const toggleRepo = (id: string, is_active: boolean) =>
