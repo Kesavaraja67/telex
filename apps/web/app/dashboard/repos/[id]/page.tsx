@@ -143,6 +143,19 @@ export default function RepoDetailPage({
   async function handleTriggerAnalysis() {
     setIsLoadingAnalysis(true);
     setAnalysisError(null);
+
+    // Capture the baseline latest run ID before the request so we can
+    // verify that the error-path fallback is genuinely new.
+    let baselineLatestId: string | undefined;
+    try {
+      const baselineHistory = await getRepoAnalysis(repoId);
+      baselineLatestId = baselineHistory?.latest?.id;
+    } catch {
+      // If we can't read the baseline we conservatively skip fallback acceptance.
+      baselineLatestId = undefined;
+    }
+    const hadBaseline = baselineLatestId !== undefined;
+
     try {
       const result = await explainRepoWithGemini(repoId);
       try {
@@ -160,17 +173,20 @@ export default function RepoDetailPage({
       setAnalysisError(null);
     } catch (err: any) {
       console.error("Failed to run repository analysis:", err);
-      // If the operation succeeded on the server despite an early client abort/hiccup, load the updated history:
-      try {
-        const fallback = await getRepoAnalysis(repoId);
-        if (fallback?.latest) {
-          setAnalysisHistory(fallback);
-          setAnalysisError(null);
-          return;
-        }
-      } catch {}
+      // If the operation succeeded on the server despite an early client abort/hiccup,
+      // load the updated history — but only when it contains a run we haven't seen before.
+      if (hadBaseline) {
+        try {
+          const fallback = await getRepoAnalysis(repoId);
+          if (fallback?.latest && fallback.latest.id !== baselineLatestId) {
+            setAnalysisHistory(fallback);
+            setAnalysisError(null);
+            return;
+          }
+        } catch {}
+      }
       const msg = err?.message || "";
-      if (msg.includes("aborted") || msg.includes("timeout")) {
+      if (err?.name === "TimeoutError" || msg.includes("aborted") || msg.includes("timeout")) {
         setAnalysisError("Analysis request timed out while generating architecture synthesis. Please try again.");
       } else {
         setAnalysisError(msg || "Failed to trigger repository scan. Please try again.");
@@ -199,8 +215,8 @@ export default function RepoDetailPage({
 
   const activePatch = displayedPatches[selectedPatchIndex] || displayedPatches[0] || null;
 
-  // State 1: Loading
-  if (isLoading && !repo) {
+  // State 1: Loading — stay here while repo is absent and not-found is unconfirmed
+  if (!repo && !notFound) {
     return (
       <div className="relative z-10 w-full" role="status" aria-label="Loading repository telemetry">
         <CyberGridBackground />

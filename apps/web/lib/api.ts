@@ -7,10 +7,22 @@ export function getApiUrl(): string {
     // When browsing from localhost or 127.0.0.1, always communicate with local backend
     if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
       const configured = process.env.NEXT_PUBLIC_API_URL;
-      if (!configured || configured.includes("onrender.com") || configured.includes("vercel.app")) {
-        return "http://localhost:8000";
+      if (configured) {
+        try {
+          const hostname = new URL(configured).hostname;
+          // Only fall back to localhost when the configured URL points at a
+          // remote cloud host (exact hostname suffix check, not substring match).
+          const isRemote =
+            hostname === "onrender.com" ||
+            hostname.endsWith(".onrender.com") ||
+            hostname === "vercel.app" ||
+            hostname.endsWith(".vercel.app");
+          if (!isRemote) return configured;
+        } catch {
+          // Malformed URL — fall back to localhost
+        }
       }
-      return configured;
+      return "http://localhost:8000";
     }
   }
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -48,11 +60,9 @@ async function apiFetch<T>(path: string, options?: ApiFetchOptions): Promise<T> 
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
-    try {
-      controller.abort(new Error(`Request to ${path} timed out after ${timeoutMs / 1000}s`));
-    } catch {
-      controller.abort();
-    }
+    controller.abort(
+      new DOMException(`Request to ${path} timed out after ${timeoutMs / 1000}s`, "TimeoutError")
+    );
   }, timeoutMs);
 
   const baseUrl = getApiUrl();

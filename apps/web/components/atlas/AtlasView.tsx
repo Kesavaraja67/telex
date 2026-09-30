@@ -303,9 +303,23 @@ export default function AtlasView({
     }
 
     if (focusPath && state.data.graph?.nodes) {
-      const targetNode = state.data.graph.nodes.find(
-        (n) => n.id === focusPath || n.id.endsWith(focusPath) || focusPath.endsWith(n.id)
-      );
+      // 1. Prefer an exact ID match.
+      let targetNode = state.data.graph.nodes.find((n) => n.id === focusPath);
+
+      // 2. Fall back to suffix matches only at slash-delimited path boundaries,
+      //    and accept only when the match is unique to avoid ambiguous focus.
+      if (!targetNode) {
+        const suffixMatches = state.data.graph.nodes.filter(
+          (n) =>
+            n.id.length > focusPath.length &&
+            n.id.endsWith(focusPath) &&
+            n.id[n.id.length - focusPath.length - 1] === "/"
+        );
+        if (suffixMatches.length === 1) {
+          targetNode = suffixMatches[0];
+        }
+      }
+
       if (targetNode) {
         scene.focusNode(targetNode.id);
         const brokenBy = breakageMap.get(targetNode.id) || [];

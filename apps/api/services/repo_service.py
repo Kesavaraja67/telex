@@ -232,6 +232,9 @@ def fetch_repo_metadata_from_github(
         api_headers["Authorization"] = f"Bearer {token}"
         raw_headers["Authorization"] = f"token {token}"
 
+    # Track whether at least one GitHub request succeeds; only cache on success.
+    _any_success = False
+
     # 1. Fetch repo description & primary language from GitHub API
     try:
         url = f"https://api.github.com/repos/{repo_full_name}"
@@ -242,6 +245,7 @@ def fetch_repo_metadata_from_github(
                 metadata["description"] = data["description"]
             if data.get("language"):
                 metadata["languages"] = [data["language"]]
+        _any_success = True
     except Exception:
         pass
 
@@ -253,6 +257,7 @@ def fetch_repo_metadata_from_github(
             lang_data = json.loads(resp.read().decode())
             if lang_data:
                 metadata["languages"] = list(lang_data.keys())[:3]
+        _any_success = True
     except Exception:
         pass
 
@@ -267,6 +272,7 @@ def fetch_repo_metadata_from_github(
             deps = list(pkg.get("dependencies", {}).keys())
             if deps:
                 metadata["dependencies"] = deps[:6]
+        _any_success = True
     except Exception:
         try:
             # Fallback for Python repos: requirements.txt on default branch
@@ -280,17 +286,22 @@ def fetch_repo_metadata_from_github(
                 ]
                 if lines:
                     metadata["dependencies"] = lines[:6]
+            _any_success = True
         except Exception:
             pass
 
-    _CACHE.setdefault("metadata_by_repo", {})[cache_key] = {
-        "data": metadata,
-        "time": time.time(),
-    }
+    # Only write to cache when at least one request succeeded; return metadata
+    # uncached when all requests fail so a subsequent call can retry.
+    if _any_success:
+        _CACHE.setdefault("metadata_by_repo", {})[cache_key] = {
+            "data": metadata,
+            "time": time.time(),
+        }
     return metadata
 
 
 _LAST_SYNC_TIME: float = 0.0
+_SYNC_TASK: asyncio.Task | None = None
 
 
 async def sync_github_app_repositories_async(user_id: str | None = None) -> None:
@@ -419,7 +430,8 @@ async def sync_github_app_repositories_async(user_id: str | None = None) -> None
 
         _LAST_SYNC_TIME = time.time()
     except Exception as exc:
-        _LAST_SYNC_TIME = time.time()
+        # Do NOT update _LAST_SYNC_TIME on failure so the next call remains
+        # eligible for the initial-sync retry path (_LAST_SYNC_TIME == 0.0).
         logger.warning("sync_github_app_repositories_async error: %s", exc)
 
 
@@ -429,7 +441,7 @@ async def get_core_repositories_async(
     user_id: str | None = None,
 ) -> list[dict]:
     """Dynamically loads connected repositories from the database and hydrates live GitHub commit telemetry in parallel."""
-    global _LAST_SYNC_TIME
+    global _LAST_SYNC_TIME, _SYNC_TASK
     if force_sync:
         await sync_github_app_repositories_async(user_id=user_id)
 
@@ -482,7 +494,10 @@ async def get_core_repositories_async(
 
             if not force_sync and (time.time() - _LAST_SYNC_TIME) > 300:
                 try:
-                    asyncio.create_task(sync_github_app_repositories_async(user_id=user_id))
+                    if _SYNC_TASK is None or _SYNC_TASK.done():
+                        _SYNC_TASK = asyncio.create_task(
+                            sync_github_app_repositories_async(user_id=user_id)
+                        )
                 except Exception:
                     pass
 
