@@ -16,7 +16,9 @@ export function getApiUrl(): string {
             hostname === "onrender.com" ||
             hostname.endsWith(".onrender.com") ||
             hostname === "vercel.app" ||
-            hostname.endsWith(".vercel.app");
+            hostname.endsWith(".vercel.app") ||
+            hostname === "sslip.io" ||
+            hostname.endsWith(".sslip.io");
           if (!isRemote) return configured;
         } catch {
           // Malformed URL — fall back to localhost
