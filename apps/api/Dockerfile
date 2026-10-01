@@ -19,4 +19,4 @@ USER telex
 
 EXPOSE 8000
 # Exactly ONE uvicorn worker: the embedded job worker + APScheduler run inside this process.
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
