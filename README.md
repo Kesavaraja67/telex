@@ -2,7 +2,7 @@
 
 <div align="center">
 
-  <img src="apps/web/public/logo.svg" width="80" height="80" alt="Telex Logo" />
+  <img src="apps/web/public/logo.svg" width="90" height="90" alt="Telex Logo" />
 
   <br><br>
 
