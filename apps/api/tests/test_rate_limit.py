@@ -246,55 +246,45 @@ def test_headers_and_retry_after_at_least_one():
 
 def test_pruning_and_client_cap():
     clock = FakeClock(1000.0)
-    mw = RateLimitMiddleware(
-        app=FastAPI().router,
-        requests_limit=10,
-        window_seconds=10,
-        trust_proxy=True,
-        clock=clock,
-        max_clients=3,
-        sweep_interval=5,
-    )
 
-    # Populate 3 clients
-    for i in range(1, 4):
-        mw._hits[f"10.0.0.{i}"] = deque([1000.0])
+    # Build app + middleware manually so we hold a reference to the instance.
+    inner_app = FastAPI()
 
-    assert len(mw._hits) == 3
-
-    # Add 4th client through direct hit logic — should sweep/cap at max_clients=3
-    app = FastAPI()
-    app.add_middleware(
-        RateLimitMiddleware,
-        requests_limit=10,
-        window_seconds=10,
-        trust_proxy=True,
-        clock=clock,
-        max_clients=3,
-        sweep_interval=5,
-    )
-
-    @app.get("/api/test")
+    @inner_app.get("/api/test")
     async def sample():
         return {"ok": True}
 
-    client = TestClient(app)
+    mw = RateLimitMiddleware(
+        app=inner_app,
+        requests_limit=10,
+        window_seconds=10,
+        trust_proxy=True,
+        clock=clock,
+        max_clients=3,
+        sweep_interval=5,
+    )
 
-    # Make requests from 5 distinct clients
-    for i in range(1, 6):
+    client = TestClient(mw)
+
+    # Make requests from 3 distinct clients — fills the cap.
+    for i in range(1, 4):
         resp = client.get("/api/test", headers={"X-Forwarded-For": f"10.0.0.{i}"})
         assert resp.status_code == 200
 
-    # Advance clock by 15s to expire all hits
+    assert len(mw._hits) == 3
+
+    # Advance clock so all existing hits expire.
     clock.advance(15.0)
 
-    # Trigger idle sweep via sweep_interval requests
-    for i in range(10, 16):
-        client.get("/api/test", headers={"X-Forwarded-For": f"10.0.1.{i}"})
+    # A 4th client arriving while cap is full triggers sweep + eviction.
+    resp4 = client.get("/api/test", headers={"X-Forwarded-For": "10.0.0.4"})
+    assert resp4.status_code == 200
+    # After the sweep the stale clients are gone; only the new one remains.
+    assert len(mw._hits) <= mw.max_clients
 
-    # Direct unit test of _sweep_idle
+    # Direct unit test of _sweep_idle on a fresh instance.
     mw_direct = RateLimitMiddleware(
-        app=FastAPI().router,
+        app=inner_app,
         requests_limit=5,
         window_seconds=10,
         clock=clock,
@@ -333,3 +323,17 @@ def test_disabled_flag():
         resp = client.get("/api/test")
         assert resp.status_code == 200
         assert "x-ratelimit-limit" not in resp.headers
+
+
+def test_invalid_settings_raise_value_error():
+    app = FastAPI()
+    import pytest
+
+    with pytest.raises(ValueError, match="requests_limit must be >= 1"):
+        RateLimitMiddleware(app=app, requests_limit=0)
+
+    with pytest.raises(ValueError, match="window_seconds must be >= 1"):
+        RateLimitMiddleware(app=app, window_seconds=0)
+
+    with pytest.raises(ValueError, match="max_clients must be >= 1"):
+        RateLimitMiddleware(app=app, max_clients=0)

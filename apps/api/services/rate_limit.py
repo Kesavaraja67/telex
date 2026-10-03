@@ -29,6 +29,12 @@ class RateLimitMiddleware:
         max_clients: int = 10000,
         sweep_interval: int = 1000,
     ) -> None:
+        if requests_limit < 1:
+            raise ValueError(f"requests_limit must be >= 1, got {requests_limit}")
+        if window_seconds < 1:
+            raise ValueError(f"window_seconds must be >= 1, got {window_seconds}")
+        if max_clients < 1:
+            raise ValueError(f"max_clients must be >= 1, got {max_clients}")
         self.app = app
         self.requests_limit = requests_limit
         self.window_seconds = window_seconds
@@ -111,37 +117,43 @@ class RateLimitMiddleware:
                     hits.popleft()
 
             if len(hits) >= self.requests_limit:
-                # Rate limit exceeded
+                # Rate limit exceeded — compute response data while holding the
+                # lock, then release it before awaiting send to avoid blocking
+                # the event loop thread while other requests wait on the lock.
                 oldest_hit = hits[0]
                 retry_after = max(1, math.ceil((oldest_hit + self.window_seconds) - now))
                 response_body = b'{"detail":"Too many requests"}'
-                headers = [
+                reject_headers = [
                     (b"content-type", b"application/json"),
                     (b"content-length", str(len(response_body)).encode("ascii")),
                     (b"retry-after", str(retry_after).encode("ascii")),
                     (b"x-ratelimit-limit", str(self.requests_limit).encode("ascii")),
                     (b"x-ratelimit-remaining", b"0"),
                 ]
+                rejected = True
+            else:
+                # Allowed request
+                hits.append(now)
+                remaining = max(0, self.requests_limit - len(hits))
+                rejected = False
 
-                await send(
-                    {
-                        "type": "http.response.start",
-                        "status": 429,
-                        "headers": headers,
-                    }
-                )
-                await send(
-                    {
-                        "type": "http.response.body",
-                        "body": response_body,
-                        "more_body": False,
-                    }
-                )
-                return
-
-            # Allowed request
-            hits.append(now)
-            remaining = max(0, self.requests_limit - len(hits))
+        # Lock released — now safe to await network I/O.
+        if rejected:
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 429,
+                    "headers": reject_headers,
+                }
+            )
+            await send(
+                {
+                    "type": "http.response.body",
+                    "body": response_body,
+                    "more_body": False,
+                }
+            )
+            return
 
         async def send_wrapper(message: dict) -> None:
             if message.get("type") == "http.response.start":
