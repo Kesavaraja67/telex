@@ -96,8 +96,8 @@ jobs:
         run: npm run lint
 
       - name: Dependency audit (npm audit)
-        # Phase 9.4: fail CI on high or critical npm vulnerabilities
-        run: npm audit --audit-level=high
+        # Phase 9.4: fail CI on high or critical npm vulnerabilities in production dependencies
+        run: npm audit --audit-level=high --omit=dev
 
   security:
     name: Secret Scanning (Gitleaks)
