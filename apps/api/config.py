@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     ]
     demo_key: str = "telex_demo_secret_2026"
 
+    # Rate Limiting
+    rate_limit_enabled: bool = True
+    rate_limit_requests: int = 120
+    rate_limit_window_seconds: int = 60
+    rate_limit_trust_proxy: bool = False
+
 
 _DEFAULT_SECRET = "telex-development-session-secret-key-32-chars-min"
 

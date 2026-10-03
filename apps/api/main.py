@@ -20,6 +20,7 @@ from routers import auth, packages, repos, stats, webhooks
 from routers import settings as settings_router
 from routers.incidents import router as incidents_router
 from services.logging_utils import install_redacting_formatters
+from services.rate_limit import RateLimitMiddleware
 
 _API_DIR = Path(__file__).resolve().parent
 load_dotenv(_API_DIR / ".env")
@@ -75,6 +76,14 @@ app = FastAPI(
 )
 
 _is_prod = bool(os.getenv("RENDER") or os.getenv("ENVIRONMENT", "").lower() == "production")
+
+if settings.rate_limit_enabled:
+    app.add_middleware(
+        RateLimitMiddleware,
+        requests_limit=settings.rate_limit_requests,
+        window_seconds=settings.rate_limit_window_seconds,
+        trust_proxy=settings.rate_limit_trust_proxy,
+    )
 
 # CORS — allow explicitly configured origins, local dev, and project-specific Vercel preview deploys
 app.add_middleware(

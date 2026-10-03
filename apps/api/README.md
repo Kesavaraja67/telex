@@ -69,6 +69,7 @@ The `apps/api` service is Telex's core automated runtime. It handles:
 | **AST Code Scanner** | `services/code_scanner.py` | Tree-Sitter AST parser supporting TypeScript, TSX, JavaScript, and Python (`LANGUAGE_CONFIG`). |
 | **Import Graph Engine** | `services/import_graph.py` | Multi-language static import extractor across TS, JS, Python, Go, Rust, Java, C/C++, Ruby, PHP. |
 | **GitHub App Service** | `services/github_service.py` | Authenticated installation client: creates branches, synthesizes CI workflows, opens PRs, and publishes check runs. |
+| **Rate Limiter** | `services/rate_limit.py` | In-memory sliding-window ASGI rate limiting per client IP (per-process, resets on restart). |
 | **Crypto Subsystem** | `services/crypto.py` | Fernet symmetric key encryption for BYOK credentials. Keys are decrypted in-memory only. |
 | **Job Queue Engine** | `jobs/queue.py` | PostgreSQL row-locking queue (`SELECT ... FOR UPDATE SKIP LOCKED`) with exponential backoff and fairness caps. |
 
