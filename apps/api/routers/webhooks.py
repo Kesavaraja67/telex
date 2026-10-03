@@ -4,6 +4,7 @@ GitHub webhook receiver — Section 7.7.
 Verifies HMAC-SHA256 signatures before processing any payload.
 """
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -13,10 +14,42 @@ from sqlalchemy import select
 from db.models import Installation, Job, PullRequest, Repo, User
 from db.session import AsyncSessionLocal
 from jobs.queue import enqueue_job
-from services.github_service import verify_webhook_signature
+from services.github_service import (
+    ensure_repo_labels,
+    get_installation_client,
+    verify_webhook_signature,
+)
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 logger = logging.getLogger(__name__)
+
+
+async def _bootstrap_repo_labels(installation_id: int, repo_full_names: list[str]) -> None:
+    """Ensure semantic-risk and needs-human-review labels exist on each repo.
+
+    Runs each repo synchronously in a thread. A failure on one repo never
+    prevents the others from being processed, and never raises to the caller.
+    """
+    if not repo_full_names:
+        return
+
+    def _sync_bootstrap() -> None:
+        try:
+            gh = get_installation_client(installation_id)
+        except Exception as exc:
+            logger.warning(
+                "_bootstrap_repo_labels: could not get client for installation %s: %s",
+                installation_id,
+                exc,
+            )
+            return
+        for name in repo_full_names:
+            try:
+                ensure_repo_labels(gh.get_repo(name))
+            except Exception as exc:
+                logger.warning("_bootstrap_repo_labels: failed for %s: %s", name, exc)
+
+    await asyncio.to_thread(_sync_bootstrap)
 
 
 @router.post("/github", status_code=200)
@@ -109,6 +142,10 @@ async def _handle_installation_created(payload: dict) -> None:
 
         await session.commit()
     logger.info("Installation created: %s", inst_data.get("account", {}).get("login"))
+    await _bootstrap_repo_labels(
+        inst_data["id"],
+        [r["full_name"] for r in repos_data],
+    )
 
 
 async def _handle_installation_repositories(payload: dict) -> None:
@@ -157,6 +194,10 @@ async def _handle_installation_repositories(payload: dict) -> None:
 
         await session.commit()
     logger.info("Installation repositories updated for installation %s", inst_data.get("id"))
+    await _bootstrap_repo_labels(
+        inst_data["id"],
+        [r["full_name"] for r in repos_added],
+    )
 
 
 async def _handle_installation_deleted(payload: dict) -> None:

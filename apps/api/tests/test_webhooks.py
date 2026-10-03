@@ -216,6 +216,7 @@ async def test_handle_installation_created(monkeypatch):
     mock_ctx.__aenter__ = AsyncMock(return_value=session)
     mock_ctx.__aexit__ = AsyncMock(return_value=None)
     monkeypatch.setattr("routers.webhooks.AsyncSessionLocal", lambda: mock_ctx)
+    monkeypatch.setattr("routers.webhooks._bootstrap_repo_labels", AsyncMock())
 
     payload = {
         "action": "created",
@@ -266,6 +267,7 @@ async def test_handle_installation_repositories(monkeypatch):
     mock_ctx.__aenter__ = AsyncMock(return_value=session)
     mock_ctx.__aexit__ = AsyncMock(return_value=None)
     monkeypatch.setattr("routers.webhooks.AsyncSessionLocal", lambda: mock_ctx)
+    monkeypatch.setattr("routers.webhooks._bootstrap_repo_labels", AsyncMock())
 
     payload = {
         "action": "added",
@@ -535,3 +537,145 @@ async def test_handle_push_skips_duplicate_active_job(monkeypatch):
     await _handle_push(payload)
 
     assert not mock_enqueue.called
+
+
+# ---------------------------------------------------------------------------
+# _bootstrap_repo_labels tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_repo_labels_calls_ensure_for_each_repo(monkeypatch):
+    from routers.webhooks import _bootstrap_repo_labels
+
+    mock_gh = MagicMock()
+    mock_repo_obj = MagicMock()
+    mock_gh.get_repo.return_value = mock_repo_obj
+    monkeypatch.setattr("routers.webhooks.get_installation_client", lambda _id: mock_gh)
+
+    mock_ensure = MagicMock()
+    monkeypatch.setattr("routers.webhooks.ensure_repo_labels", mock_ensure)
+
+    await _bootstrap_repo_labels(1, ["org/a", "org/b"])
+
+    assert mock_ensure.call_count == 2
+    mock_gh.get_repo.assert_any_call("org/a")
+    mock_gh.get_repo.assert_any_call("org/b")
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_repo_labels_survives_client_error(monkeypatch):
+    from routers.webhooks import _bootstrap_repo_labels
+
+    monkeypatch.setattr(
+        "routers.webhooks.get_installation_client",
+        MagicMock(side_effect=RuntimeError("no creds")),
+    )
+    mock_ensure = MagicMock()
+    monkeypatch.setattr("routers.webhooks.ensure_repo_labels", mock_ensure)
+
+    await _bootstrap_repo_labels(1, ["org/a"])
+
+    mock_ensure.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_repo_labels_survives_repo_error(monkeypatch):
+    from routers.webhooks import _bootstrap_repo_labels
+
+    mock_gh = MagicMock()
+    mock_gh.get_repo.side_effect = Exception("not found")
+    monkeypatch.setattr("routers.webhooks.get_installation_client", lambda _id: mock_gh)
+
+    mock_ensure = MagicMock()
+    monkeypatch.setattr("routers.webhooks.ensure_repo_labels", mock_ensure)
+
+    await _bootstrap_repo_labels(1, ["org/missing"])
+
+    mock_ensure.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_repo_labels_skips_empty_list(monkeypatch):
+    from routers.webhooks import _bootstrap_repo_labels
+
+    mock_client = MagicMock(side_effect=AssertionError("should not be called"))
+    monkeypatch.setattr("routers.webhooks.get_installation_client", mock_client)
+
+    await _bootstrap_repo_labels(1, [])
+
+    mock_client.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_handle_installation_created_calls_bootstrap(monkeypatch):
+    session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
+    session.execute = AsyncMock(return_value=mock_result)
+    session.flush = AsyncMock()
+    session.commit = AsyncMock()
+    session.add = MagicMock()
+
+    mock_ctx = MagicMock()
+    mock_ctx.__aenter__ = AsyncMock(return_value=session)
+    mock_ctx.__aexit__ = AsyncMock(return_value=None)
+    monkeypatch.setattr("routers.webhooks.AsyncSessionLocal", lambda: mock_ctx)
+
+    mock_bootstrap = AsyncMock()
+    monkeypatch.setattr("routers.webhooks._bootstrap_repo_labels", mock_bootstrap)
+
+    from routers.webhooks import _handle_installation_created
+
+    payload = {
+        "installation": {"id": 42, "account": {"login": "org", "type": "Organization"}},
+        "repositories": [
+            {"id": 1, "full_name": "org/r1"},
+            {"id": 2, "full_name": "org/r2"},
+        ],
+    }
+    await _handle_installation_created(payload)
+
+    mock_bootstrap.assert_awaited_once_with(42, ["org/r1", "org/r2"])
+
+
+@pytest.mark.asyncio
+async def test_handle_installation_repositories_calls_bootstrap_for_added(monkeypatch):
+    session = AsyncMock()
+    mock_inst = MagicMock(id=uuid.uuid4())
+
+    call_count = 0
+
+    def fake_execute(stmt):
+        nonlocal call_count
+        call_count += 1
+        mock_res = MagicMock()
+        if call_count == 1:
+            mock_res.scalar_one_or_none.return_value = mock_inst
+        else:
+            mock_res.scalar_one_or_none.return_value = None
+        return mock_res
+
+    session.execute = AsyncMock(side_effect=fake_execute)
+    session.commit = AsyncMock()
+    session.add = MagicMock()
+    session.flush = AsyncMock()
+
+    mock_ctx = MagicMock()
+    mock_ctx.__aenter__ = AsyncMock(return_value=session)
+    mock_ctx.__aexit__ = AsyncMock(return_value=None)
+    monkeypatch.setattr("routers.webhooks.AsyncSessionLocal", lambda: mock_ctx)
+
+    mock_bootstrap = AsyncMock()
+    monkeypatch.setattr("routers.webhooks._bootstrap_repo_labels", mock_bootstrap)
+
+    from routers.webhooks import _handle_installation_repositories
+
+    payload = {
+        "installation": {"id": 99, "account": {"login": "org", "type": "User"}},
+        "repositories_added": [{"id": 10, "full_name": "org/new"}],
+        "repositories_removed": [],
+    }
+    await _handle_installation_repositories(payload)
+
+    mock_bootstrap.assert_awaited_once_with(99, ["org/new"])
