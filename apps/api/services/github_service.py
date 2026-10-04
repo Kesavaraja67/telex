@@ -272,7 +272,7 @@ async def open_patch_pr(
 def ensure_repo_labels(repo) -> None:
     """Ensures Telex management labels (needs-human-review, semantic-risk) exist on repository."""
     labels_to_ensure = [
-        ("needs-human-review", "e11d48", "Telex flagged this PR for human review before merge"),
+        ("needs-human-review", "b60205", "Telex flagged this PR for human review before merge"),
         ("semantic-risk", "e36209", "Possible semantic/behavior change detected"),
     ]
     for name, color, desc in labels_to_ensure:

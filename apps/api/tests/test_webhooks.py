@@ -216,7 +216,7 @@ async def test_handle_installation_created(monkeypatch):
     mock_ctx.__aenter__ = AsyncMock(return_value=session)
     mock_ctx.__aexit__ = AsyncMock(return_value=None)
     monkeypatch.setattr("routers.webhooks.AsyncSessionLocal", lambda: mock_ctx)
-    monkeypatch.setattr("routers.webhooks._bootstrap_repo_labels", AsyncMock())
+    mock_bg = MagicMock()
 
     payload = {
         "action": "created",
@@ -232,9 +232,10 @@ async def test_handle_installation_created(monkeypatch):
 
     from routers.webhooks import _handle_installation_created
 
-    await _handle_installation_created(payload)
+    await _handle_installation_created(payload, mock_bg)
     assert len(added_items) == 3
     session.commit.assert_awaited_once()
+    assert mock_bg.add_task.called
 
 
 @pytest.mark.asyncio
@@ -267,7 +268,7 @@ async def test_handle_installation_repositories(monkeypatch):
     mock_ctx.__aenter__ = AsyncMock(return_value=session)
     mock_ctx.__aexit__ = AsyncMock(return_value=None)
     monkeypatch.setattr("routers.webhooks.AsyncSessionLocal", lambda: mock_ctx)
-    monkeypatch.setattr("routers.webhooks._bootstrap_repo_labels", AsyncMock())
+    mock_bg = MagicMock()
 
     payload = {
         "action": "added",
@@ -278,10 +279,11 @@ async def test_handle_installation_repositories(monkeypatch):
 
     from routers.webhooks import _handle_installation_repositories
 
-    await _handle_installation_repositories(payload)
+    await _handle_installation_repositories(payload, mock_bg)
     assert existing_repo.is_active is True
     assert repo_to_remove.is_active is False
     session.commit.assert_awaited_once()
+    assert mock_bg.add_task.called
 
 
 @pytest.mark.asyncio
@@ -328,9 +330,14 @@ async def test_github_webhook_invalid_signature(monkeypatch):
     mock_request.body = AsyncMock(return_value=b'{"action":"ping"}')
 
     monkeypatch.setattr("routers.webhooks.verify_webhook_signature", lambda body, sig: False)
+    mock_bg = MagicMock()
 
     with pytest.raises(HTTPException) as exc_info:
-        await github_webhook(mock_request, x_hub_signature_256="sha256=invalid")
+        await github_webhook(
+            mock_request,
+            mock_bg,
+            x_hub_signature_256="sha256=invalid",
+        )
     assert exc_info.value.status_code == 401
 
 
@@ -345,15 +352,19 @@ async def test_github_webhook_dispatch_events(monkeypatch):
     monkeypatch.setattr("routers.webhooks.verify_webhook_signature", lambda body, sig: True)
 
     created_called = False
+    mock_bg = MagicMock()
 
-    async def fake_created(payload):
+    async def fake_created(payload, bg):
         nonlocal created_called
         created_called = True
 
     monkeypatch.setattr("routers.webhooks._handle_installation_created", fake_created)
 
     res = await github_webhook(
-        mock_request, x_hub_signature_256="sha256=valid", x_github_event="installation"
+        mock_request,
+        mock_bg,
+        x_hub_signature_256="sha256=valid",
+        x_github_event="installation",
     )
     assert res == {"ok": True}
     assert created_called
@@ -622,10 +633,8 @@ async def test_handle_installation_created_calls_bootstrap(monkeypatch):
     mock_ctx.__aexit__ = AsyncMock(return_value=None)
     monkeypatch.setattr("routers.webhooks.AsyncSessionLocal", lambda: mock_ctx)
 
-    mock_bootstrap = AsyncMock()
-    monkeypatch.setattr("routers.webhooks._bootstrap_repo_labels", mock_bootstrap)
-
-    from routers.webhooks import _handle_installation_created
+    mock_bg = MagicMock()
+    from routers.webhooks import _handle_installation_created, _bootstrap_repo_labels
 
     payload = {
         "installation": {"id": 42, "account": {"login": "org", "type": "Organization"}},
@@ -634,9 +643,13 @@ async def test_handle_installation_created_calls_bootstrap(monkeypatch):
             {"id": 2, "full_name": "org/r2"},
         ],
     }
-    await _handle_installation_created(payload)
+    await _handle_installation_created(payload, mock_bg)
 
-    mock_bootstrap.assert_awaited_once_with(42, ["org/r1", "org/r2"])
+    mock_bg.add_task.assert_called_once_with(
+        _bootstrap_repo_labels,
+        42,
+        ["org/r1", "org/r2"],
+    )
 
 
 @pytest.mark.asyncio
@@ -666,16 +679,18 @@ async def test_handle_installation_repositories_calls_bootstrap_for_added(monkey
     mock_ctx.__aexit__ = AsyncMock(return_value=None)
     monkeypatch.setattr("routers.webhooks.AsyncSessionLocal", lambda: mock_ctx)
 
-    mock_bootstrap = AsyncMock()
-    monkeypatch.setattr("routers.webhooks._bootstrap_repo_labels", mock_bootstrap)
-
-    from routers.webhooks import _handle_installation_repositories
+    mock_bg = MagicMock()
+    from routers.webhooks import _handle_installation_repositories, _bootstrap_repo_labels
 
     payload = {
         "installation": {"id": 99, "account": {"login": "org", "type": "User"}},
         "repositories_added": [{"id": 10, "full_name": "org/new"}],
         "repositories_removed": [],
     }
-    await _handle_installation_repositories(payload)
+    await _handle_installation_repositories(payload, mock_bg)
 
-    mock_bootstrap.assert_awaited_once_with(99, ["org/new"])
+    mock_bg.add_task.assert_called_once_with(
+        _bootstrap_repo_labels,
+        99,
+        ["org/new"],
+    )
