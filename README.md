@@ -155,7 +155,7 @@ Telex turns breaking dependency updates into verified, ready-to-merge GitHub pul
 2. **Fail-Closed Human Review Gate**:
    - Whenever a patch has weak evidence—such as missing test coverage on the affected symbol, failing CI checks, or unverified semantic risks—Telex attaches the GitHub label `needs-human-review` and highlights the review requirement in the PR description.
 3. **Supply-Chain Defense (Install Scripts Blocked by Default)**:
-   - Untrusted dependency upgrades can execute malicious arbitrary lifecycle hooks (`postinstall`, `preinstall`). During isolated CI sandbox verification, Telex defaults to `npm ci --ignore-scripts`, `pnpm install --frozen-lockfile --ignore-scripts`, and disables Python install scripts unless repository maintainers explicitly toggle `allow_install_scripts: true`.
+   - Untrusted dependency upgrades can execute malicious arbitrary lifecycle hooks (`postinstall`, `preinstall`). During isolated CI sandbox verification, Telex defaults to `npm ci --ignore-scripts`, `pnpm install --frozen-lockfile --ignore-scripts`, `yarn install --frozen-lockfile --ignore-scripts`, and disables Python install scripts unless repository maintainers explicitly toggle `allow_install_scripts: true`.
 
 <br>
 
