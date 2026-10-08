@@ -49,7 +49,7 @@
     <a href="#how-verification-works"><b>5. Verification</b></a> &nbsp;•&nbsp;
     <a href="#how-to-try-it"><b>6. Quickstart</b></a> &nbsp;•&nbsp;
     <a href="#architecture--deep-details"><b>7. Architecture</b></a> &nbsp;•&nbsp;
-    <a href="#risk-model"><b>8. Risk & Review</b></a>
+    <a href=<a id="risk-model"></a>08. Risk & Review</b></a>
   </p>
 
   <br>
