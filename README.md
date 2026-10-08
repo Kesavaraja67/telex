@@ -48,7 +48,8 @@
     <a href="#concrete-example"><b>4. Real Example</b></a> &nbsp;•&nbsp;
     <a href="#how-verification-works"><b>5. Verification</b></a> &nbsp;•&nbsp;
     <a href="#how-to-try-it"><b>6. Quickstart</b></a> &nbsp;•&nbsp;
-    <a href="#architecture--deep-details"><b>7. Architecture</b></a>
+    <a href="#architecture--deep-details"><b>7. Architecture</b></a> &nbsp;•&nbsp;
+    <a href="#risk-model"><b>8. Risk & Review</b></a>
   </p>
 
   <br>
@@ -145,7 +146,7 @@ Telex turns breaking dependency updates into verified, ready-to-merge GitHub pul
 
 > **Strict Non-Negotiable Contract**: Telex **never** automatically merges code. Every patch requires human engineering review and approval before entering production.
 
-### Risk Classification & Human-Review Model
+## <a id="risk-model"></a>08. Risk Classification & Human-Review
 
 1. **Mechanical vs. Semantic Risk Classification**:
    - Upstream breaking changes are analyzed by Gemini 2.0 Flash to extract structured change types (`removed`, `renamed`, `signature_change`, `deprecated`, `behavior_change`) along with extraction confidence.
