@@ -67,7 +67,7 @@ jobs:
         # Phase 9.4: fail CI on any detected vulnerability in Python deps
         run: |
           pip install pip-audit
-          pip-audit --requirement requirements.txt --ignore-vuln PYSEC-2024-60 --ignore-vuln PYSEC-2026-1325
+          pip-audit --requirement requirements.txt
 
   frontend:
     name: Frontend (Node 20)

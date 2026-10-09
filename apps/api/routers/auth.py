@@ -10,9 +10,10 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode, urlparse
 
 import httpx
+import jwt
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
-from jose import JWTError, jwt
+from jwt.exceptions import PyJWTError
 from sqlalchemy import select
 
 from config import settings
@@ -166,7 +167,7 @@ def decode_session_token(token: str) -> str | None:
     try:
         payload = jwt.decode(token, _get_jwt_secret(), algorithms=[JWT_ALGORITHM])
         return payload.get("sub")
-    except JWTError:
+    except (PyJWTError, Exception):
         return None
 
 
