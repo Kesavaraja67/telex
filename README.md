@@ -553,10 +553,12 @@ telex/
 │           └── repo-atlas-*.png       # 3D architecture screenshots
 │
 ├── ARCHITECTURE.md                    # Deep-dive system architecture specification
+├── CHANGELOG.md                       # Version milestones & release history
 ├── DEMO.md                            # 15-minute evaluator demonstration guide
 ├── DESIGN.md                          # Design system & aesthetic doctrine
 ├── CONTRIBUTING.md                    # Contributor guide and pull request rules
 ├── CODE_OF_CONDUCT.md                 # Contributor covenant
+├── .github/SECURITY.md                # Vulnerability reporting policy
 ├── SPEC.md                            # Executable specification & contracts
 └── LICENSE                            # MIT License
 ```
@@ -582,7 +584,9 @@ Telex is distributed under the **[MIT License](LICENSE)**.
     <a href="DEMO.md"><b>Evaluator Guide</b></a> &nbsp;•&nbsp;
     <a href="DESIGN.md"><b>Design System</b></a> &nbsp;•&nbsp;
     <a href="CONTRIBUTING.md"><b>Contributing</b></a> &nbsp;•&nbsp;
-    <a href="CODE_OF_CONDUCT.md"><b>Code of Conduct</b></a>
+    <a href="CODE_OF_CONDUCT.md"><b>Code of Conduct</b></a>&nbsp;•&nbsp;
+    <a href="CHANGELOG.md"><b>Changelog</b></a> &nbsp;•&nbsp;
+    <a href=".github/SECURITY.md"><b>Security Policy</b></a>
   </p>
 
   <br>
