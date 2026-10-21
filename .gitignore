@@ -10,6 +10,7 @@ node_modules/
 out/
 dist/
 build/
+*.tsbuildinfo
 
 # Python cache & virtual environments
 __pycache__/
@@ -60,12 +61,18 @@ yarn-error.log*
 .coverage.*
 htmlcov/
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 coverage.xml
 
 # Misc
 .vercel
 .turbo
 *.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
 *.mp4
 !**/Telex-new-video.mp4
 *.webm
